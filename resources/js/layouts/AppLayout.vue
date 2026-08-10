@@ -24,6 +24,10 @@ type NavItem = {
     icon: string;
     adminOnly?: boolean;
     staffOnly?: boolean;
+    approverOnly?: boolean;
+    badge?: () => number;
+    // A group heads a set of related pages and is not a destination itself.
+    children?: NavItem[];
 };
 
 // Icons are single-path outlines, kept inline so there is no icon dependency.
@@ -38,6 +42,31 @@ const nav: NavItem[] = [
         href: '/attendance',
         staffOnly: true,
         icon: 'M8 3v3m8-3v3M3.5 9.5h17M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v12A1.5 1.5 0 0 1 19 20.5H5A1.5 1.5 0 0 1 3.5 19V7A1.5 1.5 0 0 1 5 5.5Z',
+    },
+    {
+        label: 'My requests',
+        href: '/leave',
+        staffOnly: true,
+        icon: 'M8 4h8a1.5 1.5 0 0 1 1.5 1.5v14L12 17l-5.5 2.5v-14A1.5 1.5 0 0 1 8 4Z',
+        children: [
+            {
+                label: 'Leave',
+                href: '/leave',
+                icon: 'M4.5 6.5h15M6.5 6.5V4m11 2.5V4M3.5 10.5h17M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v12A1.5 1.5 0 0 1 19 20.5H5A1.5 1.5 0 0 1 3.5 19V7A1.5 1.5 0 0 1 5 5.5Zm3.5 9.5 2 2 4-4.5',
+            },
+            {
+                label: 'Lateness',
+                href: '/lateness',
+                icon: 'M12 7v5.2l3.2 1.9M3.5 12a8.5 8.5 0 1 0 17 0 8.5 8.5 0 0 0-17 0Z',
+            },
+        ],
+    },
+    {
+        label: 'Approvals',
+        href: '/approvals',
+        approverOnly: true,
+        badge: () => page.props.pending_approvals ?? 0,
+        icon: 'M9 12.5 11 14.5 15.5 10M6 3.5h12A1.5 1.5 0 0 1 19.5 5v15.5l-3.5-2-4 2-4-2-3.5 2V5A1.5 1.5 0 0 1 6 3.5Z',
     },
     {
         label: 'Staff',
@@ -57,6 +86,12 @@ const nav: NavItem[] = [
         adminOnly: true,
         icon: 'M12 8v4l2.5 2.5M3.5 12a8.5 8.5 0 1 0 17 0 8.5 8.5 0 0 0-17 0Z',
     },
+    {
+        label: 'Request settings',
+        href: '/admin/request-settings',
+        adminOnly: true,
+        icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm7.4-3a7.4 7.4 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7.4 7.4 0 0 0-2-1.2L14.5 3h-4l-.4 2.6a7.4 7.4 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.5a7.4 7.4 0 0 0 0 2.5l-2 1.5 2 3.4 2.4-1a7.4 7.4 0 0 0 2 1.2l.4 2.6h4l.4-2.6a7.4 7.4 0 0 0 2-1.2l2.4 1 2-3.4-2-1.5c.05-.4.1-.8.1-1.2Z',
+    },
 ];
 
 // Admins run the clock rather than punch it, so the personal attendance
@@ -65,7 +100,8 @@ const visibleNav = computed(() =>
     nav.filter(
         (item) =>
             (!item.adminOnly || user.value?.is_super_admin) &&
-            (!item.staffOnly || !user.value?.is_super_admin),
+            (!item.staffOnly || user.value?.clocks_in) &&
+            (!item.approverOnly || user.value?.can_approve),
     ),
 );
 
@@ -73,6 +109,24 @@ const currentUrl = computed(() => page.url.split('?')[0]);
 
 function isCurrent(href: string): boolean {
     return currentUrl.value === href || currentUrl.value.startsWith(`${href}/`);
+}
+
+function holdsCurrent(item: NavItem): boolean {
+    return (item.children ?? []).some((child) => isCurrent(child.href));
+}
+
+// Groups the visitor has opened by hand. A group holding the current page is
+// open regardless, so you can always see where you are.
+const openGroups = ref<string[]>([]);
+
+function isExpanded(item: NavItem): boolean {
+    return holdsCurrent(item) || openGroups.value.includes(item.label);
+}
+
+function toggleGroup(item: NavItem) {
+    openGroups.value = openGroups.value.includes(item.label)
+        ? openGroups.value.filter((label) => label !== item.label)
+        : [...openGroups.value, item.label];
 }
 
 function signOut() {
@@ -125,40 +179,116 @@ watch(currentUrl, () => {
             </div>
 
             <nav class="flex-1 space-y-0.5 overflow-y-auto p-3">
-                <Link
-                    v-for="item in visibleNav"
-                    :key="item.href"
-                    :href="item.href"
-                    :class="[
-                        'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13.5px] font-medium',
-                        'transition-all duration-200 ease-out',
-                        isCurrent(item.href)
-                            ? 'bg-line-soft text-text'
-                            : 'text-muted hover:bg-line-soft/60 hover:text-text',
-                    ]"
-                >
-                    <span
+                <template v-for="item in visibleNav" :key="item.href">
+                    <!-- A group of related pages, opened in place. -->
+                    <div v-if="item.children">
+                        <button
+                            type="button"
+                            :aria-expanded="isExpanded(item)"
+                            :class="[
+                                'relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13.5px] font-medium',
+                                'transition-all duration-200 ease-out',
+                                holdsCurrent(item)
+                                    ? 'text-text'
+                                    : 'text-muted hover:bg-line-soft/60 hover:text-text',
+                            ]"
+                            @click="toggleGroup(item)"
+                        >
+                            <svg
+                                class="size-[18px] shrink-0"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.7"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            >
+                                <path :d="item.icon" />
+                            </svg>
+                            <span class="truncate">{{ item.label }}</span>
+                            <svg
+                                class="ml-auto size-4 shrink-0 text-faint transition-transform duration-200"
+                                :class="isExpanded(item) && 'rotate-180'"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="m6 9 6 6 6-6" />
+                            </svg>
+                        </button>
+
+                        <div
+                            v-if="isExpanded(item)"
+                            class="mt-0.5 ml-[26px] space-y-0.5 border-l border-line-soft pl-2"
+                        >
+                            <Link
+                                v-for="child in item.children"
+                                :key="child.href"
+                                :href="child.href"
+                                :class="[
+                                    'relative flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium',
+                                    'transition-all duration-200 ease-out',
+                                    isCurrent(child.href)
+                                        ? 'bg-line-soft text-text'
+                                        : 'text-muted hover:bg-line-soft/60 hover:text-text',
+                                ]"
+                            >
+                                <span
+                                    :class="[
+                                        'absolute top-1/2 -left-[9px] h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-brand',
+                                        'transition-all duration-300 ease-out',
+                                        isCurrent(child.href)
+                                            ? 'opacity-100'
+                                            : 'scale-y-0 opacity-0',
+                                    ]"
+                                />
+                                <span class="truncate">{{ child.label }}</span>
+                            </Link>
+                        </div>
+                    </div>
+
+                    <Link
+                        v-else
+                        :href="item.href"
                         :class="[
-                            'absolute top-1/2 left-0 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-brand',
-                            'transition-all duration-300 ease-out',
+                            'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13.5px] font-medium',
+                            'transition-all duration-200 ease-out',
                             isCurrent(item.href)
-                                ? 'opacity-100'
-                                : 'scale-y-0 opacity-0',
+                                ? 'bg-line-soft text-text'
+                                : 'text-muted hover:bg-line-soft/60 hover:text-text',
                         ]"
-                    />
-                    <svg
-                        class="size-[18px] shrink-0"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.7"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
                     >
-                        <path :d="item.icon" />
-                    </svg>
-                    <span class="truncate">{{ item.label }}</span>
-                </Link>
+                        <span
+                            :class="[
+                                'absolute top-1/2 left-0 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-brand',
+                                'transition-all duration-300 ease-out',
+                                isCurrent(item.href)
+                                    ? 'opacity-100'
+                                    : 'scale-y-0 opacity-0',
+                            ]"
+                        />
+                        <svg
+                            class="size-[18px] shrink-0"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.7"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        >
+                            <path :d="item.icon" />
+                        </svg>
+                        <span class="truncate">{{ item.label }}</span>
+                        <span
+                            v-if="item.badge && item.badge() > 0"
+                            class="ml-auto rounded-full bg-brand px-1.5 py-0.5 text-[11px] font-semibold text-white"
+                        >
+                            {{ item.badge() }}
+                        </span>
+                    </Link>
+                </template>
             </nav>
 
             <div class="border-t border-line-soft p-3">

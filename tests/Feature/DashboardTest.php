@@ -3,7 +3,10 @@
 namespace Tests\Feature;
 
 use App\Enums\AttendanceStatus;
+use App\Enums\RequestStatus;
 use App\Models\Attendance;
+use App\Models\LeaveRequest;
+use App\Models\LeaveType;
 use App\Models\Location;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -110,5 +113,58 @@ class DashboardTest extends TestCase
         $this->actingAs($admin)->get('/admin/clock-attempts')->assertOk();
         $this->actingAs($admin)->get('/admin/clock-attempts?result=rejected&range=30d')->assertOk();
         $this->actingAs($admin)->get('/admin/locations')->assertOk();
+    }
+
+    public function test_the_dashboard_shows_what_leave_is_left_and_what_is_next(): void
+    {
+        $user = User::factory()->create(['location_id' => $this->location->id]);
+        $annual = LeaveType::query()->where('slug', 'annual')->firstOrFail();
+
+        $start = Carbon::now()->addWeek()->startOfWeek();
+
+        LeaveRequest::factory()->create([
+            'user_id' => $user->id,
+            'leave_type_id' => $annual->id,
+            'start_date' => $start,
+            'end_date' => $start->copy()->addDays(2),
+            'days' => 3,
+            'status' => RequestStatus::Approved,
+        ]);
+
+        $this->actingAs($user)
+            ->get('/dashboard')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('leave.next.type', 'Annual leave')
+                ->where('leave.next.days', 3)
+                ->where('leave.next.started', false)
+                ->where('leave.pending', 0)
+                ->where('leave.balances.0.remaining', $annual->days_per_year - 3));
+    }
+
+    public function test_the_company_overview_counts_who_is_on_leave_today(): void
+    {
+        $onLeave = User::factory()->create(['location_id' => $this->location->id]);
+
+        LeaveRequest::factory()->create([
+            'user_id' => $onLeave->id,
+            'start_date' => Carbon::now()->subDay(),
+            'end_date' => Carbon::now()->addDay(),
+            'days' => 3,
+            'status' => RequestStatus::Approved,
+        ]);
+
+        // Still pending, so it does not count as time off yet.
+        LeaveRequest::factory()->create([
+            'user_id' => User::factory()->create(['location_id' => $this->location->id])->id,
+            'start_date' => Carbon::now(),
+            'end_date' => Carbon::now(),
+            'days' => 1,
+        ]);
+
+        $this->actingAs(User::factory()->superAdmin()->create())
+            ->get('/dashboard')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('overview.on_leave_today', 1));
     }
 }
