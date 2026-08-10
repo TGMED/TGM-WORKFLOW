@@ -3,13 +3,13 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Enums\AttendanceStatus;
-use App\Enums\Role;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreStaffRequest;
 use App\Http\Requests\UpdateStaffRequest;
 use App\Models\Attendance;
 use App\Models\ClockAttempt;
 use App\Models\Location;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -30,7 +30,7 @@ class StaffController extends Controller
         $monthStart = Carbon::now()->startOfMonth()->toDateString();
 
         $paginator = User::query()
-            ->with('location:id,name,city,timezone')
+            ->with(['location:id,name,city,timezone', 'role:id,slug,name'])
             ->when($search !== '', fn (Builder $q) => $q->where(function (Builder $q) use ($search): void {
                 $q->where('name', 'like', "%{$search}%")
                     ->orWhere('email', 'like', "%{$search}%")
@@ -60,8 +60,8 @@ class StaffController extends Controller
             'name' => $user->name,
             'email' => $user->email,
             'initials' => $user->initials,
-            'role' => $user->role->value,
-            'role_label' => $user->role->label(),
+            'role' => $user->role->slug,
+            'role_label' => $user->role->name,
             'department' => $user->department,
             'position' => $user->position,
             'is_active' => $user->is_active,
@@ -104,7 +104,7 @@ class StaffController extends Controller
 
     public function store(StoreStaffRequest $request): RedirectResponse
     {
-        $user = User::query()->create($request->validated());
+        $user = User::query()->create($request->payload());
 
         return back()->with('toast', [
             'type' => 'success',
@@ -114,7 +114,7 @@ class StaffController extends Controller
 
     public function show(Request $request, User $staff): Response
     {
-        $staff->load('location');
+        $staff->load('location', 'role');
 
         $timezone = $staff->location !== null
             ? $staff->location->timezone
@@ -143,8 +143,8 @@ class StaffController extends Controller
                 'phone' => $staff->phone,
                 'department' => $staff->department,
                 'position' => $staff->position,
-                'role' => $staff->role->value,
-                'role_label' => $staff->role->label(),
+                'role' => $staff->role->slug,
+                'role_label' => $staff->role->name,
                 'hired_at' => $staff->hired_at?->toDateString(),
                 'is_active' => $staff->is_active,
                 'deactivated_at' => $staff->deactivated_at?->toIso8601String(),
@@ -209,7 +209,7 @@ class StaffController extends Controller
 
     public function update(UpdateStaffRequest $request, User $staff): RedirectResponse
     {
-        $data = $request->validated();
+        $data = $request->payload();
 
         if (blank($data['password'] ?? null)) {
             unset($data['password']);

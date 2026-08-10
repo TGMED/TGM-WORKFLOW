@@ -2,10 +2,10 @@
 
 namespace Tests\Feature;
 
-use App\Enums\Role;
 use App\Models\Attendance;
 use App\Models\ClockAttempt;
 use App\Models\Location;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -121,7 +121,7 @@ class AdminDoesNotClockTest extends TestCase
         $this->actingAs($admin)->post('/admin/staff', [
             'name' => 'Second Admin',
             'email' => 'second@tgm.test',
-            'role' => Role::SuperAdmin->value,
+            'role' => Role::SUPER_ADMIN,
             'password' => 'Correct-Horse-Battery-9',
             'password_confirmation' => 'Correct-Horse-Battery-9',
         ])->assertSessionHasNoErrors();
@@ -139,7 +139,7 @@ class AdminDoesNotClockTest extends TestCase
         $this->actingAs($admin)->post('/admin/staff', [
             'name' => 'No Site',
             'email' => 'nosite@tgm.test',
-            'role' => Role::Staff->value,
+            'role' => Role::STAFF,
             'password' => 'Correct-Horse-Battery-9',
             'password_confirmation' => 'Correct-Horse-Battery-9',
         ])->assertSessionHasErrors('location_id');

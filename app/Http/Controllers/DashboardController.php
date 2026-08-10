@@ -239,7 +239,7 @@ class DashboardController extends Controller
     {
         $locations = Location::query()->active()->orderBy('name')->get();
 
-        $activeStaff = User::query()->active()->staff()->count();
+        $activeStaff = User::query()->active()->clocksIn()->count();
         $clockedIn = 0;
         $lateToday = 0;
         $rejectedToday = 0;
@@ -255,7 +255,7 @@ class DashboardController extends Controller
 
             $headcount = User::query()
                 ->active()
-                ->staff()
+                ->clocksIn()
                 ->where('location_id', $location->id)
                 ->count();
 
@@ -293,7 +293,7 @@ class DashboardController extends Controller
             'late_today' => $lateToday,
             'still_out' => max(0, $activeStaff - $clockedIn),
             'rejected_attempts_today' => $rejectedToday,
-            'unassigned_staff' => User::query()->active()->staff()->whereNull('location_id')->count(),
+            'unassigned_staff' => User::query()->active()->clocksIn()->whereNull('location_id')->count(),
             'sites' => $sites,
         ];
     }

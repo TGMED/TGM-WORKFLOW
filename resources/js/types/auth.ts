@@ -1,4 +1,6 @@
-export type Role = 'super_admin' | 'staff';
+// Roles live in the database, so this covers the three the app ships with
+// while leaving room for any added later.
+export type Role = 'super_admin' | 'approver' | 'staff' | (string & {});
 
 export type UserLocation = {
     id: number;
@@ -17,6 +19,8 @@ export type AuthUser = {
     role: Role;
     role_label: string;
     is_super_admin: boolean;
+    can_approve: boolean;
+    clocks_in: boolean;
     is_active: boolean;
     location: UserLocation | null;
 };

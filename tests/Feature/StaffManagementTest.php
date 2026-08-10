@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Enums\Role;
 use App\Models\Location;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -50,7 +50,7 @@ class StaffManagementTest extends TestCase
             'name' => 'Amara Nwosu',
             'email' => 'amara@tgm.test',
             'employee_id' => 'TGM-0099',
-            'role' => Role::Staff->value,
+            'role' => Role::STAFF,
             'department' => 'Engineering',
             'location_id' => $this->location->id,
             'password' => 'Correct-Horse-Battery-9',
@@ -70,7 +70,7 @@ class StaffManagementTest extends TestCase
         $this->actingAs($this->admin())->post('/admin/staff', [
             'name' => 'No Site',
             'email' => 'nosite@tgm.test',
-            'role' => Role::Staff->value,
+            'role' => Role::STAFF,
             'password' => 'Correct-Horse-Battery-9',
             'password_confirmation' => 'Correct-Horse-Battery-9',
         ])->assertSessionHasErrors('location_id');
@@ -84,7 +84,7 @@ class StaffManagementTest extends TestCase
             ->post('/admin/staff', [
                 'name' => 'Sneaky',
                 'email' => 'sneaky@tgm.test',
-                'role' => Role::SuperAdmin->value,
+                'role' => Role::SUPER_ADMIN,
                 'location_id' => $this->location->id,
                 'password' => 'Correct-Horse-Battery-9',
                 'password_confirmation' => 'Correct-Horse-Battery-9',
@@ -103,7 +103,7 @@ class StaffManagementTest extends TestCase
             ->put("/admin/staff/{$staff->id}", [
                 'name' => $staff->name,
                 'email' => $staff->email,
-                'role' => Role::Staff->value,
+                'role' => Role::STAFF,
                 'location_id' => $other->id,
             ])
             ->assertSessionHasNoErrors();
@@ -122,7 +122,7 @@ class StaffManagementTest extends TestCase
         $this->actingAs($this->admin())->put("/admin/staff/{$staff->id}", [
             'name' => $staff->name,
             'email' => $staff->email,
-            'role' => Role::Staff->value,
+            'role' => Role::STAFF,
             'location_id' => $this->location->id,
             'password' => '',
         ]);

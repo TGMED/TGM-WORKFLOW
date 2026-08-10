@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Enums\Role;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -19,7 +18,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $employee_id
  * @property string $name
  * @property string $email
- * @property Role $role
+ * @property int $role_id
  * @property string|null $phone
  * @property string|null $department
  * @property string|null $position
@@ -33,13 +32,14 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read Location|null $location
+ * @property-read Role $role
  */
 #[Fillable([
     'employee_id',
     'name',
     'email',
     'password',
-    'role',
+    'role_id',
     'phone',
     'department',
     'position',
@@ -69,12 +69,20 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'role' => Role::class,
+            'role_id' => 'integer',
             'hired_at' => 'date',
             'is_active' => 'boolean',
             'deactivated_at' => 'datetime',
             'location_id' => 'integer',
         ];
+    }
+
+    /**
+     * @return BelongsTo<Role, $this>
+     */
+    public function role(): BelongsTo
+    {
+        return $this->belongsTo(Role::class);
     }
 
     /**
@@ -103,9 +111,28 @@ class User extends Authenticatable
         return $this->hasMany(ClockAttempt::class);
     }
 
+    public function hasRole(string ...$slugs): bool
+    {
+        return in_array($this->role->slug, $slugs, true);
+    }
+
     public function isSuperAdmin(): bool
     {
-        return $this->role === Role::SuperAdmin;
+        return $this->hasRole(Role::SUPER_ADMIN);
+    }
+
+    public function isApprover(): bool
+    {
+        return $this->hasRole(Role::APPROVER);
+    }
+
+    /**
+     * Approvers decide on requests. Super admins can step in when an approver
+     * is away, so they carry the same right.
+     */
+    public function canApprove(): bool
+    {
+        return $this->hasRole(Role::APPROVER, Role::SUPER_ADMIN);
     }
 
     /**
@@ -133,11 +160,21 @@ class User extends Authenticatable
     }
 
     /**
+     * Everyone who punches a clock, which is everyone but the administrators.
+     *
      * @param  Builder<User>  $query
      */
-    public function scopeStaff(Builder $query): void
+    public function scopeClocksIn(Builder $query): void
     {
-        $query->where('role', Role::Staff->value);
+        $query->whereHas('role', fn (Builder $q) => $q->where('slug', '!=', Role::SUPER_ADMIN));
+    }
+
+    /**
+     * @param  Builder<User>  $query
+     */
+    public function scopeWithRole(Builder $query, string ...$slugs): void
+    {
+        $query->whereHas('role', fn (Builder $q) => $q->whereIn('slug', $slugs));
     }
 
     /**
