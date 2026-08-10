@@ -22,6 +22,7 @@ const props = defineProps<{
         status_label: string;
         late_minutes: number;
         worked_minutes: number | null;
+        break_minutes: number | null;
         clock_in_distance: number | null;
     }>;
     attempts: Array<{

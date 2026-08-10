@@ -27,6 +27,9 @@ use Illuminate\Support\Carbon;
  * @property float|null $clock_out_longitude
  * @property int|null $clock_out_accuracy
  * @property int|null $clock_out_distance
+ * @property Carbon|null $break_started_at
+ * @property Carbon|null $break_ended_at
+ * @property int|null $break_minutes
  * @property AttendanceStatus $status
  * @property int $late_minutes
  * @property int|null $worked_minutes
@@ -49,6 +52,9 @@ use Illuminate\Support\Carbon;
     'clock_out_longitude',
     'clock_out_accuracy',
     'clock_out_distance',
+    'break_started_at',
+    'break_ended_at',
+    'break_minutes',
     'status',
     'late_minutes',
     'worked_minutes',
@@ -63,6 +69,8 @@ class Attendance extends Model
         return [
             'clocked_in_at' => 'datetime',
             'clocked_out_at' => 'datetime',
+            'break_started_at' => 'datetime',
+            'break_ended_at' => 'datetime',
             'clock_in_latitude' => 'float',
             'clock_in_longitude' => 'float',
             'clock_out_latitude' => 'float',
@@ -114,6 +122,46 @@ class Attendance extends Model
     public function isOpen(): bool
     {
         return $this->clocked_in_at !== null && $this->clocked_out_at === null;
+    }
+
+    /**
+     * A break that has started and not yet been ended.
+     */
+    public function isOnBreak(): bool
+    {
+        return $this->break_started_at !== null && $this->break_ended_at === null;
+    }
+
+    public function hasTakenBreak(): bool
+    {
+        return $this->break_ended_at !== null;
+    }
+
+    /**
+     * Minutes a running break has been going for, or the settled length once
+     * it has ended.
+     */
+    public function breakMinutesSoFar(): int
+    {
+        if ($this->break_started_at === null) {
+            return 0;
+        }
+
+        return $this->break_minutes
+            ?? max(0, (int) $this->break_started_at->diffInMinutes(Carbon::now()));
+    }
+
+    /**
+     * How far past the site's limit this break ran. Overruns are recorded and
+     * shown rather than blocked.
+     */
+    public function breakOverrunMinutes(?int $limit): int
+    {
+        if ($limit === null || $limit <= 0) {
+            return 0;
+        }
+
+        return max(0, $this->breakMinutesSoFar() - $limit);
     }
 
     /**

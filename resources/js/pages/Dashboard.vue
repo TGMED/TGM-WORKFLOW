@@ -26,6 +26,11 @@ type Attendance = {
     worked_minutes: number | null;
     clock_in_distance: number | null;
     is_open: boolean;
+    break_started_at: string | null;
+    break_ended_at: string | null;
+    break_minutes: number | null;
+    on_break: boolean;
+    has_taken_break: boolean;
 };
 
 type SelectableLocation = {
@@ -53,6 +58,7 @@ const props = defineProps<{
         work_starts_at: string;
         work_ends_at: string;
         grace_minutes: number;
+        break_minutes: number;
         timezone: string;
         is_active: boolean;
         configured: boolean;
@@ -84,11 +90,28 @@ const props = defineProps<{
         distance_meters: number | null;
         created_at: string;
     } | null;
+    leave: {
+        balances: Array<{
+            id: number;
+            name: string;
+            allowance: number | null;
+            remaining: number | null;
+        }>;
+        next: {
+            type: string;
+            days: number;
+            start_date: string;
+            range_label: string;
+            started: boolean;
+        } | null;
+        pending: number;
+    } | null;
     overview: {
         active_staff: number;
         locations: number;
         clocked_in_today: number;
         late_today: number;
+        on_leave_today: number;
         still_out: number;
         rejected_attempts_today: number;
         unassigned_staff: number;
@@ -115,6 +138,9 @@ const { state: geoState, error: geoError, acquire } = useGeoFix();
 const busy = ref(false);
 const outcome = ref<SharedProps['flash']['clock'] | null>(null);
 
+// Approvers get a nudge only while something is actually waiting on them.
+const waitingOnMe = computed(() => page.props.pending_approvals ?? 0);
+
 // Claiming a site is a one-time action for staff who have none.
 const siteForm = useForm({ location_id: null as number | null });
 
@@ -132,6 +158,34 @@ const canClockIn = computed(() => !props.today?.clocked_in_at);
 const canClockOut = computed(
     () => !!props.today?.clocked_in_at && !props.today?.clocked_out_at,
 );
+
+// Breaks only make sense mid-shift, and there is one a day.
+const onBreak = computed(() => props.today?.on_break === true);
+const canTakeBreak = computed(
+    () =>
+        (props.location?.break_minutes ?? 0) > 0 &&
+        canClockOut.value &&
+        !props.today?.has_taken_break,
+);
+
+const breakBusy = ref(false);
+
+function breakPunch(action: 'start' | 'end') {
+    if (breakBusy.value) {
+        return;
+    }
+
+    breakBusy.value = true;
+
+    router.post(
+        `/break/${action}`,
+        {},
+        {
+            preserveScroll: true,
+            onFinish: () => (breakBusy.value = false),
+        },
+    );
+}
 
 const greeting = computed(() => {
     const hour = Number(
@@ -209,6 +263,10 @@ const statusPill = computed(() => {
         return { tone: 'beacon' as const, text: 'Day closed', pulse: false };
     }
 
+    if (props.today.on_break) {
+        return { tone: 'beacon' as const, text: 'On break', pulse: true };
+    }
+
     return props.today.status === 'late'
         ? {
               tone: 'brass' as const,
@@ -239,6 +297,39 @@ const statusPill = computed(() => {
         </template>
 
         <div class="space-y-5">
+            <!-- One quiet line for approvers, and only when it is not zero. -->
+            <Link
+                v-if="waitingOnMe > 0"
+                href="/approvals"
+                class="flex items-center gap-3 rounded-2xl border border-line bg-panel px-5 py-3.5 shadow-panel transition-colors hover:border-faint"
+            >
+                <span
+                    class="grid size-8 shrink-0 place-items-center rounded-lg bg-brand/10 text-brand"
+                >
+                    <svg
+                        class="size-[18px]"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    >
+                        <path
+                            d="M9 12.5 11 14.5 15.5 10M6 3.5h12A1.5 1.5 0 0 1 19.5 5v15.5l-3.5-2-4 2-4-2-3.5 2V5A1.5 1.5 0 0 1 6 3.5Z"
+                        />
+                    </svg>
+                </span>
+                <span class="min-w-0 flex-1 text-[13.5px]">
+                    <span class="font-semibold">{{ waitingOnMe }}</span>
+                    request{{ waitingOnMe === 1 ? '' : 's' }} waiting on your
+                    decision
+                </span>
+                <span class="shrink-0 text-[12.5px] font-medium text-muted">
+                    Review →
+                </span>
+            </Link>
+
             <!-- No site yet: claiming one is the only thing that matters. -->
             <Panel
                 v-if="clocksIn && !location"
@@ -369,20 +460,74 @@ const statusPill = computed(() => {
                                 }}
                             </AppButton>
 
-                            <AppButton
-                                v-else-if="canClockOut"
-                                size="lg"
-                                block
-                                variant="secondary"
-                                :loading="busy"
-                                @click="punch('out')"
-                            >
-                                {{
-                                    busy
-                                        ? 'Checking your location'
-                                        : 'Clock out'
-                                }}
-                            </AppButton>
+                            <template v-else-if="canClockOut">
+                                <AppButton
+                                    size="lg"
+                                    block
+                                    variant="secondary"
+                                    :loading="busy"
+                                    :disabled="onBreak"
+                                    @click="punch('out')"
+                                >
+                                    {{
+                                        busy
+                                            ? 'Checking your location'
+                                            : 'Clock out'
+                                    }}
+                                </AppButton>
+
+                                <!-- One break a day, no geofence: they are
+                                     already checked onto site. -->
+                                <AppButton
+                                    v-if="onBreak"
+                                    block
+                                    variant="primary"
+                                    :loading="breakBusy"
+                                    @click="breakPunch('end')"
+                                >
+                                    End break
+                                </AppButton>
+                                <AppButton
+                                    v-else-if="canTakeBreak"
+                                    block
+                                    variant="ghost"
+                                    :loading="breakBusy"
+                                    @click="breakPunch('start')"
+                                >
+                                    Start break
+                                    <span class="text-faint">
+                                        · {{ location.break_minutes }}m
+                                    </span>
+                                </AppButton>
+
+                                <p
+                                    v-if="onBreak"
+                                    class="rounded-xl border border-beacon/30 bg-beacon-soft px-3.5 py-3 text-center text-[12.5px] leading-snug text-beacon"
+                                >
+                                    On break since
+                                    {{ timeOfDay(today?.break_started_at) }} ·
+                                    {{ location.break_minutes }} minutes allowed
+                                </p>
+                                <p
+                                    v-else-if="today?.has_taken_break"
+                                    class="text-center text-[12px] text-faint"
+                                >
+                                    Break taken ·
+                                    {{ duration(today.break_minutes) }}
+                                    <span
+                                        v-if="
+                                            (today.break_minutes ?? 0) >
+                                            location.break_minutes
+                                        "
+                                        class="text-brass"
+                                    >
+                                        ({{
+                                            (today.break_minutes ?? 0) -
+                                            location.break_minutes
+                                        }}m over)
+                                    </span>
+                                </p>
+                            </template>
 
                             <div
                                 v-else
@@ -397,6 +542,13 @@ const statusPill = computed(() => {
                                     {{ timeOfDay(today?.clocked_in_at) }} →
                                     {{ timeOfDay(today?.clocked_out_at) }} ·
                                     {{ duration(today?.worked_minutes) }}
+                                </p>
+                                <p
+                                    v-if="today?.break_minutes"
+                                    class="mt-0.5 text-[12px] text-faint"
+                                >
+                                    {{ duration(today.break_minutes) }} break
+                                    deducted
                                 </p>
                             </div>
 
@@ -486,6 +638,68 @@ const statusPill = computed(() => {
                             :grace-minutes="location.grace_minutes"
                         />
                     </Panel>
+
+                    <!-- Leave, kept to what is left and what is next. -->
+                    <Panel v-if="leave" title="Leave">
+                        <template #action>
+                            <Link
+                                href="/leave"
+                                class="text-[12.5px] font-medium text-muted transition-colors hover:text-text"
+                            >
+                                Manage →
+                            </Link>
+                        </template>
+
+                        <div class="space-y-4">
+                            <div
+                                v-if="leave.balances.length"
+                                class="flex flex-wrap gap-x-6 gap-y-3"
+                            >
+                                <div
+                                    v-for="balance in leave.balances"
+                                    :key="balance.id"
+                                    class="min-w-[92px]"
+                                >
+                                    <p
+                                        class="font-display text-2xl font-semibold tracking-tight"
+                                    >
+                                        {{ balance.remaining ?? '—' }}
+                                    </p>
+                                    <p class="text-[12px] text-muted">
+                                        {{ balance.name }}
+                                        <span
+                                            v-if="balance.allowance"
+                                            class="text-faint"
+                                        >
+                                            of {{ balance.allowance }}
+                                        </span>
+                                    </p>
+                                </div>
+                            </div>
+
+                            <p class="text-[13px] text-muted">
+                                <template v-if="leave.next">
+                                    {{ leave.next.started ? 'On' : 'Next' }}
+                                    {{ leave.next.type.toLowerCase() }}:
+                                    <span class="text-text">
+                                        {{ leave.next.range_label }}
+                                    </span>
+                                    ({{ leave.next.days }} day{{
+                                        leave.next.days === 1 ? '' : 's'
+                                    }})
+                                </template>
+                                <template v-else>
+                                    Nothing booked at the moment.
+                                </template>
+                                <template v-if="leave.pending > 0">
+                                    ·
+                                    <span class="text-brass">
+                                        {{ leave.pending }} awaiting a decision
+                                    </span>
+                                </template>
+                            </p>
+                        </div>
+                    </Panel>
                 </div>
             </div>
 
@@ -512,7 +726,7 @@ const statusPill = computed(() => {
                 </template>
 
                 <div
-                    class="stagger grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5"
+                    class="stagger grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6"
                 >
                     <StatTile
                         label="Active staff"
@@ -527,6 +741,11 @@ const statusPill = computed(() => {
                         label="Late today"
                         :value="overview.late_today"
                         :tone="overview.late_today > 0 ? 'brass' : 'default'"
+                    />
+                    <StatTile
+                        label="On leave"
+                        :value="overview.on_leave_today"
+                        caption="Approved for today"
                     />
                     <StatTile
                         label="Yet to arrive"

@@ -1,15 +1,21 @@
 <?php
 
 use App\Http\Controllers\Admin\ClockAttemptController;
+use App\Http\Controllers\Admin\LeaveTypeController;
 use App\Http\Controllers\Admin\LocationController;
+use App\Http\Controllers\Admin\RequestSettingsController;
 use App\Http\Controllers\Admin\StaffController;
+use App\Http\Controllers\ApprovalController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\BreakController;
 use App\Http\Controllers\ClockController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\LatenessRequestController;
+use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\PasswordController;
 use App\Http\Controllers\WorkLocationController;
 use Illuminate\Support\Facades\Route;
@@ -50,6 +56,33 @@ Route::middleware(['auth', 'active'])->group(function (): void {
         ->middleware(['throttle:20,1', 'clocks-in'])
         ->name('clock.store');
 
+    // Breaks are taken while already checked onto site, so they carry no
+    // geofence of their own.
+    Route::post('break/{action}', [BreakController::class, 'store'])
+        ->whereIn('action', ['start', 'end'])
+        ->middleware(['throttle:20,1', 'clocks-in'])
+        ->name('break.store');
+
+    // Requests are raised by the people who work a shift, so admins, who do
+    // not, only see the settings and the approval inbox.
+    Route::middleware('clocks-in')->group(function (): void {
+        Route::get('leave', [LeaveRequestController::class, 'index'])->name('leave.index');
+        Route::post('leave', [LeaveRequestController::class, 'store'])->name('leave.store');
+        Route::delete('leave/{leave}', [LeaveRequestController::class, 'destroy'])->name('leave.destroy');
+
+        Route::get('lateness', [LatenessRequestController::class, 'index'])->name('lateness.index');
+        Route::post('lateness', [LatenessRequestController::class, 'store'])->name('lateness.store');
+        Route::delete('lateness/{lateness}', [LatenessRequestController::class, 'destroy'])->name('lateness.destroy');
+    });
+
+    Route::middleware('approver')->group(function (): void {
+        Route::get('approvals', [ApprovalController::class, 'index'])->name('approvals.index');
+        Route::post('approvals/{module}/{id}', [ApprovalController::class, 'store'])
+            ->whereIn('module', ['leave', 'lateness'])
+            ->whereNumber('id')
+            ->name('approvals.store');
+    });
+
     Route::get('settings/password', [PasswordController::class, 'edit'])->name('password.edit');
     Route::put('settings/password', [PasswordController::class, 'update'])->name('password.update');
 
@@ -69,5 +102,14 @@ Route::middleware(['auth', 'active'])->group(function (): void {
         Route::patch('locations/{location}/reassign', [LocationController::class, 'reassign'])->name('locations.reassign');
 
         Route::get('clock-attempts', [ClockAttemptController::class, 'index'])->name('clock-attempts.index');
+
+        Route::get('request-settings', [RequestSettingsController::class, 'index'])->name('request-settings.index');
+        Route::put('request-settings/{module}', [RequestSettingsController::class, 'update'])
+            ->whereIn('module', ['leave', 'lateness'])
+            ->name('request-settings.update');
+
+        Route::post('leave-types', [LeaveTypeController::class, 'store'])->name('leave-types.store');
+        Route::put('leave-types/{leaveType}', [LeaveTypeController::class, 'update'])->name('leave-types.update');
+        Route::patch('leave-types/{leaveType}/toggle', [LeaveTypeController::class, 'toggle'])->name('leave-types.toggle');
     });
 });

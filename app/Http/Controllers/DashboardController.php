@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Enums\AttendanceStatus;
+use App\Enums\RequestStatus;
 use App\Models\Attendance;
 use App\Models\ClockAttempt;
+use App\Models\LeaveRequest;
 use App\Models\Location;
 use App\Models\User;
+use App\Services\LeaveBalance;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -15,6 +18,8 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
+    public function __construct(protected LeaveBalance $balances) {}
+
     public function __invoke(Request $request): Response
     {
         $user = $request->user()->load('location');
@@ -31,6 +36,7 @@ class DashboardController extends Controller
                 'trend' => [],
                 'recent' => [],
                 'lastAttempt' => null,
+                'leave' => null,
                 'overview' => $this->companyOverview(),
             ]);
         }
@@ -64,6 +70,7 @@ class DashboardController extends Controller
             'trend' => $location === null ? [] : $this->trend($month, $localNow, $location),
             'recent' => $month->take(7)->map(fn (Attendance $a) => $this->attendancePayload($a, $timezone))->values(),
             'lastAttempt' => $this->lastRejectedAttempt($user),
+            'leave' => $this->leaveSummary($user, $localNow),
             'overview' => null,
         ]);
     }
@@ -108,6 +115,7 @@ class DashboardController extends Controller
             'work_starts_at' => substr($location->work_starts_at, 0, 5),
             'work_ends_at' => substr($location->work_ends_at, 0, 5),
             'grace_minutes' => $location->grace_minutes,
+            'break_minutes' => $location->break_minutes,
             'timezone' => $location->timezone,
             'is_active' => $location->is_active,
             'configured' => $location->hasCoordinates(),
@@ -132,6 +140,11 @@ class DashboardController extends Controller
             'worked_minutes' => $attendance->worked_minutes,
             'clock_in_distance' => $attendance->clock_in_distance,
             'is_open' => $attendance->isOpen(),
+            'break_started_at' => $attendance->break_started_at?->copy()->setTimezone($timezone)->toIso8601String(),
+            'break_ended_at' => $attendance->break_ended_at?->copy()->setTimezone($timezone)->toIso8601String(),
+            'break_minutes' => $attendance->break_minutes,
+            'on_break' => $attendance->isOnBreak(),
+            'has_taken_break' => $attendance->hasTakenBreak(),
         ];
     }
 
@@ -206,6 +219,47 @@ class DashboardController extends Controller
     }
 
     /**
+     * A short read on where this person stands with leave: what is left, what
+     * is booked next, and what is still with an approver. Deliberately three
+     * lines rather than a second dashboard.
+     *
+     * @return array<string, mixed>
+     */
+    protected function leaveSummary(User $user, Carbon $localNow): array
+    {
+        $balances = $this->balances->summary($user, $localNow->year);
+
+        $next = LeaveRequest::query()
+            ->with('leaveType')
+            ->where('user_id', $user->id)
+            ->where('status', RequestStatus::Approved->value)
+            ->where('end_date', '>=', $localNow->toDateString())
+            ->orderBy('start_date')
+            ->first();
+
+        return [
+            'balances' => array_map(fn (array $balance): array => [
+                'id' => $balance['id'],
+                'name' => $balance['name'],
+                'allowance' => $balance['allowance'],
+                'remaining' => $balance['remaining'],
+            ], $balances),
+            'next' => $next === null ? null : [
+                'type' => $next->leaveType->name,
+                'days' => $next->days,
+                'start_date' => $next->start_date->toDateString(),
+                'range_label' => $next->start_date->format('j M').' to '.$next->end_date->format('j M'),
+                // Already under way rather than still to come.
+                'started' => $next->start_date->lessThanOrEqualTo($localNow),
+            ],
+            'pending' => LeaveRequest::query()
+                ->where('user_id', $user->id)
+                ->where('status', RequestStatus::Pending->value)
+                ->count(),
+        ];
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     protected function lastRejectedAttempt(User $user): ?array
@@ -230,6 +284,22 @@ class DashboardController extends Controller
     }
 
     /**
+     * People whose approved leave covers today. Counted per person rather than
+     * per request, so overlapping bookings do not double up.
+     */
+    protected function onLeaveToday(): int
+    {
+        $today = Carbon::now()->toDateString();
+
+        return LeaveRequest::query()
+            ->where('status', RequestStatus::Approved->value)
+            ->where('start_date', '<=', $today)
+            ->where('end_date', '>=', $today)
+            ->distinct()
+            ->count('user_id');
+    }
+
+    /**
      * Company-wide snapshot shown to super admins, broken down by site because
      * each one keeps its own working day.
      *
@@ -239,7 +309,7 @@ class DashboardController extends Controller
     {
         $locations = Location::query()->active()->orderBy('name')->get();
 
-        $activeStaff = User::query()->active()->staff()->count();
+        $activeStaff = User::query()->active()->clocksIn()->count();
         $clockedIn = 0;
         $lateToday = 0;
         $rejectedToday = 0;
@@ -255,7 +325,7 @@ class DashboardController extends Controller
 
             $headcount = User::query()
                 ->active()
-                ->staff()
+                ->clocksIn()
                 ->where('location_id', $location->id)
                 ->count();
 
@@ -289,11 +359,12 @@ class DashboardController extends Controller
         return [
             'active_staff' => $activeStaff,
             'locations' => count($sites),
+            'on_leave_today' => $this->onLeaveToday(),
             'clocked_in_today' => $clockedIn,
             'late_today' => $lateToday,
             'still_out' => max(0, $activeStaff - $clockedIn),
             'rejected_attempts_today' => $rejectedToday,
-            'unassigned_staff' => User::query()->active()->staff()->whereNull('location_id')->count(),
+            'unassigned_staff' => User::query()->active()->clocksIn()->whereNull('location_id')->count(),
             'sites' => $sites,
         ];
     }

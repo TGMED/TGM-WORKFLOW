@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Enums\Role;
 use App\Models\Location;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -75,7 +75,7 @@ class RegistrationTest extends TestCase
         $user = User::query()->where('email', 'amara@tgm.test')->firstOrFail();
 
         $this->assertSame($location->id, $user->location_id);
-        $this->assertSame(Role::Staff, $user->role);
+        $this->assertSame(Role::STAFF, $user->role->slug);
         $this->assertTrue($user->is_active);
         $this->assertAuthenticatedAs($user);
     }
@@ -148,12 +148,12 @@ class RegistrationTest extends TestCase
 
         $this->post('/register', $this->payload([
             'location_id' => $location->id,
-            'role' => Role::SuperAdmin->value,
+            'role' => Role::SUPER_ADMIN,
         ]));
 
         $user = User::query()->where('email', 'amara@tgm.test')->firstOrFail();
 
-        $this->assertSame(Role::Staff, $user->role);
+        $this->assertSame(Role::STAFF, $user->role->slug);
     }
 
     public function test_an_existing_email_is_rejected(): void

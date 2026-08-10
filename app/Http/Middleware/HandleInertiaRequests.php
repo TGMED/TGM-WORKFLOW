@@ -2,12 +2,17 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\LatenessRequest;
+use App\Models\LeaveRequest;
 use App\Models\User;
+use App\Services\ApprovalService;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
 {
+    public function __construct(protected ApprovalService $approvals) {}
+
     /**
      * The root template that's loaded on the first page visit.
      *
@@ -37,7 +42,7 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         /** @var User|null $user */
-        $user = $request->user()?->loadMissing('location');
+        $user = $request->user()?->loadMissing('location', 'role');
 
         return [
             ...parent::share($request),
@@ -51,9 +56,11 @@ class HandleInertiaRequests extends Middleware
                     'employee_id' => $user->employee_id,
                     'department' => $user->department,
                     'position' => $user->position,
-                    'role' => $user->role->value,
-                    'role_label' => $user->role->label(),
+                    'role' => $user->role->slug,
+                    'role_label' => $user->role->name,
                     'is_super_admin' => $user->isSuperAdmin(),
+                    'can_approve' => $user->canApprove(),
+                    'clocks_in' => $user->clocksIn(),
                     'is_active' => $user->is_active,
                     'location' => $user->location === null ? null : [
                         'id' => $user->location->id,
@@ -62,6 +69,10 @@ class HandleInertiaRequests extends Middleware
                     ],
                 ],
             ],
+            'pending_approvals' => fn (): int => $user === null || ! $user->canApprove()
+                ? 0
+                : $this->approvals->outstandingCount(LeaveRequest::class, $user)
+                    + $this->approvals->outstandingCount(LatenessRequest::class, $user),
             'flash' => [
                 'status' => fn () => $request->session()->get('status'),
                 'toast' => fn () => $request->session()->get('toast'),

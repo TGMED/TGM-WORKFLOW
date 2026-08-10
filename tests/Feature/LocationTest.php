@@ -36,6 +36,7 @@ class LocationTest extends TestCase
             'work_starts_at' => '08:30',
             'work_ends_at' => '16:30',
             'grace_minutes' => 15,
+            'break_minutes' => 45,
             'workdays' => [1, 2, 3, 4, 5],
             'timezone' => 'Africa/Lagos',
             'accepts_signups' => true,

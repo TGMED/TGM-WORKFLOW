@@ -26,6 +26,7 @@ use Illuminate\Support\Carbon;
  * @property string $work_starts_at
  * @property string $work_ends_at
  * @property int $grace_minutes
+ * @property int $break_minutes
  * @property array<int, int>|null $workdays
  * @property string $timezone
  * @property bool $is_active
@@ -44,6 +45,7 @@ use Illuminate\Support\Carbon;
     'work_starts_at',
     'work_ends_at',
     'grace_minutes',
+    'break_minutes',
     'workdays',
     'timezone',
     'is_active',
@@ -66,6 +68,7 @@ class Location extends Model
         'work_starts_at' => '09:00:00',
         'work_ends_at' => '17:00:00',
         'grace_minutes' => 10,
+        'break_minutes' => 60,
         'workdays' => '[1,2,3,4,5]',
         'timezone' => 'Africa/Lagos',
         'is_active' => true,
@@ -83,6 +86,7 @@ class Location extends Model
             'radius_meters' => 'integer',
             'max_accuracy_meters' => 'integer',
             'grace_minutes' => 'integer',
+            'break_minutes' => 'integer',
             'workdays' => 'array',
             'is_active' => 'boolean',
             'accepts_signups' => 'boolean',
@@ -113,6 +117,17 @@ class Location extends Model
     /**
      * ISO-8601 weekday numbers (1 = Monday) that count as working days.
      *
+     * @return array<int, int>
+     */
+    /**
+     * Whether staff at this site take a break at all.
+     */
+    public function allowsBreaks(): bool
+    {
+        return $this->break_minutes > 0;
+    }
+
+    /**
      * @return array<int, int>
      */
     public function workdayNumbers(): array

@@ -22,7 +22,7 @@ class LocationController extends Controller
 
         // Only people who actually clock in count towards a site's headcount.
         $staffCounts = User::query()
-            ->staff()
+            ->clocksIn()
             ->whereNotNull('location_id')
             ->get(['id', 'location_id', 'is_active'])
             ->groupBy('location_id');
@@ -35,7 +35,7 @@ class LocationController extends Controller
                 'today' => $this->todaySnapshot($location),
             ])->all(),
             'timezones' => timezone_identifiers_list(),
-            'unassigned_staff' => User::query()->staff()->whereNull('location_id')->count(),
+            'unassigned_staff' => User::query()->clocksIn()->whereNull('location_id')->count(),
         ]);
     }
 
@@ -124,6 +124,7 @@ class LocationController extends Controller
             'work_starts_at' => substr($location->work_starts_at, 0, 5),
             'work_ends_at' => substr($location->work_ends_at, 0, 5),
             'grace_minutes' => $location->grace_minutes,
+            'break_minutes' => $location->break_minutes,
             'workdays' => $location->workdayNumbers(),
             'timezone' => $location->timezone,
             'is_active' => $location->is_active,

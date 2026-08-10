@@ -26,6 +26,7 @@ class LocationFactory extends Factory
             'work_starts_at' => '09:00:00',
             'work_ends_at' => '17:00:00',
             'grace_minutes' => 10,
+            'break_minutes' => 60,
             'workdays' => [1, 2, 3, 4, 5],
             'timezone' => 'Africa/Lagos',
             'is_active' => true,

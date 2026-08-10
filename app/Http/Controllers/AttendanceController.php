@@ -40,6 +40,7 @@ class AttendanceController extends Controller
                 'status_label' => $a->status->label(),
                 'late_minutes' => $a->late_minutes,
                 'worked_minutes' => $a->worked_minutes,
+                'break_minutes' => $a->break_minutes,
                 'clock_in_distance' => $a->clock_in_distance,
             ]);
 

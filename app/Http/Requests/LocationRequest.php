@@ -28,6 +28,8 @@ class LocationRequest extends FormRequest
             'work_starts_at' => ['required', 'date_format:H:i'],
             'work_ends_at' => ['required', 'date_format:H:i', 'after:work_starts_at'],
             'grace_minutes' => ['required', 'integer', 'between:0,240'],
+            // Zero switches breaks off for the site.
+            'break_minutes' => ['required', 'integer', 'between:0,480'],
             'workdays' => ['required', 'array', 'min:1'],
             'workdays.*' => ['integer', 'between:1,7'],
             'timezone' => ['required', 'string', Rule::in(timezone_identifiers_list())],
