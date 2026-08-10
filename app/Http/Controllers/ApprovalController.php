@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Contracts\Approvable;
 use App\Enums\ApprovalDecision;
+use App\Enums\ApprovalStage;
 use App\Enums\RequestModule;
 use App\Enums\RequestStatus;
 use App\Models\Approval;
@@ -11,7 +12,6 @@ use App\Models\LatenessRequest;
 use App\Models\LeaveRequest;
 use App\Models\User;
 use App\Services\ApprovalService;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -54,6 +54,10 @@ class ApprovalController extends Controller
             ->with('approvals')
             ->findOrFail($id);
 
+        // Read the stage before the decision lands, so the message can say
+        // what the approver just did rather than where the request went next.
+        $stage = $subject->approvalStageFor($request->user());
+
         $recorded = $this->approvals->decide(
             $subject,
             $request->user(),
@@ -72,7 +76,7 @@ class ApprovalController extends Controller
 
         return back()->with('toast', [
             'type' => 'success',
-            'message' => $this->outcomeMessage($subject, $decision),
+            'message' => $this->outcomeMessage($subject, $decision, $stage),
         ]);
     }
 
@@ -81,20 +85,19 @@ class ApprovalController extends Controller
      */
     protected function openLeave(User $approver): array
     {
-        return LeaveRequest::query()
-            ->with(['user:id,name,department,position,location_id', 'user.location:id,name', 'leaveType', 'approvals.approver:id,name'])
-            ->where('status', RequestStatus::Pending->value)
-            ->where('user_id', '!=', $approver->id)
-            ->whereDoesntHave('approvals', fn (Builder $query) => $query->where('approver_id', $approver->id))
-            ->orderBy('start_date')
-            ->get()
+        return $this->approvals->awaitingLeave($approver)
+            ->load(['user:id,name,department,position,location_id', 'user.location:id,name', 'leaveType', 'supervisor:id,name', 'reliefOfficer:id,name', 'approvals.approver:id,name'])
+            ->sortBy('start_date')
             ->map(fn (LeaveRequest $leave): array => [
-                ...$this->common($leave),
+                ...$this->common($leave, $approver),
                 'type' => $leave->leaveType->name,
                 'range_label' => $leave->start_date->format('j M').' to '.$leave->end_date->format('j M Y'),
                 'days' => $leave->days,
                 'reason' => $leave->reason,
+                'supervisor' => $leave->supervisor?->name,
+                'relief_officer' => $leave->reliefOfficer?->name,
             ])
+            ->values()
             ->all();
     }
 
@@ -103,19 +106,16 @@ class ApprovalController extends Controller
      */
     protected function openLateness(User $approver): array
     {
-        return LatenessRequest::query()
-            ->with(['user:id,name,department,position,location_id', 'user.location:id,name', 'approvals.approver:id,name'])
-            ->where('status', RequestStatus::Pending->value)
-            ->where('user_id', '!=', $approver->id)
-            ->whereDoesntHave('approvals', fn (Builder $query) => $query->where('approver_id', $approver->id))
-            ->orderByDesc('work_date')
-            ->get()
+        return $this->approvals->awaitingLateness($approver)
+            ->load(['user:id,name,department,position,location_id', 'user.location:id,name', 'approvals.approver:id,name'])
+            ->sortByDesc('work_date')
             ->map(fn (LatenessRequest $late): array => [
-                ...$this->common($late),
+                ...$this->common($late, $approver),
                 'day_label' => $late->work_date->format('D, j M Y'),
                 'minutes_late' => $late->minutes_late,
                 'reason' => $late->reason,
             ])
+            ->values()
             ->all();
     }
 
@@ -125,11 +125,14 @@ class ApprovalController extends Controller
      * @param  Approvable&Model  $subject
      * @return array<string, mixed>
      */
-    protected function common(Approvable $subject): array
+    protected function common(Approvable $subject, User $approver): array
     {
         $requester = $subject->requester();
+        $stage = $subject->approvalStageFor($approver);
 
         return [
+            'stage' => $stage->value,
+            'stage_label' => $stage->label(),
             'id' => $subject->getKey(),
             'module' => $subject->module()->value,
             'summary' => $subject->summary(),
@@ -187,12 +190,21 @@ class ApprovalController extends Controller
     /**
      * @param  Approvable&Model  $subject
      */
-    protected function outcomeMessage(Approvable $subject, ApprovalDecision $decision): string
-    {
+    protected function outcomeMessage(
+        Approvable $subject,
+        ApprovalDecision $decision,
+        ApprovalStage $stage,
+    ): string {
         $name = $subject->requester()->name;
 
         if ($decision === ApprovalDecision::Rejected) {
-            return "Declined {$name}'s request.";
+            return $subject->requestStatus() === RequestStatus::Returned
+                ? "Sent {$name}'s request back to them."
+                : "Declined {$name}'s request.";
+        }
+
+        if ($stage === ApprovalStage::Relief) {
+            return "Cover agreed for {$name}. It is now with their approver.";
         }
 
         $outstanding = $subject->load('approvals')->approvalsOutstanding();

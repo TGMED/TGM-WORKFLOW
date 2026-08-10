@@ -7,6 +7,8 @@ use App\Enums\RequestStatus;
 use App\Http\Requests\StoreLeaveRequest;
 use App\Models\ApprovalSetting;
 use App\Models\LeaveRequest;
+use App\Models\Role;
+use App\Models\User;
 use App\Services\ApprovalService;
 use App\Services\LeaveBalance;
 use Illuminate\Http\RedirectResponse;
@@ -28,7 +30,7 @@ class LeaveRequestController extends Controller
         $year = (int) $request->integer('year', Carbon::now()->year);
 
         $requests = LeaveRequest::query()
-            ->with(['leaveType', 'approvals.approver:id,name'])
+            ->with(['leaveType', 'supervisor:id,name', 'reliefOfficer:id,name', 'approvals.approver:id,name'])
             ->where('user_id', $user->id)
             ->orderByDesc('start_date')
             ->limit(60)
@@ -41,6 +43,9 @@ class LeaveRequestController extends Controller
             // working days the server will count when the request lands.
             'workdays' => $user->location?->workdayNumbers() ?? [1, 2, 3, 4, 5],
             'requests' => $requests->map(fn (LeaveRequest $leave): array => $this->payload($leave))->values(),
+            'supervisors' => $this->supervisors($user),
+            'cover_duties' => $this->coverDuties($user),
+            'relief_officers' => $this->reliefOfficers($user),
             'approvers_required' => ApprovalSetting::approversRequired(RequestModule::Leave),
             'stats' => [
                 'pending' => $requests->where('status', RequestStatus::Pending)->count(),
@@ -57,6 +62,8 @@ class LeaveRequestController extends Controller
         $leave = LeaveRequest::query()->create([
             'user_id' => $request->user()->id,
             'leave_type_id' => $request->integer('leave_type_id'),
+            'supervisor_id' => $request->integer('supervisor_id'),
+            'relief_officer_id' => $request->integer('relief_officer_id'),
             'start_date' => $request->startDate(),
             'end_date' => $request->endDate(),
             'days' => $request->days(),
@@ -67,11 +74,11 @@ class LeaveRequestController extends Controller
             'approvals_required' => ApprovalSetting::approversRequired(RequestModule::Leave),
         ]);
 
-        $leave->load('leaveType');
+        $leave->load('leaveType', 'reliefOfficer');
 
         return back()->with('toast', [
             'type' => 'success',
-            'message' => "Requested {$leave->summary()}. It is now with your approver.",
+            'message' => "Requested {$leave->summary()}. It is now with {$leave->reliefOfficer?->name} to agree cover.",
         ]);
     }
 
@@ -101,6 +108,87 @@ class LeaveRequestController extends Controller
     }
 
     /**
+     * Days this person has agreed to hold the fort for someone else, which
+     * they cannot book leave over.
+     *
+     * @return array<int, array{start: string, end: string, colleague: string}>
+     */
+    protected function coverDuties(User $user): array
+    {
+        return LeaveRequest::query()
+            ->with('user:id,name')
+            ->coveredBy($user->id)
+            ->where('end_date', '>=', Carbon::now()->toDateString())
+            ->orderBy('start_date')
+            ->get()
+            ->map(fn (LeaveRequest $leave): array => [
+                'start' => $leave->start_date->toDateString(),
+                'end' => $leave->end_date->toDateString(),
+                'colleague' => $leave->user->name,
+            ])
+            ->all();
+    }
+
+    /**
+     * Approvers this person may send a request to.
+     *
+     * @return array<int, array{value: int, label: string}>
+     */
+    protected function supervisors(User $user): array
+    {
+        return User::query()
+            ->active()
+            ->withRole(Role::APPROVER, Role::SUPER_ADMIN)
+            ->whereKeyNot($user->id)
+            ->orderBy('name')
+            ->get(['id', 'name', 'position'])
+            ->map(fn (User $approver): array => [
+                'value' => $approver->id,
+                'label' => $approver->position === null
+                    ? $approver->name
+                    : "{$approver->name} · {$approver->position}",
+            ])
+            ->all();
+    }
+
+    /**
+     * Anyone still on the books can cover a desk, approver or not. Each one
+     * carries the leave they already have booked, so the form can drop the
+     * people who will be away over the days being asked for.
+     *
+     * @return array<int, array{value: int, label: string, away: array<int, array{start: string, end: string}>}>
+     */
+    protected function reliefOfficers(User $user): array
+    {
+        $away = LeaveRequest::query()
+            ->committed()
+            ->where('end_date', '>=', Carbon::now()->toDateString())
+            ->get(['user_id', 'start_date', 'end_date'])
+            ->groupBy('user_id');
+
+        return User::query()
+            ->active()
+            ->clocksIn()
+            ->whereKeyNot($user->id)
+            ->orderBy('name')
+            ->get(['id', 'name', 'department'])
+            ->map(fn (User $colleague): array => [
+                'value' => $colleague->id,
+                'label' => $colleague->department === null
+                    ? $colleague->name
+                    : "{$colleague->name} · {$colleague->department}",
+                'away' => $away->get($colleague->id, collect())
+                    ->map(fn (LeaveRequest $leave): array => [
+                        'start' => $leave->start_date->toDateString(),
+                        'end' => $leave->end_date->toDateString(),
+                    ])
+                    ->values()
+                    ->all(),
+            ])
+            ->all();
+    }
+
+    /**
      * @return array<string, mixed>
      */
     protected function payload(LeaveRequest $leave): array
@@ -109,6 +197,9 @@ class LeaveRequestController extends Controller
             'id' => $leave->id,
             'type' => $leave->leaveType->name,
             'type_id' => $leave->leave_type_id,
+            'supervisor' => $leave->supervisor?->name,
+            'relief_officer' => $leave->reliefOfficer?->name,
+            'stage_label' => $leave->stageLabel(),
             'start_date' => $leave->start_date->toDateString(),
             'end_date' => $leave->end_date->toDateString(),
             'range_label' => $leave->start_date->format('j M Y').' to '.$leave->end_date->format('j M Y'),

@@ -4,6 +4,7 @@ namespace App\Models\Concerns;
 
 use App\Contracts\Approvable;
 use App\Enums\ApprovalDecision;
+use App\Enums\ApprovalStage;
 use App\Enums\RequestStatus;
 use App\Models\Approval;
 use App\Models\User;
@@ -47,11 +48,36 @@ trait HasApprovals
         return $this->approvals_required;
     }
 
+    /**
+     * Only approval-stage decisions count. A relief officer's sign-off gates
+     * the run rather than standing in for one of the approvals required.
+     */
     public function approvalsGiven(): int
     {
         return $this->approvals
             ->where('decision', ApprovalDecision::Approved)
+            ->where('stage', ApprovalStage::Approval)
             ->count();
+    }
+
+    /**
+     * The hat this person wears on this request. Only leave has a stage other
+     * than the plain approval, and it says so by overriding this.
+     */
+    public function approvalStageFor(User $user): ApprovalStage
+    {
+        return ApprovalStage::Approval;
+    }
+
+    /**
+     * Where a decline leaves the request. A relief officer sends it back for
+     * the requester to redo; an approver ends it.
+     */
+    public function statusAfterRejection(ApprovalStage $stage): RequestStatus
+    {
+        return $stage === ApprovalStage::Relief
+            ? RequestStatus::Returned
+            : RequestStatus::Rejected;
     }
 
     public function approvalsOutstanding(): int

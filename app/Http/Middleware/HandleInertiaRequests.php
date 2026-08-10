@@ -2,8 +2,6 @@
 
 namespace App\Http\Middleware;
 
-use App\Models\LatenessRequest;
-use App\Models\LeaveRequest;
 use App\Models\User;
 use App\Services\ApprovalService;
 use Illuminate\Http\Request;
@@ -60,6 +58,7 @@ class HandleInertiaRequests extends Middleware
                     'role_label' => $user->role->name,
                     'is_super_admin' => $user->isSuperAdmin(),
                     'can_approve' => $user->canApprove(),
+                    'can_use_approvals' => $user->usesApprovals(),
                     'clocks_in' => $user->clocksIn(),
                     'is_active' => $user->is_active,
                     'location' => $user->location === null ? null : [
@@ -69,10 +68,9 @@ class HandleInertiaRequests extends Middleware
                     ],
                 ],
             ],
-            'pending_approvals' => fn (): int => $user === null || ! $user->canApprove()
+            'pending_approvals' => fn (): int => $user === null
                 ? 0
-                : $this->approvals->outstandingCount(LeaveRequest::class, $user)
-                    + $this->approvals->outstandingCount(LatenessRequest::class, $user),
+                : $this->approvals->inboxCount($user),
             'flash' => [
                 'status' => fn () => $request->session()->get('status'),
                 'toast' => fn () => $request->session()->get('toast'),

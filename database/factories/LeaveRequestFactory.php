@@ -32,4 +32,16 @@ class LeaveRequestFactory extends Factory
             'approvals_required' => 1,
         ];
     }
+
+    /**
+     * A request raised the way the leave form raises them: cover named, and an
+     * approver picked to rule on it once the cover is agreed.
+     */
+    public function chained(User $reliefOfficer, User $supervisor): static
+    {
+        return $this->state(fn (): array => [
+            'relief_officer_id' => $reliefOfficer->id,
+            'supervisor_id' => $supervisor->id,
+        ]);
+    }
 }

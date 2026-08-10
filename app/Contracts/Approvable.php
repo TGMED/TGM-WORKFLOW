@@ -2,6 +2,7 @@
 
 namespace App\Contracts;
 
+use App\Enums\ApprovalStage;
 use App\Enums\RequestModule;
 use App\Enums\RequestStatus;
 use App\Models\Approval;
@@ -49,9 +50,21 @@ interface Approvable
     public function approvalsOutstanding(): int;
 
     /**
-     * Whether this person is still expected to decide on the request.
+     * Whether this person is still expected to decide on the request, and it
+     * is their turn to do so.
      */
     public function awaitsDecisionFrom(User $user): bool;
+
+    /**
+     * The stage this person would be deciding at.
+     */
+    public function approvalStageFor(User $user): ApprovalStage;
+
+    /**
+     * The status the request lands on when a decision at this stage is a
+     * rejection.
+     */
+    public function statusAfterRejection(ApprovalStage $stage): RequestStatus;
 
     public function raisedAt(): ?CarbonInterface;
 }
