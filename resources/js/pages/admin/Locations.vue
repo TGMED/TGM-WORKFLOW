@@ -24,6 +24,7 @@ type LocationRow = {
     work_starts_at: string;
     work_ends_at: string;
     grace_minutes: number;
+    break_minutes: number;
     workdays: number[];
     timezone: string;
     is_active: boolean;
@@ -74,6 +75,7 @@ const form = useForm({
     work_starts_at: '09:00',
     work_ends_at: '17:00',
     grace_minutes: 10,
+    break_minutes: 60,
     workdays: [1, 2, 3, 4, 5] as number[],
     timezone: 'Africa/Lagos',
     accepts_signups: true,
@@ -94,6 +96,7 @@ async function open(location: LocationRow | null) {
         work_starts_at: location?.work_starts_at ?? '09:00',
         work_ends_at: location?.work_ends_at ?? '17:00',
         grace_minutes: location?.grace_minutes ?? 10,
+        break_minutes: location?.break_minutes ?? 60,
         workdays: [...(location?.workdays ?? [1, 2, 3, 4, 5])],
         timezone: location?.timezone ?? 'Africa/Lagos',
         accepts_signups: location?.accepts_signups ?? true,
@@ -272,7 +275,12 @@ const totals = computed(() => ({
                                     location.work_ends_at
                                 }}
                                 · {{ location.grace_minutes }}m grace ·
-                                {{ location.radius_meters }}m radius
+                                {{
+                                    location.break_minutes > 0
+                                        ? `${location.break_minutes}m break`
+                                        : 'no break'
+                                }}
+                                · {{ location.radius_meters }}m radius
                             </p>
                         </div>
 
@@ -460,7 +468,7 @@ const totals = computed(() => ({
 
                 <div class="h-px bg-line-soft" />
 
-                <div class="grid gap-4 sm:grid-cols-3">
+                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <TextField
                         v-model="form.work_starts_at"
                         label="Opens"
@@ -484,12 +492,26 @@ const totals = computed(() => ({
                         required
                         :error="form.errors.grace_minutes"
                     />
+                    <TextField
+                        v-model.number="form.break_minutes"
+                        label="Break (min)"
+                        type="number"
+                        min="0"
+                        max="480"
+                        required
+                        :error="form.errors.break_minutes"
+                    />
                 </div>
 
                 <p class="-mt-2 text-[12px] text-faint">
                     Anyone in by
                     <span class="font-mono text-text">{{ cutoff }}</span>
                     counts as on time here.
+                    {{
+                        form.break_minutes > 0
+                            ? `Breaks may run to ${form.break_minutes} minutes and are deducted from hours worked; going over is flagged, not blocked.`
+                            : 'Breaks are switched off at this site.'
+                    }}
                 </p>
 
                 <div>

@@ -144,20 +144,40 @@ class ClockService
 
         $distance = $guard;
 
+        // Clocking out closes a break left running, so the day cannot be paid
+        // as if someone never came back from lunch.
+        if ($attendance->isOnBreak()) {
+            $attendance->forceFill([
+                'break_ended_at' => $now,
+                'break_minutes' => max(0, (int) $attendance->break_started_at->diffInMinutes($now)),
+            ])->save();
+        }
+
+        $onSite = max(0, (int) $attendance->clocked_in_at->diffInMinutes($now));
+        $breakMinutes = (int) ($attendance->break_minutes ?? 0);
+
         $attendance->forceFill([
             'clocked_out_at' => $now,
             'clock_out_latitude' => $punch->latitude,
             'clock_out_longitude' => $punch->longitude,
             'clock_out_accuracy' => $punch->accuracy,
             'clock_out_distance' => $distance,
-            'worked_minutes' => max(0, $attendance->clocked_in_at->diffInMinutes($now)),
+            // Break time is not time on the clock.
+            'worked_minutes' => max(0, $onSite - $breakMinutes),
         ])->save();
 
-        $message = sprintf(
-            'Clocked out at %s, %s on the clock.',
-            $localNow->format('g:i A'),
-            $this->humanizeMinutes((int) $attendance->worked_minutes),
-        );
+        $message = $breakMinutes > 0
+            ? sprintf(
+                'Clocked out at %s, %s on the clock after a %s break.',
+                $localNow->format('g:i A'),
+                $this->humanizeMinutes((int) $attendance->worked_minutes),
+                $this->humanizeMinutes($breakMinutes),
+            )
+            : sprintf(
+                'Clocked out at %s, %s on the clock.',
+                $localNow->format('g:i A'),
+                $this->humanizeMinutes((int) $attendance->worked_minutes),
+            );
 
         return new ClockResult(
             AttemptResult::Success,

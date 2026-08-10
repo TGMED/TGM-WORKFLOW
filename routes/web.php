@@ -8,6 +8,7 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\BreakController;
 use App\Http\Controllers\ClockController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PasswordController;
@@ -49,6 +50,13 @@ Route::middleware(['auth', 'active'])->group(function (): void {
         ->whereIn('type', ['in', 'out'])
         ->middleware(['throttle:20,1', 'clocks-in'])
         ->name('clock.store');
+
+    // Breaks are taken while already checked onto site, so they carry no
+    // geofence of their own.
+    Route::post('break/{action}', [BreakController::class, 'store'])
+        ->whereIn('action', ['start', 'end'])
+        ->middleware(['throttle:20,1', 'clocks-in'])
+        ->name('break.store');
 
     Route::get('settings/password', [PasswordController::class, 'edit'])->name('password.edit');
     Route::put('settings/password', [PasswordController::class, 'update'])->name('password.update');

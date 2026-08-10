@@ -124,6 +124,7 @@ class LocationController extends Controller
             'work_starts_at' => substr($location->work_starts_at, 0, 5),
             'work_ends_at' => substr($location->work_ends_at, 0, 5),
             'grace_minutes' => $location->grace_minutes,
+            'break_minutes' => $location->break_minutes,
             'workdays' => $location->workdayNumbers(),
             'timezone' => $location->timezone,
             'is_active' => $location->is_active,
