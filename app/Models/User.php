@@ -111,6 +111,22 @@ class User extends Authenticatable
         return $this->hasMany(ClockAttempt::class);
     }
 
+    /**
+     * @return HasMany<LeaveRequest, $this>
+     */
+    public function leaveRequests(): HasMany
+    {
+        return $this->hasMany(LeaveRequest::class);
+    }
+
+    /**
+     * @return HasMany<LatenessRequest, $this>
+     */
+    public function latenessRequests(): HasMany
+    {
+        return $this->hasMany(LatenessRequest::class);
+    }
+
     public function hasRole(string ...$slugs): bool
     {
         return in_array($this->role->slug, $slugs, true);

@@ -45,6 +45,7 @@ export type ClockFlash = {
 export type SharedProps = {
     name: string;
     auth: Auth;
+    pending_approvals: number;
     flash: {
         status: string | null;
         toast: Toast | null;

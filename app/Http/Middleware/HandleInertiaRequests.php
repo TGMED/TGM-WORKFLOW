@@ -2,12 +2,17 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\LatenessRequest;
+use App\Models\LeaveRequest;
 use App\Models\User;
+use App\Services\ApprovalService;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
 {
+    public function __construct(protected ApprovalService $approvals) {}
+
     /**
      * The root template that's loaded on the first page visit.
      *
@@ -64,6 +69,10 @@ class HandleInertiaRequests extends Middleware
                     ],
                 ],
             ],
+            'pending_approvals' => fn (): int => $user === null || ! $user->canApprove()
+                ? 0
+                : $this->approvals->outstandingCount(LeaveRequest::class, $user)
+                    + $this->approvals->outstandingCount(LatenessRequest::class, $user),
             'flash' => [
                 'status' => fn () => $request->session()->get('status'),
                 'toast' => fn () => $request->session()->get('toast'),

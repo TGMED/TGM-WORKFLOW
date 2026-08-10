@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureAccountIsActive;
+use App\Http\Middleware\EnsureUserCanApprove;
 use App\Http\Middleware\EnsureUserClocksIn;
 use App\Http\Middleware\EnsureUserIsSuperAdmin;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -26,6 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'super-admin' => EnsureUserIsSuperAdmin::class,
             'active' => EnsureAccountIsActive::class,
             'clocks-in' => EnsureUserClocksIn::class,
+            'approver' => EnsureUserCanApprove::class,
         ]);
 
         $middleware->redirectGuestsTo(fn () => route('login'));
