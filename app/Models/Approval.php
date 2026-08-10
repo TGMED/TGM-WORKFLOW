@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ApprovalDecision;
+use App\Enums\ApprovalStage;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -18,6 +19,7 @@ use Illuminate\Support\Carbon;
  * @property int $approvable_id
  * @property int $approver_id
  * @property int $step
+ * @property ApprovalStage $stage
  * @property ApprovalDecision $decision
  * @property string|null $comment
  * @property Carbon $decided_at
@@ -30,6 +32,7 @@ use Illuminate\Support\Carbon;
     'approvable_id',
     'approver_id',
     'step',
+    'stage',
     'decision',
     'comment',
     'decided_at',
@@ -37,12 +40,20 @@ use Illuminate\Support\Carbon;
 class Approval extends Model
 {
     /**
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'stage' => 'approval',
+    ];
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array
     {
         return [
             'decision' => ApprovalDecision::class,
+            'stage' => ApprovalStage::class,
             'decided_at' => 'datetime',
             'step' => 'integer',
         ];

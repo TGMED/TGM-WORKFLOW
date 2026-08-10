@@ -12,6 +12,9 @@ enum RequestStatus: string
     case Rejected = 'rejected';
     case Cancelled = 'cancelled';
 
+    /** Sent back by a relief officer for the requester to redo. */
+    case Returned = 'returned';
+
     public function label(): string
     {
         return match ($this) {
@@ -19,6 +22,7 @@ enum RequestStatus: string
             self::Approved => 'Approved',
             self::Rejected => 'Rejected',
             self::Cancelled => 'Cancelled',
+            self::Returned => 'Returned',
         };
     }
 
@@ -32,6 +36,7 @@ enum RequestStatus: string
             self::Approved => 'signal',
             self::Rejected => 'alert',
             self::Cancelled => 'neutral',
+            self::Returned => 'brass',
         };
     }
 

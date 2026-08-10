@@ -30,6 +30,20 @@ class LeaveRequestTest extends TestCase
         return User::factory()->create(['location_id' => $this->location->id]);
     }
 
+    /**
+     * The two people every request has to name: an approver to rule on it and
+     * a colleague to cover the desk.
+     *
+     * @return array<string, int>
+     */
+    private function chain(): array
+    {
+        return [
+            'supervisor_id' => User::factory()->approver()->create()->id,
+            'relief_officer_id' => $this->staff()->id,
+        ];
+    }
+
     private function annual(): LeaveType
     {
         return LeaveType::query()->where('slug', 'annual')->firstOrFail();
@@ -51,6 +65,7 @@ class LeaveRequestTest extends TestCase
 
         $this->actingAs($staff)
             ->post('/leave', [
+                ...$this->chain(),
                 'leave_type_id' => $this->annual()->id,
                 'start_date' => $monday->toDateString(),
                 'end_date' => $monday->copy()->addDays(2)->toDateString(),
@@ -72,6 +87,7 @@ class LeaveRequestTest extends TestCase
 
         $this->actingAs($this->staff())
             ->post('/leave', [
+                ...$this->chain(),
                 'leave_type_id' => $this->annual()->id,
                 'start_date' => $monday->toDateString(),
                 // Monday through the following Friday spans 12 calendar days
@@ -90,6 +106,7 @@ class LeaveRequestTest extends TestCase
 
         $this->actingAs($this->staff())
             ->post('/leave', [
+                ...$this->chain(),
                 'leave_type_id' => $type->id,
                 'start_date' => $monday->toDateString(),
                 'end_date' => $monday->copy()->addDays(11)->toDateString(),
@@ -114,6 +131,7 @@ class LeaveRequestTest extends TestCase
 
         $this->actingAs($staff)
             ->post('/leave', [
+                ...$this->chain(),
                 'leave_type_id' => $this->annual()->id,
                 'start_date' => $monday->copy()->addDays(2)->toDateString(),
                 'end_date' => $monday->copy()->addDays(6)->toDateString(),
@@ -130,6 +148,7 @@ class LeaveRequestTest extends TestCase
 
         $this->actingAs($this->staff())
             ->post('/leave', [
+                ...$this->chain(),
                 'leave_type_id' => $type->id,
                 'start_date' => $monday->toDateString(),
                 'end_date' => $monday->toDateString(),
@@ -143,6 +162,7 @@ class LeaveRequestTest extends TestCase
 
         $this->actingAs($this->staff())
             ->post('/leave', [
+                ...$this->chain(),
                 'leave_type_id' => $this->annual()->id,
                 'start_date' => $saturday->toDateString(),
                 'end_date' => $saturday->copy()->addDay()->toDateString(),
@@ -158,6 +178,7 @@ class LeaveRequestTest extends TestCase
 
         $this->actingAs($this->staff())
             ->post('/leave', [
+                ...$this->chain(),
                 'leave_type_id' => $this->annual()->id,
                 'start_date' => $monday->toDateString(),
                 'end_date' => $monday->toDateString(),
@@ -226,6 +247,189 @@ class LeaveRequestTest extends TestCase
                 ->where('balances.0.name', 'Annual leave')
                 ->where('balances.0.used', 4)
                 ->where('balances.0.remaining', $annual->days_per_year - 4));
+    }
+
+    public function test_a_request_names_its_approver_and_relief_officer(): void
+    {
+        $staff = $this->staff();
+        $supervisor = User::factory()->approver()->create();
+        $relief = $this->staff();
+        $monday = Carbon::now()->addWeek()->startOfWeek();
+
+        $this->actingAs($staff)
+            ->post('/leave', [
+                'supervisor_id' => $supervisor->id,
+                'relief_officer_id' => $relief->id,
+                'leave_type_id' => $this->annual()->id,
+                'start_date' => $monday->toDateString(),
+                'end_date' => $monday->toDateString(),
+            ])
+            ->assertSessionHasNoErrors();
+
+        $leave = LeaveRequest::query()->firstOrFail();
+
+        $this->assertSame($supervisor->id, $leave->supervisor_id);
+        $this->assertSame($relief->id, $leave->relief_officer_id);
+        $this->assertFalse($leave->load('approvals')->reliefAgreed());
+    }
+
+    public function test_the_named_approver_must_be_able_to_approve(): void
+    {
+        $monday = Carbon::now()->addWeek()->startOfWeek();
+
+        $this->actingAs($this->staff())
+            ->post('/leave', [
+                'supervisor_id' => $this->staff()->id,
+                'relief_officer_id' => $this->staff()->id,
+                'leave_type_id' => $this->annual()->id,
+                'start_date' => $monday->toDateString(),
+                'end_date' => $monday->toDateString(),
+            ])
+            ->assertSessionHasErrors('supervisor_id');
+    }
+
+    public function test_the_relief_officer_cannot_also_be_the_approver(): void
+    {
+        $supervisor = User::factory()->approver()->create();
+        $monday = Carbon::now()->addWeek()->startOfWeek();
+
+        $this->actingAs($this->staff())
+            ->post('/leave', [
+                'supervisor_id' => $supervisor->id,
+                'relief_officer_id' => $supervisor->id,
+                'leave_type_id' => $this->annual()->id,
+                'start_date' => $monday->toDateString(),
+                'end_date' => $monday->toDateString(),
+            ])
+            ->assertSessionHasErrors('supervisor_id');
+    }
+
+    public function test_nobody_covers_or_approves_their_own_leave(): void
+    {
+        $staff = $this->staff();
+        $monday = Carbon::now()->addWeek()->startOfWeek();
+
+        $this->actingAs($staff)
+            ->post('/leave', [
+                'supervisor_id' => User::factory()->approver()->create()->id,
+                'relief_officer_id' => $staff->id,
+                'leave_type_id' => $this->annual()->id,
+                'start_date' => $monday->toDateString(),
+                'end_date' => $monday->toDateString(),
+            ])
+            ->assertSessionHasErrors('relief_officer_id');
+    }
+
+    public function test_a_relief_officer_cannot_book_leave_over_cover_they_agreed(): void
+    {
+        $cover = $this->staff();
+        $monday = Carbon::now()->addWeek()->startOfWeek();
+
+        $covered = LeaveRequest::factory()
+            ->chained($cover, User::factory()->approver()->create())
+            ->create([
+                'user_id' => $this->staff()->id,
+                'leave_type_id' => $this->annual()->id,
+                'start_date' => $monday,
+                'end_date' => $monday->copy()->addDays(4),
+                'days' => 5,
+            ]);
+
+        // Nothing owed until the cover has actually been agreed.
+        $this->actingAs($cover)
+            ->post('/leave', [
+                ...$this->chain(),
+                'leave_type_id' => $this->annual()->id,
+                'start_date' => $monday->copy()->addDays(2)->toDateString(),
+                'end_date' => $monday->copy()->addDays(2)->toDateString(),
+            ])
+            ->assertSessionHasNoErrors();
+
+        LeaveRequest::query()->where('user_id', $cover->id)->delete();
+
+        $this->actingAs($cover)->post("/approvals/leave/{$covered->id}", ['decision' => 'approved']);
+
+        $this->actingAs($cover)
+            ->post('/leave', [
+                ...$this->chain(),
+                'leave_type_id' => $this->annual()->id,
+                'start_date' => $monday->copy()->addDays(2)->toDateString(),
+                'end_date' => $monday->copy()->addDays(2)->toDateString(),
+            ])
+            ->assertSessionHasErrors('start_date');
+
+        // Days clear of the cover are still theirs to take.
+        $this->actingAs($cover)
+            ->post('/leave', [
+                ...$this->chain(),
+                'leave_type_id' => $this->annual()->id,
+                'start_date' => $monday->copy()->addDays(7)->toDateString(),
+                'end_date' => $monday->copy()->addDays(7)->toDateString(),
+            ])
+            ->assertSessionHasNoErrors();
+    }
+
+    public function test_someone_away_themselves_cannot_be_the_relief_officer(): void
+    {
+        $colleague = $this->staff();
+        $monday = Carbon::now()->addWeek()->startOfWeek();
+
+        LeaveRequest::factory()->create([
+            'user_id' => $colleague->id,
+            'leave_type_id' => $this->annual()->id,
+            'start_date' => $monday,
+            'end_date' => $monday->copy()->addDays(4),
+            'days' => 5,
+        ]);
+
+        $this->actingAs($this->staff())
+            ->post('/leave', [
+                'supervisor_id' => User::factory()->approver()->create()->id,
+                'relief_officer_id' => $colleague->id,
+                'leave_type_id' => $this->annual()->id,
+                'start_date' => $monday->copy()->addDays(2)->toDateString(),
+                'end_date' => $monday->copy()->addDays(3)->toDateString(),
+            ])
+            ->assertSessionHasErrors('relief_officer_id');
+    }
+
+    public function test_the_relief_list_carries_the_leave_each_colleague_has_booked(): void
+    {
+        $colleague = $this->staff();
+        $monday = Carbon::now()->addWeek()->startOfWeek();
+
+        LeaveRequest::factory()->create([
+            'user_id' => $colleague->id,
+            'leave_type_id' => $this->annual()->id,
+            'start_date' => $monday,
+            'end_date' => $monday->copy()->addDays(4),
+            'days' => 5,
+        ]);
+
+        $this->actingAs($this->staff())
+            ->get('/leave')
+            ->assertInertia(fn ($page) => $page
+                ->component('Leave')
+                ->whereContains('relief_officers', fn ($option) => $option['value'] === $colleague->id
+                    && $option['away'] === [[
+                        'start' => $monday->toDateString(),
+                        'end' => $monday->copy()->addDays(4)->toDateString(),
+                    ]]));
+    }
+
+    public function test_the_leave_page_offers_approvers_and_colleagues_to_pick_from(): void
+    {
+        $staff = $this->staff();
+        $supervisor = User::factory()->approver()->create(['name' => 'Ada Approver']);
+        $colleague = $this->staff();
+
+        $this->actingAs($staff)
+            ->get('/leave')
+            ->assertInertia(fn ($page) => $page
+                ->component('Leave')
+                ->where('supervisors.0.value', $supervisor->id)
+                ->has('relief_officers', 2)
+                ->whereContains('relief_officers', fn ($option) => $option['value'] === $colleague->id));
     }
 
     public function test_administrators_do_not_raise_leave_requests(): void

@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
+use App\Models\Role;
 use App\Models\User;
 use App\Services\LeaveBalance;
 use App\Support\Workdays;
@@ -30,6 +31,24 @@ class StoreLeaveRequest extends FormRequest
                 'integer',
                 Rule::exists('leave_types', 'id')->where('is_active', true),
             ],
+            // The supervisor must hold approval rights; the relief officer is
+            // whoever covers the desk, so any active colleague will do.
+            'supervisor_id' => [
+                'required',
+                'integer',
+                'different:relief_officer_id',
+                Rule::notIn([$this->user()?->id]),
+                Rule::exists('users', 'id')->where('is_active', true)->whereIn(
+                    'role_id',
+                    Role::query()->whereIn('slug', [Role::APPROVER, Role::SUPER_ADMIN])->pluck('id')->all(),
+                ),
+            ],
+            'relief_officer_id' => [
+                'required',
+                'integer',
+                Rule::notIn([$this->user()?->id]),
+                Rule::exists('users', 'id')->where('is_active', true),
+            ],
             'start_date' => ['required', 'date', 'after_or_equal:'.Carbon::now()->subYear()->toDateString()],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'reason' => ['nullable', 'string', 'max:1000'],
@@ -43,6 +62,11 @@ class StoreLeaveRequest extends FormRequest
     {
         return [
             'leave_type_id.exists' => 'Pick a leave type that is still in use.',
+            'supervisor_id.exists' => 'Pick someone who can approve leave.',
+            'supervisor_id.not_in' => 'You cannot approve your own leave.',
+            'supervisor_id.different' => 'Your relief officer cannot also be your approver.',
+            'relief_officer_id.exists' => 'Pick a colleague who is still with the company.',
+            'relief_officer_id.not_in' => 'Someone else has to cover your desk.',
             'end_date.after_or_equal' => 'The last day cannot fall before the first day.',
         ];
     }
@@ -57,6 +81,8 @@ class StoreLeaveRequest extends FormRequest
             $this->guardAgainstOverlap($validator);
             $this->guardAgainstNoWorkdays($validator);
             $this->guardAgainstAllowance($validator);
+            $this->guardAgainstCoverAlreadyOwed($validator);
+            $this->guardAgainstAnAbsentReliefOfficer($validator);
         });
     }
 
@@ -113,6 +139,48 @@ class StoreLeaveRequest extends FormRequest
                 'start_date',
                 'Those dates contain no working days for your site.',
             );
+        }
+    }
+
+    /**
+     * Somebody who has agreed to hold the fort for a colleague has to be there
+     * to do it, so their own leave cannot land on those days.
+     */
+    protected function guardAgainstCoverAlreadyOwed(Validator $validator): void
+    {
+        $clash = LeaveRequest::query()
+            ->with('user:id,name')
+            ->coveredBy($this->staff()->id)
+            ->overlapping($this->startDate(), $this->endDate())
+            ->first();
+
+        if ($clash !== null) {
+            $validator->errors()->add('start_date', sprintf(
+                'You are covering for %s from %s to %s. Hand that over before booking these days.',
+                $clash->user->name,
+                $clash->start_date->format('j M'),
+                $clash->end_date->format('j M Y'),
+            ));
+        }
+    }
+
+    /**
+     * A relief officer who is off themselves is no cover at all.
+     */
+    protected function guardAgainstAnAbsentReliefOfficer(Validator $validator): void
+    {
+        $away = LeaveRequest::query()
+            ->where('user_id', $this->integer('relief_officer_id'))
+            ->committed()
+            ->overlapping($this->startDate(), $this->endDate())
+            ->first();
+
+        if ($away !== null) {
+            $validator->errors()->add('relief_officer_id', sprintf(
+                'They are away themselves from %s to %s. Pick someone who will be in.',
+                $away->start_date->format('j M'),
+                $away->end_date->format('j M Y'),
+            ));
         }
     }
 

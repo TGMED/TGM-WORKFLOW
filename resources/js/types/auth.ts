@@ -20,6 +20,7 @@ export type AuthUser = {
     role_label: string;
     is_super_admin: boolean;
     can_approve: boolean;
+    can_use_approvals: boolean;
     clocks_in: boolean;
     is_active: boolean;
     location: UserLocation | null;

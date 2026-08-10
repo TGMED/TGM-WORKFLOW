@@ -152,6 +152,31 @@ class User extends Authenticatable
     }
 
     /**
+     * Whether anyone has named this person as their relief officer on a leave
+     * request still waiting for cover to be agreed. Staff without approval
+     * rights reach the approvals page on the strength of this alone.
+     */
+    public function hasReliefDuties(): bool
+    {
+        return LeaveRequest::query()
+            ->pending()
+            ->where('relief_officer_id', $this->id)
+            ->whereDoesntHave(
+                'approvals',
+                fn (Builder $query) => $query->where('approver_id', $this->id),
+            )
+            ->exists();
+    }
+
+    /**
+     * Whether the approvals page has anything to offer this person.
+     */
+    public function usesApprovals(): bool
+    {
+        return $this->canApprove() || $this->hasReliefDuties();
+    }
+
+    /**
      * Super admins administer the system rather than work a shift, so they
      * have no attendance of their own.
      */

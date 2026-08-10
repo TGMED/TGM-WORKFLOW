@@ -23,6 +23,8 @@ type Requester = {
 type PendingRequest = {
     id: number;
     module: 'leave' | 'lateness';
+    stage: 'relief' | 'approval';
+    stage_label: string;
     summary: string;
     requested_at: string | null;
     approvals_given: number;
@@ -33,6 +35,8 @@ type PendingRequest = {
     type?: string;
     range_label?: string;
     days?: number;
+    supervisor?: string | null;
+    relief_officer?: string | null;
     // Lateness only
     day_label?: string;
     minutes_late?: number;
@@ -73,6 +77,28 @@ const rows = computed(() =>
 );
 
 const total = computed(() => props.leave.length + props.lateness.length);
+
+const relief = computed(() => deciding.value?.stage === 'relief');
+
+const modalTitle = computed(() => {
+    if (relief.value) {
+        return decision.value === 'approved'
+            ? 'Agree to cover this'
+            : 'Send this back';
+    }
+
+    return decision.value === 'approved'
+        ? 'Approve request'
+        : 'Decline request';
+});
+
+const modalAction = computed(() => {
+    if (relief.value) {
+        return decision.value === 'approved' ? 'Agree cover' : 'Send back';
+    }
+
+    return decision.value === 'approved' ? 'Approve' : 'Decline';
+});
 
 function start(request: PendingRequest, choice: 'approved' | 'rejected') {
     deciding.value = request;
@@ -176,6 +202,13 @@ function submit() {
                                     </span>
                                 </div>
 
+                                <p
+                                    v-if="row.stage === 'relief'"
+                                    class="mt-1 inline-flex items-center gap-1.5 rounded-full bg-brand/10 px-2 py-0.5 text-[11.5px] font-medium text-brand"
+                                >
+                                    You are covering this desk
+                                </p>
+
                                 <p class="mt-1 text-[13.5px] text-muted">
                                     <template v-if="row.module === 'leave'">
                                         {{ row.days }} working day{{
@@ -203,7 +236,11 @@ function submit() {
                                     <span>
                                         Raised {{ relative(row.requested_at) }}
                                     </span>
-                                    <span>
+                                    <span v-if="row.stage === 'relief'">
+                                        Then goes to
+                                        {{ row.supervisor ?? 'an approver' }}
+                                    </span>
+                                    <span v-else>
                                         {{ row.approvals_given }}/{{
                                             row.approvals_required
                                         }}
@@ -227,13 +264,21 @@ function submit() {
                                     size="sm"
                                     @click="start(row, 'rejected')"
                                 >
-                                    Decline
+                                    {{
+                                        row.stage === 'relief'
+                                            ? 'Send back'
+                                            : 'Decline'
+                                    }}
                                 </AppButton>
                                 <AppButton
                                     size="sm"
                                     @click="start(row, 'approved')"
                                 >
-                                    Approve
+                                    {{
+                                        row.stage === 'relief'
+                                            ? 'Agree cover'
+                                            : 'Approve'
+                                    }}
                                 </AppButton>
                             </div>
                         </div>
@@ -279,15 +324,26 @@ function submit() {
         <ModalShell
             :open="deciding !== null"
             width="md"
-            :title="
-                decision === 'approved' ? 'Approve request' : 'Decline request'
-            "
+            :title="modalTitle"
             :subtitle="deciding?.summary"
             @close="deciding = null"
         >
             <div class="space-y-4">
                 <p class="text-[13.5px] leading-relaxed text-muted">
-                    <template v-if="decision === 'rejected'">
+                    <template v-if="deciding?.stage === 'relief'">
+                        <template v-if="decision === 'rejected'">
+                            Sending it back returns the request to
+                            {{ deciding?.requester.name }} to redo. Nothing is
+                            booked and no approver sees it.
+                        </template>
+                        <template v-else>
+                            You are agreeing to cover the desk. The request then
+                            goes to
+                            {{ deciding?.supervisor ?? 'their approver' }} for
+                            the decision.
+                        </template>
+                    </template>
+                    <template v-else-if="decision === 'rejected'">
                         Declining ends the request outright, whatever approvals
                         it already has.
                     </template>
@@ -340,7 +396,7 @@ function submit() {
                     :loading="form.processing"
                     @click="submit"
                 >
-                    {{ decision === 'approved' ? 'Approve' : 'Decline' }}
+                    {{ modalAction }}
                 </AppButton>
             </template>
         </ModalShell>

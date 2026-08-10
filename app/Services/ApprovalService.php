@@ -6,7 +6,11 @@ use App\Contracts\Approvable;
 use App\Enums\ApprovalDecision;
 use App\Enums\RequestStatus;
 use App\Models\Approval;
+use App\Models\LatenessRequest;
+use App\Models\LeaveRequest;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -37,12 +41,14 @@ class ApprovalService
             }
 
             $now = Carbon::now();
+            $stage = $request->approvalStageFor($approver);
 
             Approval::query()->create([
                 'approvable_type' => $request->getMorphClass(),
                 'approvable_id' => $request->getKey(),
                 'approver_id' => $approver->id,
                 'step' => $request->decisions()->count() + 1,
+                'stage' => $stage,
                 'decision' => $decision,
                 'comment' => $comment,
                 'decided_at' => $now,
@@ -52,14 +58,14 @@ class ApprovalService
 
             if ($decision === ApprovalDecision::Rejected) {
                 $request->forceFill([
-                    'status' => RequestStatus::Rejected,
+                    'status' => $request->statusAfterRejection($stage),
                     'decided_at' => $now,
                 ])->save();
 
                 return true;
             }
 
-            if ($request->approvalsOutstanding() === 0) {
+            if ($stage->countsTowardsApproval() && $request->approvalsOutstanding() === 0) {
                 $request->forceFill([
                     'status' => RequestStatus::Approved,
                     'decided_at' => $now,
@@ -71,21 +77,60 @@ class ApprovalService
     }
 
     /**
-     * How many open requests of a given type this person still has to decide
-     * on. Drives the badge on the approvals nav item.
+     * Open leave it is this person's turn to decide on. Whose turn it is
+     * depends on how far the request has got, which no single query can
+     * express, so the shortlist is narrowed in SQL and settled in PHP.
      *
-     * @param  class-string<Approvable&Model>  $model
+     * @return Collection<int, LeaveRequest>
      */
-    public function outstandingCount(string $model, User $approver): int
+    public function awaitingLeave(User $approver): Collection
     {
-        return $model::query()
-            ->where('status', RequestStatus::Pending->value)
+        return LeaveRequest::query()
+            ->with('approvals')
+            ->pending()
             ->where('user_id', '!=', $approver->id)
             ->whereDoesntHave(
                 'approvals',
-                fn ($query) => $query->where('approver_id', $approver->id),
+                fn (Builder $query) => $query->where('approver_id', $approver->id),
             )
-            ->count();
+            ->get()
+            ->filter(fn (LeaveRequest $leave): bool => $leave->awaitsDecisionFrom($approver))
+            ->values();
+    }
+
+    /**
+     * @return Collection<int, LatenessRequest>
+     */
+    public function awaitingLateness(User $approver): Collection
+    {
+        return LatenessRequest::query()
+            ->with('approvals')
+            ->pending()
+            ->where('user_id', '!=', $approver->id)
+            ->whereDoesntHave(
+                'approvals',
+                fn (Builder $query) => $query->where('approver_id', $approver->id),
+            )
+            ->get()
+            ->filter(fn (LatenessRequest $late): bool => $late->awaitsDecisionFrom($approver))
+            ->values();
+    }
+
+    /**
+     * Everything waiting on this person, for the badge on the nav item. Staff
+     * without approval rights can still be sitting on a relief sign-off.
+     */
+    public function inboxCount(User $user): int
+    {
+        $count = $user->canApprove() || $user->hasReliefDuties()
+            ? $this->awaitingLeave($user)->count()
+            : 0;
+
+        if ($user->canApprove()) {
+            $count += $this->awaitingLateness($user)->count();
+        }
+
+        return $count;
     }
 
     /**
@@ -103,6 +148,8 @@ class ApprovalService
                 'approver' => $approval->approver->name,
                 'decision' => $approval->decision->value,
                 'decision_label' => $approval->decision->label(),
+                'stage' => $approval->stage->value,
+                'stage_label' => $approval->stage->label(),
                 'comment' => $approval->comment,
                 'decided_at' => $approval->decided_at->toIso8601String(),
             ])

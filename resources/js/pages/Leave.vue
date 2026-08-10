@@ -23,10 +23,32 @@ type Balance = {
     remaining: number | null;
 };
 
+type DateRange = {
+    start: string;
+    end: string;
+};
+
+type PersonOption = {
+    value: number;
+    label: string;
+};
+
+type ReliefOption = PersonOption & {
+    /** Leave they already have booked or awaiting a decision. */
+    away: DateRange[];
+};
+
+type CoverDuty = DateRange & {
+    colleague: string;
+};
+
 type LeaveRow = {
     id: number;
     type: string;
     type_id: number;
+    supervisor: string | null;
+    relief_officer: string | null;
+    stage_label: string;
     start_date: string;
     end_date: string;
     range_label: string;
@@ -47,6 +69,9 @@ const props = defineProps<{
     balances: Balance[];
     workdays: number[];
     requests: LeaveRow[];
+    supervisors: PersonOption[];
+    relief_officers: ReliefOption[];
+    cover_duties: CoverDuty[];
     approvers_required: number;
     stats: { pending: number; approved_days: number };
 }>();
@@ -70,9 +95,54 @@ const typeOptions = computed(() =>
 
 const form = useForm({
     leave_type_id: null as number | null,
+    supervisor_id: null as number | null,
+    relief_officer_id: null as number | null,
     start_date: today,
     end_date: today,
     reason: '',
+});
+
+function overlaps(range: DateRange, start: string, end: string): boolean {
+    return range.start <= end && range.end >= start;
+}
+
+// Cover this person owes a colleague over the days they are asking for. They
+// have to be at their desk for it, so the request cannot stand.
+const clashingDuty = computed(
+    () =>
+        props.cover_duties.find((duty) =>
+            overlaps(duty, form.start_date, form.end_date),
+        ) ?? null,
+);
+
+// The relief officer signs off the cover first, so they cannot also be the
+// approver who rules on it, and somebody who is away themselves is no cover.
+const reliefOptions = computed(() =>
+    props.relief_officers.filter(
+        (person) =>
+            person.value !== Number(form.supervisor_id) &&
+            !person.away.some((range) =>
+                overlaps(range, form.start_date, form.end_date),
+            ),
+    ),
+);
+
+const awayCount = computed(
+    () =>
+        props.relief_officers.length -
+        props.relief_officers.filter(
+            (person) =>
+                !person.away.some((range) =>
+                    overlaps(range, form.start_date, form.end_date),
+                ),
+        ).length,
+);
+
+// Moving the dates can strand a relief officer who is now away themselves.
+watch(reliefOptions, (options) => {
+    if (!options.some((person) => person.value === form.relief_officer_id)) {
+        form.relief_officer_id = null;
+    }
 });
 
 const selectedBalance = computed(
@@ -161,6 +231,15 @@ const exhausted = computed(
 const overAllowance = computed(
     () => remaining.value !== null && workingDays.value > remaining.value,
 );
+const canSubmit = computed(
+    () =>
+        !exhausted.value &&
+        !overAllowance.value &&
+        workingDays.value > 0 &&
+        clashingDuty.value === null &&
+        form.supervisor_id !== null &&
+        form.relief_officer_id !== null,
+);
 
 // Changing the type or the first day can leave the last day out of range, so
 // it is pulled back rather than left showing something that cannot be sent.
@@ -178,6 +257,8 @@ function open() {
     form.clearErrors();
     form.defaults({
         leave_type_id: props.balances[0]?.id ?? null,
+        supervisor_id: props.supervisors[0]?.value ?? null,
+        relief_officer_id: null,
         start_date: today,
         end_date: today,
         reason: '',
@@ -226,7 +307,7 @@ function toggleTrail(row: LeaveRow) {
         <template #toolbar>
             <AppButton
                 size="sm"
-                :disabled="balances.length === 0"
+                :disabled="balances.length === 0 || supervisors.length === 0"
                 @click="open"
             >
                 Request leave
@@ -338,6 +419,13 @@ function toggleTrail(row: LeaveRow) {
                                     }}
                                 </p>
                                 <p
+                                    v-if="row.relief_officer || row.supervisor"
+                                    class="mt-0.5 text-[12.5px] text-faint"
+                                >
+                                    Cover: {{ row.relief_officer ?? '—' }} ·
+                                    Approver: {{ row.supervisor ?? '—' }}
+                                </p>
+                                <p
                                     v-if="row.reason"
                                     class="mt-1.5 max-w-prose text-[13px] leading-relaxed text-faint"
                                 >
@@ -353,10 +441,7 @@ function toggleTrail(row: LeaveRow) {
                                     v-if="row.status === 'pending'"
                                     class="text-[12px] text-faint"
                                 >
-                                    {{ row.approvals_given }}/{{
-                                        row.approvals_required
-                                    }}
-                                    approved
+                                    {{ row.stage_label }}
                                 </span>
                             </div>
                         </div>
@@ -395,6 +480,7 @@ function toggleTrail(row: LeaveRow) {
                                     step.approver
                                 }}</span>
                                 <span class="text-muted">
+                                    ({{ step.stage_label.toLowerCase() }})
                                     {{ step.decision_label.toLowerCase() }} on
                                     {{ dateTime(step.decided_at) }}
                                 </span>
@@ -424,6 +510,27 @@ function toggleTrail(row: LeaveRow) {
                 />
 
                 <div class="grid gap-4 sm:grid-cols-2">
+                    <SelectField
+                        v-model="form.supervisor_id"
+                        label="Approver"
+                        required
+                        :options="supervisors"
+                        :error="form.errors.supervisor_id"
+                        hint="Who signs the leave off."
+                    />
+                    <SelectField
+                        v-model="form.relief_officer_id"
+                        label="Relief officer"
+                        required
+                        :options="reliefOptions"
+                        :error="form.errors.relief_officer_id"
+                        hint="Covers your desk, and agrees first."
+                    >
+                        <option :value="null" disabled>Pick a colleague</option>
+                    </SelectField>
+                </div>
+
+                <div class="grid gap-4 sm:grid-cols-2">
                     <TextField
                         v-model="form.start_date"
                         label="First day"
@@ -448,6 +555,19 @@ function toggleTrail(row: LeaveRow) {
                         "
                     />
                 </div>
+
+                <p
+                    v-if="clashingDuty"
+                    class="rounded-xl bg-alert-soft px-3.5 py-2.5 text-[13px] text-alert"
+                >
+                    You are covering for {{ clashingDuty.colleague }} from
+                    {{ clashingDuty.start }} to {{ clashingDuty.end }}. Hand
+                    that over before booking these days.
+                </p>
+                <p v-else-if="awayCount > 0" class="text-[12.5px] text-faint">
+                    {{ awayCount }} colleague(s) are away over these dates and
+                    are not on the relief list.
+                </p>
 
                 <p
                     v-if="exhausted"
@@ -498,10 +618,10 @@ function toggleTrail(row: LeaveRow) {
                 </AppButton>
                 <AppButton
                     :loading="form.processing"
-                    :disabled="exhausted || overAllowance || workingDays === 0"
+                    :disabled="!canSubmit"
                     @click="submit"
                 >
-                    Send for approval
+                    Send for cover
                 </AppButton>
             </template>
         </ModalShell>

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\ApprovalDecision;
+use App\Enums\ApprovalStage;
 use App\Enums\RequestStatus;
 use App\Models\LatenessRequest;
 use App\Models\LeaveRequest;
@@ -160,6 +161,115 @@ class ApprovalTest extends TestCase
             ->post("/approvals/leave/{$leave->id}", ['decision' => 'approved']);
 
         $this->assertSame(RequestStatus::Approved, $leave->refresh()->status);
+    }
+
+    public function test_the_relief_officer_signs_off_before_the_approver_sees_it(): void
+    {
+        $supervisor = $this->approver();
+        $relief = $this->staff();
+        $leave = LeaveRequest::factory()
+            ->chained($relief, $supervisor)
+            ->create(['user_id' => $this->staff()->id]);
+
+        // The supervisor cannot jump the queue.
+        $this->actingAs($supervisor)
+            ->post("/approvals/leave/{$leave->id}", ['decision' => 'approved']);
+
+        $this->assertSame(0, $leave->refresh()->approvals()->count());
+        $this->assertSame(RequestStatus::Pending, $leave->status);
+
+        $this->actingAs($relief)
+            ->post("/approvals/leave/{$leave->id}", ['decision' => 'approved'])
+            ->assertSessionHasNoErrors();
+
+        $leave->refresh()->load('approvals');
+
+        // Cover agreed, but the relief sign-off is not one of the approvals.
+        $this->assertSame(RequestStatus::Pending, $leave->status);
+        $this->assertTrue($leave->reliefAgreed());
+        $this->assertSame(0, $leave->approvalsGiven());
+
+        $this->actingAs($supervisor)
+            ->post("/approvals/leave/{$leave->id}", ['decision' => 'approved']);
+
+        $leave->refresh()->load('approvals');
+
+        $this->assertSame(RequestStatus::Approved, $leave->status);
+        $this->assertSame(1, $leave->approvalsGiven());
+        $this->assertSame(
+            ApprovalStage::Relief,
+            $leave->approvals->firstWhere('approver_id', $relief->id)->stage,
+        );
+    }
+
+    public function test_a_relief_officer_who_declines_sends_the_request_back(): void
+    {
+        $relief = $this->staff();
+        $leave = LeaveRequest::factory()
+            ->chained($relief, $this->approver())
+            ->create(['user_id' => $this->staff()->id]);
+
+        $this->actingAs($relief)
+            ->post("/approvals/leave/{$leave->id}", [
+                'decision' => 'rejected',
+                'comment' => 'I am away that week myself.',
+            ]);
+
+        $this->assertSame(RequestStatus::Returned, $leave->refresh()->status);
+        $this->assertNotNull($leave->decided_at);
+    }
+
+    public function test_only_the_named_approver_takes_the_first_approval(): void
+    {
+        $relief = $this->staff();
+        $supervisor = $this->approver();
+        $bystander = $this->approver();
+        $leave = LeaveRequest::factory()
+            ->chained($relief, $supervisor)
+            ->create(['user_id' => $this->staff()->id, 'approvals_required' => 2]);
+
+        $this->actingAs($relief)
+            ->post("/approvals/leave/{$leave->id}", ['decision' => 'approved']);
+
+        $this->actingAs($bystander)
+            ->post("/approvals/leave/{$leave->id}", ['decision' => 'approved']);
+
+        $this->assertSame(0, $leave->refresh()->load('approvals')->approvalsGiven());
+
+        $this->actingAs($supervisor)
+            ->post("/approvals/leave/{$leave->id}", ['decision' => 'approved']);
+
+        // With two approvals asked for, anyone else may top it up afterwards.
+        $this->actingAs($bystander)
+            ->post("/approvals/leave/{$leave->id}", ['decision' => 'approved']);
+
+        $this->assertSame(RequestStatus::Approved, $leave->refresh()->status);
+    }
+
+    public function test_a_relief_officer_without_approval_rights_reaches_the_inbox(): void
+    {
+        $relief = $this->staff();
+        $leave = LeaveRequest::factory()
+            ->chained($relief, $this->approver())
+            ->create(['user_id' => $this->staff()->id]);
+
+        $this->actingAs($relief)
+            ->get('/approvals')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Approvals')
+                ->has('leave', 1)
+                ->where('leave.0.stage', 'relief')
+                ->has('lateness', 0));
+
+        $this->actingAs($relief)
+            ->post("/approvals/leave/{$leave->id}", ['decision' => 'approved'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertTrue($leave->refresh()->load('approvals')->reliefAgreed());
+
+        // With the cover agreed they have no business on the page any more.
+        $this->actingAs($relief)->get('/approvals')->assertForbidden();
     }
 
     public function test_the_inbox_lists_what_is_waiting_on_this_approver(): void

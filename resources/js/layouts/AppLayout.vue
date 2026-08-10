@@ -101,7 +101,7 @@ const visibleNav = computed(() =>
         (item) =>
             (!item.adminOnly || user.value?.is_super_admin) &&
             (!item.staffOnly || user.value?.clocks_in) &&
-            (!item.approverOnly || user.value?.can_approve),
+            (!item.approverOnly || user.value?.can_use_approvals),
     ),
 );
 
