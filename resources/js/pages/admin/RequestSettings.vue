@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { reactive, ref } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
 import Panel from '@/components/ui/Panel.vue';
@@ -27,9 +27,19 @@ type LeaveTypeRow = {
     requests: number;
 };
 
+type ApproverRow = {
+    id: number;
+    name: string;
+    department: string | null;
+    position: string | null;
+    is_approver: boolean;
+    locked: boolean;
+};
+
 const props = defineProps<{
     modules: ModuleRow[];
     leave_types: LeaveTypeRow[];
+    approvers: ApproverRow[];
     approver_count: number;
     totals: { leave_requests: number; lateness_requests: number };
 }>();
@@ -58,6 +68,75 @@ function save(module: ModuleRow) {
             preserveScroll: true,
             onFinish: () => {
                 saving.value = null;
+            },
+        },
+    );
+}
+
+// The approver pool is edited as a whole and posted in one go, so several
+// people can be given or stripped of the rights on a single save.
+const picked = ref<number[]>(
+    props.approvers.filter((row) => row.is_approver).map((row) => row.id),
+);
+const search = ref('');
+const savingApprovers = ref(false);
+
+// A save can decline part of what was asked for, so the ticks follow whatever
+// the server sends back rather than what was posted.
+watch(
+    () => props.approvers,
+    (rows) => {
+        picked.value = rows
+            .filter((row) => row.is_approver)
+            .map((row) => row.id);
+    },
+);
+
+const matches = computed(() => {
+    const term = search.value.trim().toLowerCase();
+
+    if (term === '') {
+        return props.approvers;
+    }
+
+    return props.approvers.filter((row) =>
+        [row.name, row.department, row.position]
+            .filter((field): field is string => Boolean(field))
+            .some((field) => field.toLowerCase().includes(term)),
+    );
+});
+
+const approverDirty = computed(() => {
+    const before = props.approvers
+        .filter((row) => row.is_approver)
+        .map((row) => row.id);
+
+    return (
+        before.length !== picked.value.length ||
+        before.some((id) => !picked.value.includes(id))
+    );
+});
+
+function toggleApprover(row: ApproverRow) {
+    if (row.locked) {
+        return;
+    }
+
+    picked.value = picked.value.includes(row.id)
+        ? picked.value.filter((id) => id !== row.id)
+        : [...picked.value, row.id];
+}
+
+function saveApprovers() {
+    savingApprovers.value = true;
+
+    router.put(
+        '/admin/request-settings/approvers',
+        { user_ids: picked.value },
+        {
+            preserveScroll: true,
+            onFinish: () => {
+                savingApprovers.value = false;
             },
         },
     );
@@ -201,6 +280,96 @@ function toggle(type: LeaveTypeRow) {
                             </p>
                         </div>
                     </div>
+                </div>
+            </Panel>
+
+            <Panel
+                title="Who can approve"
+                subtitle="Tick everyone who should be able to rule on leave and lateness. Staff pick their approver from this list when they raise a request."
+            >
+                <template #action>
+                    <AppButton
+                        size="sm"
+                        :disabled="!approverDirty"
+                        :loading="savingApprovers"
+                        @click="saveApprovers"
+                    >
+                        Save
+                    </AppButton>
+                </template>
+
+                <div class="space-y-4">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <TextField
+                            v-model="search"
+                            class="min-w-56 flex-1"
+                            label="Find someone"
+                            placeholder="Name, department or job title"
+                        />
+
+                        <StatusPill :tone="picked.length ? 'signal' : 'alert'">
+                            {{ picked.length }} selected
+                        </StatusPill>
+                    </div>
+
+                    <div
+                        class="max-h-96 divide-y divide-line-soft overflow-y-auto rounded-xl border border-line-soft"
+                    >
+                        <label
+                            v-for="row in matches"
+                            :key="row.id"
+                            :class="[
+                                'flex items-start gap-3 px-4 py-3 transition-colors',
+                                row.locked
+                                    ? 'cursor-not-allowed opacity-70'
+                                    : 'cursor-pointer hover:bg-line-soft/40',
+                            ]"
+                        >
+                            <input
+                                type="checkbox"
+                                class="mt-0.5 size-4 rounded border-line text-brand focus:ring-brand/30"
+                                :checked="picked.includes(row.id)"
+                                :disabled="row.locked"
+                                @change="toggleApprover(row)"
+                            />
+
+                            <span class="min-w-0 flex-1">
+                                <span class="block text-[13.5px] font-medium">
+                                    {{ row.name }}
+                                </span>
+                                <span
+                                    v-if="row.department || row.position"
+                                    class="mt-0.5 block text-[12.5px] text-muted"
+                                >
+                                    {{
+                                        [row.position, row.department]
+                                            .filter(Boolean)
+                                            .join(' · ')
+                                    }}
+                                </span>
+                                <span
+                                    v-if="row.locked"
+                                    class="mt-1 block text-[12px] text-faint"
+                                >
+                                    Named on leave still waiting on them, so
+                                    their rights cannot be removed yet.
+                                </span>
+                            </span>
+                        </label>
+
+                        <p
+                            v-if="matches.length === 0"
+                            class="px-4 py-6 text-center text-[13px] text-muted"
+                        >
+                            Nobody matches "{{ search }}".
+                        </p>
+                    </div>
+
+                    <p class="text-[12.5px] text-faint">
+                        Super admins approve as part of running the system and
+                        are not listed here. Anyone unticked drops back to
+                        ordinary staff.
+                    </p>
                 </div>
             </Panel>
 
