@@ -132,6 +132,8 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
         Route::get('clock-attempts', [ClockAttemptController::class, 'index'])->name('clock-attempts.index');
 
         Route::get('request-settings', [RequestSettingsController::class, 'index'])->name('request-settings.index');
+        Route::put('request-settings/approvers', [RequestSettingsController::class, 'approvers'])
+            ->name('request-settings.approvers');
         Route::put('request-settings/{module}', [RequestSettingsController::class, 'update'])
             ->whereIn('module', ['leave', 'lateness'])
             ->name('request-settings.update');

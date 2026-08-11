@@ -8,6 +8,7 @@ use App\Models\ApprovalSetting;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\Location;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -163,6 +164,94 @@ class RequestSettingsTest extends TestCase
         $this->actingAs($staff)
             ->post('/admin/leave-types', ['name' => 'Sneaky leave'])
             ->assertForbidden();
+    }
+
+    public function test_several_people_can_be_given_approval_rights_at_once(): void
+    {
+        $location = Location::factory()->create();
+
+        $first = User::factory()->create(['location_id' => $location->id]);
+        $second = User::factory()->create(['location_id' => $location->id]);
+        $untouched = User::factory()->create(['location_id' => $location->id]);
+
+        $this->actingAs($this->admin())
+            ->put('/admin/request-settings/approvers', [
+                'user_ids' => [$first->id, $second->id],
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertTrue($first->refresh()->canApprove());
+        $this->assertTrue($second->refresh()->canApprove());
+        $this->assertFalse($untouched->refresh()->canApprove());
+    }
+
+    public function test_leaving_someone_off_the_list_takes_their_rights_away(): void
+    {
+        $approver = User::factory()->approver()->create([
+            'location_id' => Location::factory()->create()->id,
+        ]);
+
+        $this->actingAs($this->admin())
+            ->put('/admin/request-settings/approvers', ['user_ids' => []])
+            ->assertSessionHasNoErrors();
+
+        $this->assertFalse($approver->refresh()->canApprove());
+        $this->assertSame(Role::STAFF, $approver->role->slug);
+    }
+
+    public function test_an_approver_named_on_open_leave_keeps_their_rights(): void
+    {
+        $location = Location::factory()->create();
+
+        $approver = User::factory()->approver()->create(['location_id' => $location->id]);
+        $spare = User::factory()->approver()->create(['location_id' => $location->id]);
+
+        LeaveRequest::factory()->create([
+            'supervisor_id' => $approver->id,
+            'status' => RequestStatus::Pending,
+        ]);
+
+        $this->actingAs($this->admin())
+            ->put('/admin/request-settings/approvers', ['user_ids' => []])
+            ->assertSessionHasNoErrors();
+
+        // Stripping the named approver would leave the request with nobody
+        // able to rule on it, so only the other one is dropped.
+        $this->assertTrue($approver->refresh()->canApprove());
+        $this->assertFalse($spare->refresh()->canApprove());
+    }
+
+    public function test_super_admins_are_not_listed_as_togglable_approvers(): void
+    {
+        $admin = $this->admin();
+        $approver = User::factory()->approver()->create([
+            'location_id' => Location::factory()->create()->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->get('/admin/request-settings')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('approvers', 1)
+                ->where('approvers.0.id', $approver->id)
+                ->where('approvers.0.is_approver', true));
+
+        // The admin's own role is untouched by a save from this page.
+        $this->actingAs($admin)
+            ->put('/admin/request-settings/approvers', ['user_ids' => []]);
+
+        $this->assertTrue($admin->refresh()->isSuperAdmin());
+    }
+
+    public function test_staff_cannot_change_who_approves(): void
+    {
+        $staff = User::factory()->create(['location_id' => Location::factory()->create()->id]);
+
+        $this->actingAs($staff)
+            ->put('/admin/request-settings/approvers', ['user_ids' => [$staff->id]])
+            ->assertForbidden();
+
+        $this->assertFalse($staff->refresh()->canApprove());
     }
 
     public function test_the_settings_page_lists_modules_and_types(): void
