@@ -3,10 +3,14 @@
 namespace App\Providers;
 
 use Carbon\CarbonImmutable;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 use Symfony\Component\Mailer\Bridge\Brevo\Transport\BrevoApiTransport;
 
@@ -27,6 +31,25 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureDefaults();
         $this->registerBrevoMailer();
+        $this->registerRateLimiters();
+    }
+
+    /**
+     * Register the application's named rate limiters.
+     */
+    protected function registerRateLimiters(): void
+    {
+        // Resets are limited on both axes. The email bucket is the tight one:
+        // it stops a single account being hammered from many hosts. The IP
+        // bucket is deliberately looser so a shared office NAT, where several
+        // staff may reset in the same minute, does not become the binding
+        // limit while still capping token guessing from one host.
+        RateLimiter::for('reset-password', fn (Request $request): array => [
+            Limit::perMinute(5)->by('reset-password|email|'.Str::transliterate(
+                Str::lower($request->string('email')->toString()),
+            )),
+            Limit::perMinute(20)->by('reset-password|ip|'.$request->ip()),
+        ]);
     }
 
     /**
