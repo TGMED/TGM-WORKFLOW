@@ -13,6 +13,7 @@ export type AuthUser = {
     name: string;
     email: string;
     initials: string;
+    avatar_url: string | null;
     employee_id: string | null;
     department: string | null;
     position: string | null;
@@ -23,6 +24,7 @@ export type AuthUser = {
     can_use_approvals: boolean;
     clocks_in: boolean;
     is_active: boolean;
+    profile_complete: boolean;
     location: UserLocation | null;
 };
 

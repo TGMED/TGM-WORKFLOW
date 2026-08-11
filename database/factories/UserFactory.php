@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\EmployeeProfile;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -41,6 +42,39 @@ class UserFactory extends Factory
             'hired_at' => fake()->dateTimeBetween('-4 years', '-1 month'),
             'is_active' => true,
         ];
+    }
+
+    /**
+     * Everyone gets a finished profile, so the profile gate does not turn
+     * every other test back at the door. Tests about the gate itself reach
+     * for withoutProfile() or incompleteProfile() below.
+     */
+    public function configure(): static
+    {
+        return $this->afterCreating(function (User $user): void {
+            $user->profile()->save(EmployeeProfile::factory()->make(['user_id' => null]));
+        });
+    }
+
+    /**
+     * Someone who has never opened the profile page.
+     */
+    public function withoutProfile(): static
+    {
+        return $this->afterCreating(fn (User $user) => $user->profile()->delete());
+    }
+
+    /**
+     * Someone who started their profile and left required fields blank.
+     */
+    public function incompleteProfile(): static
+    {
+        return $this->afterCreating(function (User $user): void {
+            $user->profile()->delete();
+            $user->profile()->save(
+                EmployeeProfile::factory()->incomplete()->make(['user_id' => null]),
+            );
+        });
     }
 
     /**

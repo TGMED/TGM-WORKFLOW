@@ -7,6 +7,8 @@ const props = withDefaults(
         name?: string;
         size?: 'sm' | 'md' | 'lg' | 'xl';
         muted?: boolean;
+        /** A photo, if this person has uploaded one. Falls back to initials. */
+        src?: string | null;
     }>(),
     { size: 'md', muted: false },
 );
@@ -35,7 +37,19 @@ const hue = computed(() => {
 </script>
 
 <template>
+    <img
+        v-if="src"
+        :src="src"
+        :alt="name ?? ''"
+        :class="[
+            'shrink-0 rounded-xl object-cover ring-1 ring-line',
+            sizes[size].split(' ')[0],
+        ]"
+        :title="name"
+    />
+
     <span
+        v-else
         :class="[
             'inline-grid shrink-0 place-items-center rounded-xl font-semibold tracking-tight select-none',
             'ring-1 ring-inset',

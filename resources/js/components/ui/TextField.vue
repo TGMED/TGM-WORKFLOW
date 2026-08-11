@@ -11,6 +11,7 @@ const props = withDefaults(
         required?: boolean;
         disabled?: boolean;
         autocomplete?: string;
+        inputmode?: 'text' | 'numeric' | 'decimal' | 'tel' | 'email' | 'url';
         id?: string;
         min?: string | number;
         max?: string | number;
@@ -59,6 +60,7 @@ const resolvedType = computed(() =>
                 :required="required"
                 :disabled="disabled"
                 :autocomplete="autocomplete"
+                :inputmode="inputmode"
                 :min="min"
                 :max="max"
                 :step="step"

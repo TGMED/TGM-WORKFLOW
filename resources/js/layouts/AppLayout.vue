@@ -95,14 +95,18 @@ const nav: NavItem[] = [
 ];
 
 // Admins run the clock rather than punch it, so the personal attendance
-// view is not theirs to see.
+// view is not theirs to see. And until a profile is finished every one of
+// these bounces straight back to it, so the rail stays empty rather than
+// offering doors that do not open.
 const visibleNav = computed(() =>
-    nav.filter(
-        (item) =>
-            (!item.adminOnly || user.value?.is_super_admin) &&
-            (!item.staffOnly || user.value?.clocks_in) &&
-            (!item.approverOnly || user.value?.can_use_approvals),
-    ),
+    user.value?.profile_complete === false
+        ? []
+        : nav.filter(
+              (item) =>
+                  (!item.adminOnly || user.value?.is_super_admin) &&
+                  (!item.staffOnly || user.value?.clocks_in) &&
+                  (!item.approverOnly || user.value?.can_use_approvals),
+          ),
 );
 
 const currentUrl = computed(() => page.url.split('?')[0]);
@@ -303,6 +307,7 @@ watch(currentUrl, () => {
                             v-if="user"
                             :initials="user.initials"
                             :name="user.name"
+                            :src="user.avatar_url"
                             size="sm"
                         />
                         <span class="min-w-0 flex-1">
@@ -340,6 +345,30 @@ watch(currentUrl, () => {
                             v-if="userMenuOpen"
                             class="absolute right-0 bottom-full left-0 mb-2 overflow-hidden rounded-xl border border-line bg-panel-raised p-1 shadow-lift"
                         >
+                            <Link
+                                href="/profile"
+                                class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-muted transition-colors hover:bg-line-soft hover:text-text"
+                            >
+                                <svg
+                                    class="size-4"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.7"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                >
+                                    <path
+                                        d="M19 20v-1.5a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4V20M12 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
+                                    />
+                                </svg>
+                                My profile
+                                <span
+                                    v-if="user && !user.profile_complete"
+                                    class="ml-auto size-2 rounded-full bg-brass"
+                                    aria-label="Incomplete"
+                                />
+                            </Link>
                             <Link
                                 href="/settings/password"
                                 class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-muted transition-colors hover:bg-line-soft hover:text-text"

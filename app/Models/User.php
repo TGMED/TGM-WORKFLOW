@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -33,6 +34,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  * @property-read Location|null $location
  * @property-read Role $role
+ * @property-read EmployeeProfile|null $profile
  */
 #[Fillable([
     'employee_id',
@@ -93,6 +95,34 @@ class User extends Authenticatable
     public function location(): BelongsTo
     {
         return $this->belongsTo(Location::class);
+    }
+
+    /**
+     * The HR record this person keeps themselves.
+     *
+     * @return HasOne<EmployeeProfile, $this>
+     */
+    public function profile(): HasOne
+    {
+        return $this->hasOne(EmployeeProfile::class);
+    }
+
+    /**
+     * Next of kin, dependants and family members, all three lists together.
+     *
+     * @return HasMany<EmployeeRelation, $this>
+     */
+    public function relations(): HasMany
+    {
+        return $this->hasMany(EmployeeRelation::class);
+    }
+
+    /**
+     * @return HasMany<EmployeeAddress, $this>
+     */
+    public function addresses(): HasMany
+    {
+        return $this->hasMany(EmployeeAddress::class);
     }
 
     /**
@@ -186,6 +216,44 @@ class User extends Authenticatable
     public function clocksIn(): bool
     {
         return ! $this->isSuperAdmin();
+    }
+
+    /**
+     * The profile row, created empty on first read so callers never have to
+     * juggle a null. Nothing is written until the employee saves something.
+     */
+    public function profileRecord(): EmployeeProfile
+    {
+        $profile = $this->profile ?? $this->profile()->make();
+
+        // The completeness check reads the phone number off the user, so hand
+        // the profile back the person it belongs to rather than let it go
+        // looking for one it already has.
+        $profile->setRelation('user', $this);
+
+        return $profile;
+    }
+
+    /**
+     * Super admins administer the system rather than appear on the payroll,
+     * so there is no HR record for them to keep and nothing to gate them on.
+     */
+    public function needsProfile(): bool
+    {
+        return ! $this->isSuperAdmin();
+    }
+
+    /**
+     * Whether this person may use the rest of the app. A profile that was
+     * never started counts as incomplete.
+     */
+    public function hasCompleteProfile(): bool
+    {
+        if (! $this->needsProfile()) {
+            return true;
+        }
+
+        return $this->profileRecord()->isComplete();
     }
 
     /**

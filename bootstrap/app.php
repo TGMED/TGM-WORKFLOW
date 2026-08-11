@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureAccountIsActive;
+use App\Http\Middleware\EnsureProfileIsComplete;
 use App\Http\Middleware\EnsureUserCanApprove;
 use App\Http\Middleware\EnsureUserClocksIn;
 use App\Http\Middleware\EnsureUserIsSuperAdmin;
@@ -28,6 +29,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'active' => EnsureAccountIsActive::class,
             'clocks-in' => EnsureUserClocksIn::class,
             'approver' => EnsureUserCanApprove::class,
+            'profile-complete' => EnsureProfileIsComplete::class,
         ]);
 
         $middleware->redirectGuestsTo(fn () => route('login'));

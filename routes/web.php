@@ -17,6 +17,11 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LatenessRequestController;
 use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\PasswordController;
+use App\Http\Controllers\Profile\AddressController;
+use App\Http\Controllers\Profile\BankDetailsController;
+use App\Http\Controllers\Profile\ProfileController;
+use App\Http\Controllers\Profile\ProfilePhotoController;
+use App\Http\Controllers\Profile\RelationController;
 use App\Http\Controllers\WorkLocationController;
 use Illuminate\Support\Facades\Route;
 
@@ -42,7 +47,7 @@ Route::middleware('guest')->group(function (): void {
         ->name('password.store');
 });
 
-Route::middleware(['auth', 'active'])->group(function (): void {
+Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): void {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('attendance', [AttendanceController::class, 'index'])
         ->middleware('clocks-in')
@@ -84,6 +89,26 @@ Route::middleware(['auth', 'active'])->group(function (): void {
             ->whereIn('module', ['leave', 'lateness'])
             ->whereNumber('id')
             ->name('approvals.store');
+    });
+
+    // The employee's own HR record. Reachable with the profile half-filled,
+    // since this is where they go to finish it.
+    Route::prefix('profile')->name('profile.')->group(function (): void {
+        Route::get('/', [ProfileController::class, 'edit'])->name('edit');
+        Route::put('/', [ProfileController::class, 'update'])->name('update');
+
+        Route::put('bank', [BankDetailsController::class, 'update'])->name('bank.update');
+
+        Route::post('photo', [ProfilePhotoController::class, 'store'])->name('photo.store');
+        Route::delete('photo', [ProfilePhotoController::class, 'destroy'])->name('photo.destroy');
+
+        Route::post('relations', [RelationController::class, 'store'])->name('relations.store');
+        Route::put('relations/{relation}', [RelationController::class, 'update'])->name('relations.update');
+        Route::delete('relations/{relation}', [RelationController::class, 'destroy'])->name('relations.destroy');
+
+        Route::post('addresses', [AddressController::class, 'store'])->name('addresses.store');
+        Route::put('addresses/{address}', [AddressController::class, 'update'])->name('addresses.update');
+        Route::delete('addresses/{address}', [AddressController::class, 'destroy'])->name('addresses.destroy');
     });
 
     Route::get('settings/password', [PasswordController::class, 'edit'])->name('password.edit');
