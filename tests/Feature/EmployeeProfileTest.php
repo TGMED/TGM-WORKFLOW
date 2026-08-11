@@ -45,8 +45,23 @@ class EmployeeProfileTest extends TestCase
             'country_of_origin' => 'NG',
             'state_of_origin' => 'Enugu State',
             'phone' => '+2349053003200',
+            'hired_at' => '2024-02-01',
             ...$overrides,
         ];
+    }
+
+    /**
+     * The one required detail that is not part of the Profile tab's own form.
+     */
+    private function giveAddress(User $user): void
+    {
+        $user->addresses()->create([
+            'label' => 'Residential',
+            'street' => '14 Awolowo Road',
+            'city' => 'Ikoyi',
+            'state' => 'Lagos State',
+            'country' => 'NG',
+        ]);
     }
 
     public function test_staff_can_reach_their_profile(): void
@@ -70,9 +85,11 @@ class EmployeeProfileTest extends TestCase
 
         $staff->refresh();
 
-        // The staff ID, phone and display name belong to the user record.
+        // The staff ID, phone, joining date and display name belong to the
+        // user record.
         $this->assertSame('TGM/VU/251013', $staff->employee_id);
         $this->assertSame('+2349053003200', $staff->phone);
+        $this->assertSame('2024-02-01', $staff->hired_at->toDateString());
         $this->assertSame('Victor Chinonso Ugwu', $staff->name);
 
         // Everything else belongs to the profile.
@@ -118,7 +135,7 @@ class EmployeeProfileTest extends TestCase
             ])
             ->assertSessionHasErrors([
                 'last_name', 'gender', 'date_of_birth',
-                'country_of_origin', 'state_of_origin', 'phone',
+                'country_of_origin', 'state_of_origin', 'phone', 'hired_at',
             ]);
     }
 
@@ -215,7 +232,90 @@ class EmployeeProfileTest extends TestCase
 
         $this->actingAs($staff)->put('/profile', $this->payload());
 
+        // The form alone is not the whole record: an address is saved from
+        // its own card, and the gate holds them until it is there.
+        $this->actingAs($staff->refresh())->get('/dashboard')->assertRedirect('/profile');
+
+        $this->giveAddress($staff);
+
         $this->actingAs($staff->refresh())->get('/dashboard')->assertOk();
+    }
+
+    public function test_the_joining_date_is_required_and_cannot_be_far_ahead(): void
+    {
+        $staff = $this->staff();
+
+        $this->actingAs($staff)
+            ->put('/profile', $this->payload(['hired_at' => null]))
+            ->assertSessionHasErrors('hired_at');
+
+        $this->actingAs($staff)
+            ->put('/profile', $this->payload([
+                'hired_at' => now()->addYear()->toDateString(),
+            ]))
+            ->assertSessionHasErrors('hired_at');
+    }
+
+    public function test_a_missing_joining_date_alone_holds_someone_back(): void
+    {
+        $staff = User::factory()->create([
+            'location_id' => $this->location->id,
+            'hired_at' => null,
+        ]);
+
+        $this->actingAs($staff)->get('/dashboard')->assertRedirect('/profile');
+    }
+
+    public function test_an_address_is_required_before_the_app_opens_up(): void
+    {
+        $staff = $this->staff();
+
+        $this->actingAs($staff)->get('/dashboard')->assertOk();
+
+        $staff->addresses()->delete();
+
+        $this->actingAs($staff->refresh())->get('/dashboard')->assertRedirect('/profile');
+    }
+
+    /**
+     * Adding the first address can be the moment the record is finished, and
+     * that moment is worth stamping wherever it happens.
+     */
+    public function test_adding_the_first_address_finishes_the_record(): void
+    {
+        $staff = User::factory()->withoutProfile()->create([
+            'location_id' => $this->location->id,
+        ]);
+
+        $this->actingAs($staff)->put('/profile', $this->payload());
+
+        $this->assertNull($staff->refresh()->profile->completed_at);
+
+        $this->actingAs($staff)->post('/profile/addresses', [
+            'label' => 'Residential',
+            'street' => '14 Awolowo Road',
+            'country' => 'NG',
+        ])->assertRedirect();
+
+        $this->assertNotNull($staff->refresh()->profile->completed_at);
+    }
+
+    public function test_the_last_address_cannot_be_removed(): void
+    {
+        $staff = $this->staff();
+        $address = $staff->addresses()->firstOrFail();
+
+        $this->actingAs($staff)
+            ->delete("/profile/addresses/{$address->id}")
+            ->assertRedirect();
+
+        $this->assertModelExists($address);
+
+        $this->giveAddress($staff);
+
+        $this->actingAs($staff)->delete("/profile/addresses/{$address->id}");
+
+        $this->assertModelMissing($address);
     }
 
     public function test_a_missing_phone_number_alone_holds_someone_back(): void
@@ -368,7 +468,8 @@ class EmployeeProfileTest extends TestCase
             'country' => 'NG',
         ])->assertSessionHasNoErrors();
 
-        $address = $mine->addresses()->sole();
+        // Everyone starts with one on file, so pick out the one just added.
+        $address = $mine->addresses()->where('street', '12 Ademola Street')->sole();
 
         $this->assertStringContainsString('Nigeria', $address->oneLine());
 
@@ -421,6 +522,7 @@ class EmployeeProfileTest extends TestCase
             'location_id' => $this->location->id,
         ]);
 
+        $this->giveAddress($staff);
         $this->actingAs($staff)->put('/profile', $this->payload());
 
         $stamped = $staff->refresh()->profile->completed_at;

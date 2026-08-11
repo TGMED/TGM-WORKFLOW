@@ -257,6 +257,20 @@ class User extends Authenticatable
     }
 
     /**
+     * Stamp the moment the record was finished, if this is that moment. Parts
+     * of the record are saved from their own pages, so finishing it can happen
+     * anywhere; the stamp is left alone once set, since it records when.
+     */
+    public function stampProfileCompletion(): void
+    {
+        $profile = $this->profileRecord();
+
+        if ($profile->exists && $profile->completed_at === null && $profile->isComplete()) {
+            $profile->forceFill(['completed_at' => Carbon::now()])->save();
+        }
+    }
+
+    /**
      * Two-letter monogram used by the avatar component.
      */
     public function getInitialsAttribute(): string

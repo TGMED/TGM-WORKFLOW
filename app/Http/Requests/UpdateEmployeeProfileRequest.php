@@ -57,9 +57,13 @@ class UpdateEmployeeProfileRequest extends FormRequest
             'state_of_origin' => [$required('state_of_origin'), 'string', 'max:80'],
             'local_government' => ['nullable', 'string', 'max:80'],
 
-            // The primary phone lands on users, where the rest of the app
-            // already reads it. The email is not editable here at all.
+            // The primary phone and the joining date land on users, where the
+            // rest of the app already reads them. The email is not editable
+            // here at all.
             'phone' => ['required', 'string', 'max:30'],
+            // Nobody joined before the company existed or starts in the far
+            // future; a start date a month out covers a notice period.
+            'hired_at' => ['required', 'date', 'after:1990-01-01', 'before_or_equal:'.now()->addMonth()->toDateString()],
             'alternate_phone' => ['nullable', 'string', 'max:30'],
             'alternate_email' => ['nullable', 'string', 'email', 'max:190'],
         ];
@@ -73,6 +77,7 @@ class UpdateEmployeeProfileRequest extends FormRequest
         return [
             'employee_id' => 'staff ID',
             'attendance_id' => 'attendance ID',
+            'hired_at' => 'date you joined',
             'country_of_origin' => 'country of origin',
             'state_of_origin' => 'state',
             'national_id_number' => 'national identification number',
@@ -86,6 +91,7 @@ class UpdateEmployeeProfileRequest extends FormRequest
     {
         return [
             'date_of_birth.before' => 'Enter a date of birth for someone at least 16 years old.',
+            'hired_at.before_or_equal' => 'A joining date that far ahead is not one we can hold you to.',
             'employee_id.unique' => 'That staff ID already belongs to someone else.',
             'country_of_origin.in' => 'Pick a country from the list.',
         ];

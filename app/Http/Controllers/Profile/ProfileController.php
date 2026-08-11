@@ -62,11 +62,12 @@ class ProfileController extends Controller
 
         $profile = $user->profile()->firstOrNew();
         $profile->setRelation('user', $user);
-        $profile->fill(collect($validated)->except(['employee_id', 'phone'])->all());
+        $profile->fill(collect($validated)->except(['employee_id', 'phone', 'hired_at'])->all());
 
         $user->fill([
             'employee_id' => $validated['employee_id'] ?? null,
             'phone' => $validated['phone'],
+            'hired_at' => $validated['hired_at'],
             // The display name the rest of the app shows is derived here, so
             // the sidebar and the avatar follow whatever they typed above.
             'name' => $profile->displayName() ?? $user->name,
@@ -104,6 +105,7 @@ class ProfileController extends Controller
         return [
             'employee_id' => $user->employee_id,
             'attendance_id' => $profile->attendance_id,
+            'hired_at' => $user->hired_at?->toDateString(),
             'first_name' => $profile->first_name,
             'last_name' => $profile->last_name,
             'other_names' => $profile->other_names,

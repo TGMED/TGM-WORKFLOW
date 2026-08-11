@@ -106,6 +106,10 @@ class EmployeeProfile extends Model
      * run payroll or an emergency call-out without. Staff ID, bank and family
      * are chased separately and do not lock anyone out.
      *
+     * Three more are required but live elsewhere: the phone number and the
+     * joining date on users, and at least one address of their own. See
+     * missingElsewhere().
+     *
      * @var list<string>
      */
     public const REQUIRED = [
@@ -139,8 +143,9 @@ class EmployeeProfile extends Model
     }
 
     /**
-     * Every required field answered. The primary phone lives on users, so it
-     * is checked there rather than here.
+     * Every required field answered. Three of them are not columns on this
+     * table: the primary phone and the joining date live on users, and an
+     * address is a row of its own, so each is checked where it actually sits.
      */
     public function isComplete(): bool
     {
@@ -150,7 +155,7 @@ class EmployeeProfile extends Model
             }
         }
 
-        return filled($this->user->phone);
+        return $this->missingElsewhere() === [];
     }
 
     /**
@@ -166,11 +171,42 @@ class EmployeeProfile extends Model
             fn (string $field): bool => blank($this->{$field}),
         ));
 
+        return [...$missing, ...$this->missingElsewhere()];
+    }
+
+    /**
+     * The required details that are not columns on this table.
+     *
+     * @return array<int, string>
+     */
+    protected function missingElsewhere(): array
+    {
+        $missing = [];
+
         if (blank($this->user->phone)) {
             $missing[] = 'phone';
         }
 
+        if (blank($this->user->hired_at)) {
+            $missing[] = 'hired_at';
+        }
+
+        if (! $this->hasAddress()) {
+            $missing[] = 'address';
+        }
+
         return $missing;
+    }
+
+    /**
+     * At least one address on file. Read off the loaded relation when the
+     * caller already has it, since this runs on every gated request.
+     */
+    protected function hasAddress(): bool
+    {
+        return $this->user->relationLoaded('addresses')
+            ? $this->user->addresses->isNotEmpty()
+            : $this->user->addresses()->exists();
     }
 
     /**

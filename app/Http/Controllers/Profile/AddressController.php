@@ -12,7 +12,13 @@ class AddressController extends Controller
 {
     public function store(StoreEmployeeAddressRequest $request): RedirectResponse
     {
-        $request->user()->addresses()->create($request->validated());
+        $user = $request->user();
+
+        $user->addresses()->create($request->validated());
+
+        // An address is one of the details the app holds people to, so adding
+        // the first one can be what finishes the record.
+        $user->stampProfileCompletion();
 
         return $this->done('Address added.');
     }
@@ -26,9 +32,20 @@ class AddressController extends Controller
         return $this->done('Address updated.');
     }
 
+    /**
+     * Everyone has to keep an address on file, so the last one cannot be
+     * removed. Getting it wrong is what the edit form is for.
+     */
     public function destroy(Request $request, EmployeeAddress $address): RedirectResponse
     {
         $this->authorise($request, $address);
+
+        if ($request->user()->addresses()->count() <= 1) {
+            return back()->with('toast', [
+                'type' => 'error',
+                'message' => 'We need an address on file. Edit this one rather than removing it.',
+            ]);
+        }
 
         $address->delete();
 

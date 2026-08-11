@@ -60,6 +60,8 @@ const labels: Record<string, string> = {
     country_of_origin: 'country of origin',
     state_of_origin: 'state',
     phone: 'phone number',
+    hired_at: 'joining date',
+    address: 'home address',
 };
 
 const outstanding = computed(() =>

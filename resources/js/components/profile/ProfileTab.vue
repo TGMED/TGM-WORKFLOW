@@ -22,6 +22,7 @@ const emit = defineEmits<{ 'edit-address': [EmployeeAddress | null] }>();
 const form = useForm({
     employee_id: props.profile.employee_id,
     attendance_id: props.profile.attendance_id,
+    hired_at: props.profile.hired_at,
     first_name: props.profile.first_name,
     last_name: props.profile.last_name,
     other_names: props.profile.other_names,
@@ -50,6 +51,11 @@ const form = useForm({
 
 // Nobody is born tomorrow, and the paperwork assumes 16 at the youngest.
 const oldestBirthday = new Date(Date.now() - 16 * 365.25 * 864e5)
+    .toISOString()
+    .slice(0, 10);
+
+// A start date up to a month out covers someone serving a notice period.
+const latestJoinDate = new Date(Date.now() + 30 * 864e5)
     .toISOString()
     .slice(0, 10);
 
@@ -89,13 +95,29 @@ function submit() {
                     :initials="profile.initials"
                 />
 
-                <TextField
-                    v-model="form.employee_id"
-                    label="Staff ID"
-                    placeholder="e.g. TGM/VU/251013"
-                    hint="Leave this blank if you have not been issued one yet."
-                    :error="form.errors.employee_id"
-                />
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <TextField
+                        v-model="form.employee_id"
+                        label="Staff ID"
+                        placeholder="e.g. TGM/VU/251013"
+                        hint="Leave this blank if you have not been issued one yet."
+                        :error="form.errors.employee_id"
+                    />
+
+                    <TextField
+                        v-model="form.hired_at"
+                        label="Date You Joined"
+                        type="date"
+                        required
+                        :max="latestJoinDate"
+                        :error="form.errors.hired_at"
+                        :hint="
+                            missing('hired_at')
+                                ? 'Still needed'
+                                : 'Your first day with us. Ask HR if you are unsure.'
+                        "
+                    />
+                </div>
 
                 <div class="grid gap-4 sm:grid-cols-2">
                     <TextField
@@ -328,15 +350,28 @@ function submit() {
                 </div>
             </Panel>
 
-            <Panel title="Address">
+            <Panel
+                title="Address"
+                subtitle="We need at least one on file. Saved on its own, not with the form below."
+            >
                 <template #action>
                     <AppButton size="sm" @click="emit('edit-address', null)">
                         + Add address
                     </AppButton>
                 </template>
 
-                <p v-if="!addresses.length" class="text-[13px] text-muted">
-                    No address on file yet.
+                <p
+                    v-if="!addresses.length"
+                    :class="[
+                        'text-[13px]',
+                        missing('address') ? 'text-brass' : 'text-muted',
+                    ]"
+                >
+                    {{
+                        missing('address')
+                            ? 'Still needed. Add the address you live at to carry on.'
+                            : 'No address on file yet.'
+                    }}
                 </p>
 
                 <ul v-else class="space-y-2">

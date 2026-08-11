@@ -31,6 +31,8 @@ export type ProfileOptions = {
 export type EmployeeProfile = {
     employee_id: string | null;
     attendance_id: string | null;
+    // On the user record rather than the profile, but edited on the same tab.
+    hired_at: string | null;
     first_name: string | null;
     last_name: string | null;
     other_names: string | null;

@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\EmployeeAddress;
 use App\Models\EmployeeProfile;
 use App\Models\Role;
 use App\Models\User;
@@ -45,14 +46,16 @@ class UserFactory extends Factory
     }
 
     /**
-     * Everyone gets a finished profile, so the profile gate does not turn
-     * every other test back at the door. Tests about the gate itself reach
-     * for withoutProfile() or incompleteProfile() below.
+     * Everyone gets a finished record, so the profile gate does not turn
+     * every other test back at the door. That means an address as well as a
+     * profile row, since the gate holds people to both. Tests about the gate
+     * itself reach for withoutProfile() or incompleteProfile() below.
      */
     public function configure(): static
     {
         return $this->afterCreating(function (User $user): void {
             $user->profile()->save(EmployeeProfile::factory()->make(['user_id' => null]));
+            $user->addresses()->save(EmployeeAddress::factory()->make(['user_id' => null]));
         });
     }
 
@@ -61,7 +64,10 @@ class UserFactory extends Factory
      */
     public function withoutProfile(): static
     {
-        return $this->afterCreating(fn (User $user) => $user->profile()->delete());
+        return $this->afterCreating(function (User $user): void {
+            $user->profile()->delete();
+            $user->addresses()->delete();
+        });
     }
 
     /**
