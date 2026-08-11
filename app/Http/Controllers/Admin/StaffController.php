@@ -8,9 +8,11 @@ use App\Http\Requests\StoreStaffRequest;
 use App\Http\Requests\UpdateStaffRequest;
 use App\Models\Attendance;
 use App\Models\ClockAttempt;
+use App\Models\LeaveAdjustment;
 use App\Models\Location;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\LeaveBalance;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,6 +22,8 @@ use Inertia\Response;
 
 class StaffController extends Controller
 {
+    public function __construct(protected LeaveBalance $balances) {}
+
     public function index(Request $request): Response
     {
         $search = $request->string('search')->toString();
@@ -205,7 +209,37 @@ class StaffController extends Controller
                 ])->values(),
             'roles' => Role::options(),
             'locations' => $this->locationOptions(),
+            'leave_year' => $localNow->year,
+            'balances' => $this->balances->summary($staff, $localNow->year),
+            'adjustments' => $this->adjustments($staff, $localNow->year),
         ]);
+    }
+
+    /**
+     * The manual changes behind this year's balances, newest first, so the
+     * figures on the page can be accounted for.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function adjustments(User $staff, int $year): array
+    {
+        return LeaveAdjustment::query()
+            ->with(['leaveType:id,name', 'author:id,name'])
+            ->where('user_id', $staff->id)
+            ->inYear($year)
+            ->latest()
+            ->get()
+            ->map(fn (LeaveAdjustment $adjustment): array => [
+                'id' => $adjustment->id,
+                'leave_type_id' => $adjustment->leave_type_id,
+                'leave_type' => $adjustment->leaveType->name,
+                'days' => $adjustment->days,
+                'signed_days' => $adjustment->signedDays(),
+                'reason' => $adjustment->reason,
+                'author' => $adjustment->author?->name,
+                'created_at' => $adjustment->created_at?->toIso8601String(),
+            ])
+            ->all();
     }
 
     public function update(UpdateStaffRequest $request, User $staff): RedirectResponse

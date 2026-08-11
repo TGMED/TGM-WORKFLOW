@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import Avatar from '@/components/ui/Avatar.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
@@ -84,6 +84,26 @@ const props = defineProps<{
     }>;
     roles: Array<{ value: string; label: string }>;
     locations: Array<{ value: number; label: string }>;
+    leave_year: number;
+    balances: Array<{
+        id: number;
+        name: string;
+        allowance: number | null;
+        standard_allowance: number | null;
+        adjusted: number;
+        used: number;
+        remaining: number | null;
+    }>;
+    adjustments: Array<{
+        id: number;
+        leave_type_id: number;
+        leave_type: string;
+        days: number;
+        signed_days: string;
+        reason: string;
+        author: string | null;
+        created_at: string | null;
+    }>;
 }>();
 
 const tab = ref<'days' | 'attempts'>('days');
@@ -111,6 +131,53 @@ function submitEdit() {
         onSuccess: () => {
             form.reset('password', 'password_confirmation');
             editOpen.value = false;
+        },
+    });
+}
+
+// Only capped types have an allowance for an adjustment to move.
+const cappedBalances = computed(() =>
+    props.balances.filter((balance) => balance.standard_allowance !== null),
+);
+
+const adjustOpen = ref(false);
+const removing = ref<number | null>(null);
+
+const adjustForm = useForm({
+    leave_type_id: null as number | null,
+    year: props.leave_year,
+    days: null as number | null,
+    reason: '',
+});
+
+function openAdjust(leaveTypeId: number) {
+    adjustForm.clearErrors();
+    adjustForm.defaults({
+        leave_type_id: leaveTypeId,
+        year: props.leave_year,
+        days: null,
+        reason: '',
+    });
+    adjustForm.reset();
+    adjustOpen.value = true;
+}
+
+function submitAdjust() {
+    adjustForm.post(`/admin/staff/${props.staff.id}/leave-adjustments`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            adjustOpen.value = false;
+        },
+    });
+}
+
+function removeAdjustment(id: number) {
+    removing.value = id;
+
+    router.delete(`/admin/staff/${props.staff.id}/leave-adjustments/${id}`, {
+        preserveScroll: true,
+        onFinish: () => {
+            removing.value = null;
         },
     });
 }
@@ -308,6 +375,156 @@ const resultTone = (result: string) =>
                             suffix="h"
                         />
                     </div>
+
+                    <Panel
+                        :title="`Leave balance ${leave_year}`"
+                        subtitle="What this person may take this year. Adjustments move their allowance on its own, without changing what everyone else gets."
+                    >
+                        <div class="space-y-4">
+                            <div
+                                v-for="balance in cappedBalances"
+                                :key="balance.id"
+                                class="rounded-xl border border-line-soft p-4"
+                            >
+                                <div
+                                    class="flex flex-wrap items-start justify-between gap-3"
+                                >
+                                    <div class="min-w-0">
+                                        <p
+                                            class="font-display text-[15px] font-semibold tracking-tight"
+                                        >
+                                            {{ balance.name }}
+                                        </p>
+                                        <p
+                                            class="mt-0.5 text-[12.5px] text-muted"
+                                        >
+                                            {{ balance.standard_allowance }}
+                                            days standard
+                                            <template v-if="balance.adjusted">
+                                                ·
+                                                <span
+                                                    :class="
+                                                        balance.adjusted > 0
+                                                            ? 'text-signal'
+                                                            : 'text-alert'
+                                                    "
+                                                >
+                                                    {{
+                                                        balance.adjusted > 0
+                                                            ? `+${balance.adjusted}`
+                                                            : balance.adjusted
+                                                    }}
+                                                    adjusted
+                                                </span>
+                                            </template>
+                                        </p>
+                                    </div>
+
+                                    <AppButton
+                                        variant="ghost"
+                                        size="sm"
+                                        @click="openAdjust(balance.id)"
+                                    >
+                                        Adjust
+                                    </AppButton>
+                                </div>
+
+                                <dl
+                                    class="mt-3 grid grid-cols-3 gap-3 text-center"
+                                >
+                                    <div class="rounded-lg bg-sunken px-2 py-2">
+                                        <dt
+                                            class="text-[11.5px] tracking-wide text-faint uppercase"
+                                        >
+                                            Allowance
+                                        </dt>
+                                        <dd
+                                            class="mt-0.5 font-display text-[17px] font-semibold"
+                                        >
+                                            {{ balance.allowance }}
+                                        </dd>
+                                    </div>
+                                    <div class="rounded-lg bg-sunken px-2 py-2">
+                                        <dt
+                                            class="text-[11.5px] tracking-wide text-faint uppercase"
+                                        >
+                                            Used
+                                        </dt>
+                                        <dd
+                                            class="mt-0.5 font-display text-[17px] font-semibold"
+                                        >
+                                            {{ balance.used }}
+                                        </dd>
+                                    </div>
+                                    <div class="rounded-lg bg-sunken px-2 py-2">
+                                        <dt
+                                            class="text-[11.5px] tracking-wide text-faint uppercase"
+                                        >
+                                            Remaining
+                                        </dt>
+                                        <dd
+                                            class="mt-0.5 font-display text-[17px] font-semibold"
+                                            :class="
+                                                balance.remaining === 0
+                                                    ? 'text-alert'
+                                                    : ''
+                                            "
+                                        >
+                                            {{ balance.remaining }}
+                                        </dd>
+                                    </div>
+                                </dl>
+                            </div>
+
+                            <div v-if="adjustments.length" class="space-y-2">
+                                <p
+                                    class="text-[11.5px] tracking-wide text-faint uppercase"
+                                >
+                                    Adjustments this year
+                                </p>
+
+                                <div
+                                    v-for="entry in adjustments"
+                                    :key="entry.id"
+                                    class="flex items-start gap-3 rounded-lg border border-line-soft px-3 py-2.5"
+                                >
+                                    <StatusPill
+                                        :tone="
+                                            entry.days > 0 ? 'signal' : 'alert'
+                                        "
+                                    >
+                                        {{ entry.signed_days }}
+                                    </StatusPill>
+
+                                    <div class="min-w-0 flex-1">
+                                        <p class="text-[13px] font-medium">
+                                            {{ entry.leave_type }} ·
+                                            {{ entry.reason }}
+                                        </p>
+                                        <p
+                                            class="mt-0.5 text-[12px] text-faint"
+                                        >
+                                            {{ entry.author ?? 'A former admin'
+                                            }}{{
+                                                entry.created_at
+                                                    ? `, ${dateTime(entry.created_at)}`
+                                                    : ''
+                                            }}
+                                        </p>
+                                    </div>
+
+                                    <AppButton
+                                        variant="ghost"
+                                        size="sm"
+                                        :loading="removing === entry.id"
+                                        @click="removeAdjustment(entry.id)"
+                                    >
+                                        Undo
+                                    </AppButton>
+                                </div>
+                            </div>
+                        </div>
+                    </Panel>
 
                     <div
                         class="flex gap-1 rounded-xl border border-line bg-panel p-1"
@@ -668,6 +885,72 @@ const resultTone = (result: string) =>
                     @click="confirmToggle"
                 >
                     {{ staff.is_active ? 'Deactivate' : 'Reactivate' }}
+                </AppButton>
+            </template>
+        </ModalShell>
+
+        <ModalShell
+            :open="adjustOpen"
+            width="md"
+            title="Adjust the allowance"
+            :subtitle="`${staff.name} only. Everyone else keeps the standard figure.`"
+            @close="adjustOpen = false"
+        >
+            <form class="space-y-4" @submit.prevent="submitAdjust">
+                <SelectField
+                    v-model="adjustForm.leave_type_id"
+                    label="Leave type"
+                    :options="
+                        cappedBalances.map((balance) => ({
+                            value: balance.id,
+                            label: `${balance.name} · ${balance.allowance} days`,
+                        }))
+                    "
+                    required
+                    :error="adjustForm.errors.leave_type_id"
+                />
+
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <TextField
+                        v-model="adjustForm.days"
+                        label="Days"
+                        type="number"
+                        required
+                        placeholder="3 to grant, -2 to take back"
+                        hint="Added to the standard allowance."
+                        :error="adjustForm.errors.days"
+                    />
+
+                    <TextField
+                        v-model="adjustForm.year"
+                        label="Year"
+                        type="number"
+                        required
+                        :min="leave_year - 1"
+                        :max="leave_year + 1"
+                        :error="adjustForm.errors.year"
+                    />
+                </div>
+
+                <TextField
+                    v-model="adjustForm.reason"
+                    label="Reason"
+                    required
+                    placeholder="Carried over from last year"
+                    hint="Kept on the record so the balance can be explained later."
+                    :error="adjustForm.errors.reason"
+                />
+            </form>
+
+            <template #footer>
+                <AppButton variant="ghost" @click="adjustOpen = false">
+                    Cancel
+                </AppButton>
+                <AppButton
+                    :loading="adjustForm.processing"
+                    @click="submitAdjust"
+                >
+                    Apply
                 </AppButton>
             </template>
         </ModalShell>

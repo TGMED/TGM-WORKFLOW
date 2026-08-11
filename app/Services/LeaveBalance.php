@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\LeaveAdjustment;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\User;
@@ -31,16 +32,35 @@ class LeaveBalance
     }
 
     /**
-     * @return array{allowance: int|null, used: int, remaining: int|null}
+     * Days HR has granted on top of the yearly allowance or taken off it, per
+     * leave type, for one person in one year.
+     *
+     * @return Collection<int, int> keyed by leave type id
+     */
+    public function adjustedByType(User $user, int $year): Collection
+    {
+        return LeaveAdjustment::query()
+            ->where('user_id', $user->id)
+            ->inYear($year)
+            ->selectRaw('leave_type_id, sum(days) as days_adjusted')
+            ->groupBy('leave_type_id')
+            ->pluck('days_adjusted', 'leave_type_id')
+            ->map(fn ($days): int => (int) $days);
+    }
+
+    /**
+     * @return array{allowance: int|null, adjusted: int, used: int, remaining: int|null}
      */
     public function forType(User $user, LeaveType $type, int $year, ?int $ignore = null): array
     {
         $used = (int) ($this->usedByType($user, $year, $ignore)[$type->id] ?? 0);
+        $adjusted = (int) ($this->adjustedByType($user, $year)[$type->id] ?? 0);
 
         return [
-            'allowance' => $type->days_per_year,
+            'allowance' => $this->allowance($type, $adjusted),
+            'adjusted' => $adjusted,
             'used' => $used,
-            'remaining' => $type->isCapped() ? max(0, $type->days_per_year - $used) : null,
+            'remaining' => $this->remaining($type, $adjusted, $used),
         ];
     }
 
@@ -53,13 +73,15 @@ class LeaveBalance
     public function summary(User $user, int $year): array
     {
         $used = $this->usedByType($user, $year);
+        $adjustments = $this->adjustedByType($user, $year);
 
         return LeaveType::query()
             ->active()
             ->orderBy('name')
             ->get()
-            ->map(function (LeaveType $type) use ($used): array {
+            ->map(function (LeaveType $type) use ($used, $adjustments): array {
                 $taken = (int) ($used[$type->id] ?? 0);
+                $adjusted = (int) ($adjustments[$type->id] ?? 0);
 
                 return [
                     'id' => $type->id,
@@ -67,11 +89,33 @@ class LeaveBalance
                     'name' => $type->name,
                     'description' => $type->description,
                     'is_paid' => $type->is_paid,
-                    'allowance' => $type->days_per_year,
+                    'allowance' => $this->allowance($type, $adjusted),
+                    // The type's own figure, so the page can show what the
+                    // adjustment moved the allowance away from.
+                    'standard_allowance' => $type->days_per_year,
+                    'adjusted' => $adjusted,
                     'used' => $taken,
-                    'remaining' => $type->isCapped() ? max(0, $type->days_per_year - $taken) : null,
+                    'remaining' => $this->remaining($type, $adjusted, $taken),
                 ];
             })
             ->all();
+    }
+
+    /**
+     * What this person may take this year: the type's figure moved by any
+     * adjustment. An uncapped type stays uncapped whatever the adjustments.
+     */
+    protected function allowance(LeaveType $type, int $adjusted): ?int
+    {
+        return $type->isCapped()
+            ? max(0, $type->days_per_year + $adjusted)
+            : null;
+    }
+
+    protected function remaining(LeaveType $type, int $adjusted, int $used): ?int
+    {
+        return $type->isCapped()
+            ? max(0, $this->allowance($type, $adjusted) - $used)
+            : null;
     }
 }

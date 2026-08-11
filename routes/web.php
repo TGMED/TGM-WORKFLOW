@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\ClockAttemptController;
+use App\Http\Controllers\Admin\LeaveAdjustmentController;
 use App\Http\Controllers\Admin\LeaveTypeController;
 use App\Http\Controllers\Admin\LocationController;
 use App\Http\Controllers\Admin\RequestSettingsController;
@@ -122,6 +123,11 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
         Route::get('staff/{staff}', [StaffController::class, 'show'])->name('staff.show');
         Route::put('staff/{staff}', [StaffController::class, 'update'])->name('staff.update');
         Route::patch('staff/{staff}/toggle', [StaffController::class, 'toggle'])->name('staff.toggle');
+
+        Route::post('staff/{staff}/leave-adjustments', [LeaveAdjustmentController::class, 'store'])
+            ->name('staff.leave-adjustments.store');
+        Route::delete('staff/{staff}/leave-adjustments/{adjustment}', [LeaveAdjustmentController::class, 'destroy'])
+            ->name('staff.leave-adjustments.destroy');
 
         Route::get('locations', [LocationController::class, 'index'])->name('locations.index');
         Route::post('locations', [LocationController::class, 'store'])->name('locations.store');
