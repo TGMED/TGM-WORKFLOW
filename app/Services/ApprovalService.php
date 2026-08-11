@@ -47,7 +47,8 @@ class ApprovalService
                 'approvable_type' => $request->getMorphClass(),
                 'approvable_id' => $request->getKey(),
                 'approver_id' => $approver->id,
-                'step' => $request->decisions()->count() + 1,
+                'step' => $request->currentDecisions()->count() + 1,
+                'round' => $request->currentRound(),
                 'stage' => $stage,
                 'decision' => $decision,
                 'comment' => $comment,
@@ -89,9 +90,12 @@ class ApprovalService
             ->with('approvals')
             ->pending()
             ->where('user_id', '!=', $approver->id)
+            // A decision from an earlier round is spent: a resubmission asks
+            // the same people again, so only this round rules them out.
             ->whereDoesntHave(
                 'approvals',
-                fn (Builder $query) => $query->where('approver_id', $approver->id),
+                fn (Builder $query) => $query->where('approver_id', $approver->id)
+                    ->whereColumn('approvals.round', 'leave_requests.round'),
             )
             ->get()
             ->filter(fn (LeaveRequest $leave): bool => $leave->awaitsDecisionFrom($approver))
@@ -145,6 +149,8 @@ class ApprovalService
             ->map(fn (Approval $approval): array => [
                 'id' => $approval->id,
                 'step' => $approval->step,
+                'round' => $approval->round,
+                'superseded' => $approval->round < $request->currentRound(),
                 'approver' => $approval->approver->name,
                 'decision' => $approval->decision->value,
                 'decision_label' => $approval->decision->label(),

@@ -19,6 +19,7 @@ use Illuminate\Support\Carbon;
  * @property int $approvable_id
  * @property int $approver_id
  * @property int $step
+ * @property int $round
  * @property ApprovalStage $stage
  * @property ApprovalDecision $decision
  * @property string|null $comment
@@ -32,6 +33,7 @@ use Illuminate\Support\Carbon;
     'approvable_id',
     'approver_id',
     'step',
+    'round',
     'stage',
     'decision',
     'comment',
@@ -44,6 +46,7 @@ class Approval extends Model
      */
     protected $attributes = [
         'stage' => 'approval',
+        'round' => 1,
     ];
 
     /**
@@ -56,6 +59,7 @@ class Approval extends Model
             'stage' => ApprovalStage::class,
             'decided_at' => 'datetime',
             'step' => 'integer',
+            'round' => 'integer',
         ];
     }
 

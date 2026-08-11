@@ -31,11 +31,25 @@ interface Approvable
     public function summary(): string;
 
     /**
-     * Decisions recorded so far, oldest first.
+     * Decisions recorded so far, oldest first, across every round.
      *
      * @return Collection<int, Approval>
      */
     public function decisions(): Collection;
+
+    /**
+     * Which time round the approval chain this request is on. A request sent
+     * back and raised again starts a fresh round, and the rounds before it
+     * stop counting for anything but the trail.
+     */
+    public function currentRound(): int;
+
+    /**
+     * Decisions taken in the current round.
+     *
+     * @return Collection<int, Approval>
+     */
+    public function currentDecisions(): Collection;
 
     public function requestStatus(): RequestStatus;
 

@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Enums\ApprovalDecision;
 use App\Enums\RequestStatus;
 use App\Models\ApprovalSetting;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\Location;
 use App\Models\User;
+use App\Services\ApprovalService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -190,6 +192,261 @@ class LeaveRequestTest extends TestCase
         ApprovalSetting::query()->where('module', 'leave')->update(['approvers_required' => 1]);
 
         $this->assertSame(3, $leave->refresh()->approvals_required);
+    }
+
+    /**
+     * The payload the edit form posts back, matching the request as raised
+     * unless a test says otherwise.
+     *
+     * @param  array<string, mixed>  $overrides
+     * @return array<string, mixed>
+     */
+    private function editPayload(LeaveRequest $leave, array $overrides = []): array
+    {
+        return [
+            'leave_type_id' => $leave->leave_type_id,
+            'supervisor_id' => $leave->supervisor_id,
+            'relief_officer_id' => $leave->relief_officer_id,
+            'start_date' => $leave->start_date->toDateString(),
+            'end_date' => $leave->end_date->toDateString(),
+            'reason' => $leave->reason,
+            ...$overrides,
+        ];
+    }
+
+    public function test_staff_can_change_a_request_nobody_has_ruled_on(): void
+    {
+        $staff = $this->staff();
+        $monday = Carbon::now()->addWeek()->startOfWeek();
+        $leave = LeaveRequest::factory()
+            ->chained($this->staff(), User::factory()->approver()->create())
+            ->create([
+                'user_id' => $staff->id,
+                'leave_type_id' => $this->annual()->id,
+                'start_date' => $monday,
+                'end_date' => $monday->copy()->addDays(2),
+                'days' => 3,
+            ]);
+
+        $this->actingAs($staff)
+            ->put("/leave/{$leave->id}", $this->editPayload($leave, [
+                'end_date' => $monday->copy()->addDays(4)->toDateString(),
+                'reason' => 'Extended by two days.',
+            ]))
+            ->assertSessionHasNoErrors();
+
+        $leave->refresh();
+
+        $this->assertSame(5, $leave->days);
+        $this->assertSame('Extended by two days.', $leave->reason);
+        $this->assertSame(RequestStatus::Pending, $leave->status);
+    }
+
+    /**
+     * Its own days must not be counted twice, or lengthening a request would
+     * fail against an allowance it already fits inside.
+     */
+    public function test_an_edit_is_measured_against_the_allowance_without_its_own_days(): void
+    {
+        $staff = $this->staff();
+        $annual = $this->annual();
+        $annual->update(['days_per_year' => 5]);
+
+        $monday = Carbon::now()->addWeek()->startOfWeek();
+        $leave = LeaveRequest::factory()
+            ->chained($this->staff(), User::factory()->approver()->create())
+            ->create([
+                'user_id' => $staff->id,
+                'leave_type_id' => $annual->id,
+                'start_date' => $monday,
+                'end_date' => $monday->copy()->addDays(2),
+                'days' => 3,
+            ]);
+
+        $this->actingAs($staff)
+            ->put("/leave/{$leave->id}", $this->editPayload($leave, [
+                'end_date' => $monday->copy()->addDays(4)->toDateString(),
+            ]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(5, $leave->refresh()->days);
+    }
+
+    public function test_a_request_the_relief_officer_has_agreed_can_no_longer_be_changed(): void
+    {
+        $staff = $this->staff();
+        $relief = $this->staff();
+        $leave = LeaveRequest::factory()
+            ->chained($relief, User::factory()->approver()->create())
+            ->create(['user_id' => $staff->id, 'leave_type_id' => $this->annual()->id]);
+
+        app(ApprovalService::class)->decide($leave, $relief, ApprovalDecision::Approved);
+
+        $this->actingAs($staff)
+            ->put("/leave/{$leave->id}", $this->editPayload($leave, [
+                'reason' => 'Sneaking a change past the cover.',
+            ]));
+
+        $this->assertNotSame('Sneaking a change past the cover.', $leave->refresh()->reason);
+    }
+
+    /**
+     * A request the relief officer sends back is the requester's to redo, and
+     * saving it puts it in front of the same people again.
+     */
+    public function test_a_returned_request_can_be_changed_and_resubmitted(): void
+    {
+        $staff = $this->staff();
+        $relief = $this->staff();
+        $supervisor = User::factory()->approver()->create();
+        $leave = LeaveRequest::factory()
+            ->chained($relief, $supervisor)
+            ->create(['user_id' => $staff->id, 'leave_type_id' => $this->annual()->id]);
+
+        app(ApprovalService::class)->decide(
+            $leave,
+            $relief,
+            ApprovalDecision::Rejected,
+            'I am away that week myself.',
+        );
+
+        $this->assertSame(RequestStatus::Returned, $leave->refresh()->status);
+
+        $monday = Carbon::now()->addWeeks(3)->startOfWeek();
+
+        $this->actingAs($staff)
+            ->put("/leave/{$leave->id}", $this->editPayload($leave, [
+                'start_date' => $monday->toDateString(),
+                'end_date' => $monday->copy()->addDay()->toDateString(),
+            ]))
+            ->assertSessionHasNoErrors();
+
+        $leave->refresh()->load('approvals');
+
+        $this->assertSame(RequestStatus::Pending, $leave->status);
+        $this->assertSame(2, $leave->round);
+        $this->assertNull($leave->decided_at);
+        // The decision that sent it back stays on the trail, but it no longer
+        // stands in the way of the round now running.
+        $this->assertCount(1, $leave->decisions());
+        $this->assertCount(0, $leave->currentDecisions());
+        $this->assertFalse($leave->reliefAgreed());
+        $this->assertTrue($leave->awaitsDecisionFrom($relief));
+    }
+
+    public function test_the_relief_officer_can_rule_again_on_a_resubmitted_request(): void
+    {
+        $staff = $this->staff();
+        $relief = $this->staff();
+        $supervisor = User::factory()->approver()->create();
+        $leave = LeaveRequest::factory()
+            ->chained($relief, $supervisor)
+            ->create(['user_id' => $staff->id, 'leave_type_id' => $this->annual()->id]);
+
+        app(ApprovalService::class)->decide($leave, $relief, ApprovalDecision::Rejected);
+
+        $this->actingAs($staff)->put("/leave/{$leave->id}", $this->editPayload($leave->refresh()));
+
+        $this->actingAs($relief)
+            ->get('/approvals')
+            ->assertInertia(fn ($page) => $page->has('leave', 1));
+
+        $this->actingAs($relief)
+            ->post("/approvals/leave/{$leave->id}", ['decision' => 'approved'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertTrue($leave->refresh()->load('approvals')->reliefAgreed());
+
+        $this->actingAs($supervisor)
+            ->post("/approvals/leave/{$leave->id}", ['decision' => 'approved']);
+
+        $this->assertSame(RequestStatus::Approved, $leave->refresh()->status);
+        $this->assertSame(1, $leave->load('approvals')->approvalsGiven());
+    }
+
+    public function test_a_returned_request_can_be_withdrawn_instead(): void
+    {
+        $staff = $this->staff();
+        $relief = $this->staff();
+        $leave = LeaveRequest::factory()
+            ->chained($relief, User::factory()->approver()->create())
+            ->create(['user_id' => $staff->id, 'leave_type_id' => $this->annual()->id]);
+
+        app(ApprovalService::class)->decide($leave, $relief, ApprovalDecision::Rejected);
+
+        $this->actingAs($staff)->delete("/leave/{$leave->id}");
+
+        $this->assertSame(RequestStatus::Cancelled, $leave->refresh()->status);
+    }
+
+    public function test_a_request_an_approver_declined_cannot_be_resubmitted(): void
+    {
+        $staff = $this->staff();
+        $relief = $this->staff();
+        $supervisor = User::factory()->approver()->create();
+        $leave = LeaveRequest::factory()
+            ->chained($relief, $supervisor)
+            ->create(['user_id' => $staff->id, 'leave_type_id' => $this->annual()->id]);
+
+        $service = app(ApprovalService::class);
+        $service->decide($leave, $relief, ApprovalDecision::Approved);
+        $service->decide($leave->refresh(), $supervisor, ApprovalDecision::Rejected);
+
+        $this->actingAs($staff)
+            ->put("/leave/{$leave->id}", $this->editPayload($leave->refresh(), [
+                'reason' => 'Trying again anyway.',
+            ]));
+
+        $leave->refresh();
+
+        $this->assertSame(RequestStatus::Rejected, $leave->status);
+        $this->assertSame(1, $leave->round);
+        $this->assertNotSame('Trying again anyway.', $leave->reason);
+    }
+
+    /**
+     * Cover agreed on a version that was later sent back and changed is no
+     * longer cover the relief officer owes.
+     */
+    public function test_cover_from_a_spent_round_does_not_bind_the_relief_officer(): void
+    {
+        $staff = $this->staff();
+        $relief = $this->staff();
+        $supervisor = User::factory()->approver()->create();
+        $monday = Carbon::now()->addWeek()->startOfWeek();
+        $leave = LeaveRequest::factory()
+            ->chained($relief, $supervisor)
+            ->create([
+                'user_id' => $staff->id,
+                'leave_type_id' => $this->annual()->id,
+                'start_date' => $monday,
+                'end_date' => $monday->copy()->addDays(2),
+            ]);
+
+        $service = app(ApprovalService::class);
+        $service->decide($leave, $relief, ApprovalDecision::Approved);
+
+        $this->assertSame(1, LeaveRequest::query()->coveredBy($relief->id)->count());
+
+        // The supervisor sends it back, and the requester redoes it: the
+        // relief officer has not agreed to the new version yet.
+        $service->decide($leave->refresh(), $supervisor, ApprovalDecision::Rejected);
+        $leave->forceFill(['status' => RequestStatus::Returned])->save();
+
+        $this->actingAs($staff)->put("/leave/{$leave->id}", $this->editPayload($leave->refresh()));
+
+        $this->assertSame(0, LeaveRequest::query()->coveredBy($relief->id)->count());
+    }
+
+    public function test_staff_cannot_change_someone_elses_request(): void
+    {
+        $leave = LeaveRequest::factory()
+            ->chained($this->staff(), User::factory()->approver()->create())
+            ->create(['leave_type_id' => $this->annual()->id]);
+
+        $this->actingAs($this->staff())
+            ->put("/leave/{$leave->id}", $this->editPayload($leave, ['reason' => 'Not mine.']))
+            ->assertForbidden();
     }
 
     public function test_staff_can_withdraw_a_pending_request(): void

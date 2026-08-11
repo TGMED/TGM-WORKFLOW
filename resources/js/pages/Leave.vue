@@ -47,7 +47,12 @@ type LeaveRow = {
     type: string;
     type_id: number;
     supervisor: string | null;
+    supervisor_id: number | null;
     relief_officer: string | null;
+    relief_officer_id: number | null;
+    can_edit: boolean;
+    /** Sent back by the relief officer, so saving it starts a fresh round. */
+    needs_resubmit: boolean;
     stage_label: string;
     start_date: string;
     end_date: string;
@@ -77,6 +82,8 @@ const props = defineProps<{
 }>();
 
 const modalOpen = ref(false);
+/** The request the modal is changing, or null when raising a fresh one. */
+const editing = ref<LeaveRow | null>(null);
 const expanded = ref<number | null>(null);
 const withdrawing = ref<LeaveRow | null>(null);
 const busy = ref(false);
@@ -152,8 +159,25 @@ const selectedBalance = computed(
         ) ?? null,
 );
 
-/** Days left this year on the chosen type, or null when it is uncapped. */
-const remaining = computed(() => selectedBalance.value?.remaining ?? null);
+/**
+ * Days left this year on the chosen type, or null when it is uncapped. The
+ * request being edited already counts against its own type, so its days come
+ * back before the replacement is measured, exactly as the server does it.
+ */
+const remaining = computed(() => {
+    const left = selectedBalance.value?.remaining ?? null;
+
+    if (left === null) {
+        return null;
+    }
+
+    const own =
+        editing.value && editing.value.type_id === Number(form.leave_type_id)
+            ? editing.value.days
+            : 0;
+
+    return left + own;
+});
 
 function parseDate(value: string): Date | null {
     const date = new Date(`${value}T00:00:00`);
@@ -254,6 +278,7 @@ watch([latestEndDate, () => form.start_date], () => {
 });
 
 function open() {
+    editing.value = null;
     form.clearErrors();
     form.defaults({
         leave_type_id: props.balances[0]?.id ?? null,
@@ -267,13 +292,37 @@ function open() {
     modalOpen.value = true;
 }
 
+function edit(row: LeaveRow) {
+    editing.value = row;
+    form.clearErrors();
+    form.defaults({
+        leave_type_id: row.type_id,
+        supervisor_id: row.supervisor_id,
+        relief_officer_id: row.relief_officer_id,
+        start_date: row.start_date,
+        end_date: row.end_date,
+        reason: row.reason ?? '',
+    });
+    form.reset();
+    modalOpen.value = true;
+}
+
 function submit() {
-    form.post('/leave', {
+    const options = {
         preserveScroll: true,
         onSuccess: () => {
             modalOpen.value = false;
+            editing.value = null;
         },
-    });
+    };
+
+    if (editing.value) {
+        form.put(`/leave/${editing.value.id}`, options);
+
+        return;
+    }
+
+    form.post('/leave', options);
 }
 
 function withdraw() {
@@ -458,7 +507,25 @@ function toggleTrail(row: LeaveRow) {
                             </button>
 
                             <AppButton
-                                v-if="row.status === 'pending'"
+                                v-if="row.can_edit"
+                                :variant="
+                                    row.needs_resubmit ? 'primary' : 'ghost'
+                                "
+                                size="sm"
+                                @click="edit(row)"
+                            >
+                                {{
+                                    row.needs_resubmit
+                                        ? 'Change and resubmit'
+                                        : 'Edit'
+                                }}
+                            </AppButton>
+
+                            <AppButton
+                                v-if="
+                                    row.status === 'pending' ||
+                                    row.needs_resubmit
+                                "
                                 variant="ghost"
                                 size="sm"
                                 @click="withdrawing = row"
@@ -484,6 +551,9 @@ function toggleTrail(row: LeaveRow) {
                                     {{ step.decision_label.toLowerCase() }} on
                                     {{ dateTime(step.decided_at) }}
                                 </span>
+                                <span v-if="step.superseded" class="text-faint">
+                                    · on an earlier version
+                                </span>
                                 <p v-if="step.comment" class="text-faint">
                                     “{{ step.comment }}”
                                 </p>
@@ -496,8 +566,20 @@ function toggleTrail(row: LeaveRow) {
 
         <ModalShell
             :open="modalOpen"
-            title="Request leave"
-            subtitle="Non-working days at your site are not counted."
+            :title="
+                editing?.needs_resubmit
+                    ? 'Redo this request'
+                    : editing
+                      ? 'Change this request'
+                      : 'Request leave'
+            "
+            :subtitle="
+                editing?.needs_resubmit
+                    ? 'It was sent back to you. Saving sends it round the chain again from the start.'
+                    : editing
+                      ? 'Nobody has ruled on it yet, so it can still be changed.'
+                      : 'Non-working days at your site are not counted.'
+            "
             @close="modalOpen = false"
         >
             <form class="space-y-4" @submit.prevent="submit">
@@ -621,7 +703,13 @@ function toggleTrail(row: LeaveRow) {
                     :disabled="!canSubmit"
                     @click="submit"
                 >
-                    Send for cover
+                    {{
+                        editing?.needs_resubmit
+                            ? 'Resubmit'
+                            : editing
+                              ? 'Save changes'
+                              : 'Send for cover'
+                    }}
                 </AppButton>
             </template>
         </ModalShell>

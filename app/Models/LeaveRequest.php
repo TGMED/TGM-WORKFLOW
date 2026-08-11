@@ -31,6 +31,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $reason
  * @property RequestStatus $status
  * @property int $approvals_required
+ * @property int $round
  * @property Carbon|null $decided_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -50,6 +51,7 @@ use Illuminate\Support\Carbon;
     'reason',
     'status',
     'approvals_required',
+    'round',
     'decided_at',
 ])]
 class LeaveRequest extends Model implements Approvable
@@ -68,6 +70,7 @@ class LeaveRequest extends Model implements Approvable
             'days' => 'integer',
             'status' => RequestStatus::class,
             'approvals_required' => 'integer',
+            'round' => 'integer',
             'decided_at' => 'datetime',
         ];
     }
@@ -139,16 +142,42 @@ class LeaveRequest extends Model implements Approvable
      */
     public function reliefAgreed(): bool
     {
-        return $this->relief_officer_id === null || $this->approvals
+        return $this->relief_officer_id === null || $this->currentDecisions()
             ->where('stage', ApprovalStage::Relief)
             ->where('decision', ApprovalDecision::Approved)
             ->isNotEmpty();
     }
 
+    public function currentRound(): int
+    {
+        return $this->round;
+    }
+
+    /**
+     * Whether the requester may still change the request. A returned one is
+     * theirs to redo, and an untouched one can be tidied up. Once somebody has
+     * had their say this round — the relief officer included — the details are
+     * settled, and a change would move the ground under that decision.
+     */
+    public function isEditable(): bool
+    {
+        return $this->status === RequestStatus::Returned
+            || ($this->status->isOpen() && $this->currentDecisions()->isEmpty());
+    }
+
+    /**
+     * Whether a change to this request would put it back to the top of the
+     * chain, asking everyone who saw the returned version to look again.
+     */
+    public function needsResubmitting(): bool
+    {
+        return $this->status === RequestStatus::Returned;
+    }
+
     public function supervisorDecided(): bool
     {
         return $this->supervisor_id !== null
-            && $this->approvals->contains('approver_id', $this->supervisor_id);
+            && $this->currentDecisions()->contains('approver_id', $this->supervisor_id);
     }
 
     /**
@@ -262,7 +291,10 @@ class LeaveRequest extends Model implements Approvable
             ->whereHas('approvals', fn (Builder $approvals) => $approvals
                 ->where('approver_id', $userId)
                 ->where('stage', ApprovalStage::Relief->value)
-                ->where('decision', ApprovalDecision::Approved->value));
+                ->where('decision', ApprovalDecision::Approved->value)
+                // Cover agreed on a version that was later sent back and
+                // changed is no longer cover agreed on this one.
+                ->whereColumn('approvals.round', 'leave_requests.round'));
     }
 
     /**

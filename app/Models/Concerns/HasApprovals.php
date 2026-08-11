@@ -29,13 +29,37 @@ trait HasApprovals
     }
 
     /**
-     * Decisions already recorded, oldest first.
+     * Every decision recorded, oldest first, earlier rounds included. This is
+     * the audit trail, so nothing is dropped from it.
      *
      * @return Collection<int, Approval>
      */
     public function decisions(): Collection
     {
-        return $this->approvals->sortBy('step')->values();
+        return $this->approvals->sortBy([['round', 'asc'], ['step', 'asc']])->values();
+    }
+
+    /**
+     * Which time round the chain this request is on. Only leave can be sent
+     * back and raised again, so everything else stays on its first round.
+     */
+    public function currentRound(): int
+    {
+        return 1;
+    }
+
+    /**
+     * Decisions taken this time round. Earlier rounds stay on the trail but no
+     * longer gate anything: a resubmitted request asks its people afresh.
+     *
+     * @return Collection<int, Approval>
+     */
+    public function currentDecisions(): Collection
+    {
+        return $this->approvals
+            ->where('round', $this->currentRound())
+            ->sortBy('step')
+            ->values();
     }
 
     public function requestStatus(): RequestStatus
@@ -54,7 +78,7 @@ trait HasApprovals
      */
     public function approvalsGiven(): int
     {
-        return $this->approvals
+        return $this->currentDecisions()
             ->where('decision', ApprovalDecision::Approved)
             ->where('stage', ApprovalStage::Approval)
             ->count();
@@ -92,7 +116,7 @@ trait HasApprovals
 
     public function wasDecidedBy(User $user): bool
     {
-        return $this->approvals->contains('approver_id', $user->id);
+        return $this->currentDecisions()->contains('approver_id', $user->id);
     }
 
     /**

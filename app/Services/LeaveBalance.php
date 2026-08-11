@@ -11,15 +11,18 @@ class LeaveBalance
 {
     /**
      * Days already spoken for, per leave type, for one person in one year.
-     * Pending requests count: a day cannot be promised twice.
+     * Pending requests count: a day cannot be promised twice. A request being
+     * edited is left out, so its own days do not count against the version
+     * replacing them.
      *
      * @return Collection<int, int> keyed by leave type id
      */
-    public function usedByType(User $user, int $year): Collection
+    public function usedByType(User $user, int $year, ?int $ignore = null): Collection
     {
         return LeaveRequest::query()
             ->where('user_id', $user->id)
             ->committed()
+            ->when($ignore !== null, fn ($query) => $query->whereKeyNot($ignore))
             ->inYear($year)
             ->selectRaw('leave_type_id, sum(days) as days_used')
             ->groupBy('leave_type_id')
@@ -30,9 +33,9 @@ class LeaveBalance
     /**
      * @return array{allowance: int|null, used: int, remaining: int|null}
      */
-    public function forType(User $user, LeaveType $type, int $year): array
+    public function forType(User $user, LeaveType $type, int $year, ?int $ignore = null): array
     {
-        $used = (int) ($this->usedByType($user, $year)[$type->id] ?? 0);
+        $used = (int) ($this->usedByType($user, $year, $ignore)[$type->id] ?? 0);
 
         return [
             'allowance' => $type->days_per_year,

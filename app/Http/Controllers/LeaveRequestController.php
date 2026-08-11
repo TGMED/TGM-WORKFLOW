@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\RequestModule;
 use App\Enums\RequestStatus;
 use App\Http\Requests\StoreLeaveRequest;
+use App\Http\Requests\UpdateLeaveRequest;
 use App\Models\ApprovalSetting;
 use App\Models\LeaveRequest;
 use App\Models\Role;
@@ -83,13 +84,58 @@ class LeaveRequestController extends Controller
     }
 
     /**
-     * Withdraw a request that has not been decided yet.
+     * Change a request nobody has ruled on yet, or redo one that was sent
+     * back. The approvals snapshot stays as it was raised, so an edit cannot
+     * dodge a setting change either way.
+     */
+    public function update(UpdateLeaveRequest $request, LeaveRequest $leave): RedirectResponse
+    {
+        if (! $leave->isEditable()) {
+            return back()->with('toast', [
+                'type' => 'error',
+                'message' => 'That request has already been acted on and can no longer be changed.',
+            ]);
+        }
+
+        // A returned request goes round the chain again from the top. The
+        // decisions that sent it back stay on the trail, but a new round means
+        // the same people are asked afresh rather than being counted as done.
+        $resubmitting = $leave->needsResubmitting();
+
+        $leave->update([
+            'leave_type_id' => $request->integer('leave_type_id'),
+            'supervisor_id' => $request->integer('supervisor_id'),
+            'relief_officer_id' => $request->integer('relief_officer_id'),
+            'start_date' => $request->startDate(),
+            'end_date' => $request->endDate(),
+            'days' => $request->days(),
+            'reason' => $request->input('reason'),
+            ...$resubmitting ? [
+                'status' => RequestStatus::Pending,
+                'round' => $leave->round + 1,
+                'decided_at' => null,
+            ] : [],
+        ]);
+
+        $leave->load('leaveType', 'reliefOfficer');
+
+        $lead = $resubmitting ? 'Resubmitted as' : 'Updated to';
+
+        return back()->with('toast', [
+            'type' => 'success',
+            'message' => "{$lead} {$leave->summary()}. It is with {$leave->reliefOfficer?->name} to agree cover.",
+        ]);
+    }
+
+    /**
+     * Withdraw a request that has not been settled. One sent back for a redo
+     * counts: dropping it is the alternative to resubmitting.
      */
     public function destroy(Request $request, LeaveRequest $leave): RedirectResponse
     {
         abort_unless($leave->user_id === $request->user()->id, 403);
 
-        if (! $leave->status->isOpen()) {
+        if (! $leave->status->isOpen() && ! $leave->needsResubmitting()) {
             return back()->with('toast', [
                 'type' => 'error',
                 'message' => 'That request has already been decided and cannot be withdrawn.',
@@ -198,7 +244,11 @@ class LeaveRequestController extends Controller
             'type' => $leave->leaveType->name,
             'type_id' => $leave->leave_type_id,
             'supervisor' => $leave->supervisor?->name,
+            'supervisor_id' => $leave->supervisor_id,
             'relief_officer' => $leave->reliefOfficer?->name,
+            'relief_officer_id' => $leave->relief_officer_id,
+            'can_edit' => $leave->isEditable(),
+            'needs_resubmit' => $leave->needsResubmitting(),
             'stage_label' => $leave->stageLabel(),
             'start_date' => $leave->start_date->toDateString(),
             'end_date' => $leave->end_date->toDateString(),

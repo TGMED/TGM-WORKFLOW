@@ -252,6 +252,9 @@ function submit() {
                                     >
                                         {{ step.approver }}
                                         {{ step.decision_label.toLowerCase() }}
+                                        <template v-if="step.superseded">
+                                            (earlier version)
+                                        </template>
                                     </span>
                                 </div>
                             </div>

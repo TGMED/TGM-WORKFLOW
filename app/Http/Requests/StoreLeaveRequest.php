@@ -115,11 +115,21 @@ class StoreLeaveRequest extends FormRequest
         return $user->loadMissing('location');
     }
 
+    /**
+     * The request being changed, when this is an edit rather than a fresh
+     * booking. It has to sit out of its own clash and allowance checks.
+     */
+    protected function editing(): ?LeaveRequest
+    {
+        return null;
+    }
+
     protected function guardAgainstOverlap(Validator $validator): void
     {
         $clash = LeaveRequest::query()
             ->where('user_id', $this->staff()->id)
             ->committed()
+            ->when($this->editing(), fn ($query, LeaveRequest $leave) => $query->whereKeyNot($leave->id))
             ->where('start_date', '<=', $this->endDate()->toDateString())
             ->where('end_date', '>=', $this->startDate()->toDateString())
             ->exists();
@@ -196,6 +206,7 @@ class StoreLeaveRequest extends FormRequest
             $this->staff(),
             $type,
             $this->startDate()->year,
+            $this->editing()?->id,
         );
 
         if ($this->days() > $balance['remaining']) {

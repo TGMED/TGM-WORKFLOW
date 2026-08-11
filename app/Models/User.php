@@ -161,9 +161,12 @@ class User extends Authenticatable
         return LeaveRequest::query()
             ->pending()
             ->where('relief_officer_id', $this->id)
+            // A sign-off from a round since resubmitted is spent, so the
+            // request is waiting on them again.
             ->whereDoesntHave(
                 'approvals',
-                fn (Builder $query) => $query->where('approver_id', $this->id),
+                fn (Builder $query) => $query->where('approver_id', $this->id)
+                    ->whereColumn('approvals.round', 'leave_requests.round'),
             )
             ->exists();
     }

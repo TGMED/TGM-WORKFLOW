@@ -70,6 +70,7 @@ Route::middleware(['auth', 'active'])->group(function (): void {
     Route::middleware('clocks-in')->group(function (): void {
         Route::get('leave', [LeaveRequestController::class, 'index'])->name('leave.index');
         Route::post('leave', [LeaveRequestController::class, 'store'])->name('leave.store');
+        Route::put('leave/{leave}', [LeaveRequestController::class, 'update'])->name('leave.update');
         Route::delete('leave/{leave}', [LeaveRequestController::class, 'destroy'])->name('leave.destroy');
 
         Route::get('lateness', [LatenessRequestController::class, 'index'])->name('lateness.index');
