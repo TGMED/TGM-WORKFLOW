@@ -81,6 +81,12 @@ const nav: NavItem[] = [
         icon: 'M12 21s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11Zm0-8.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
     },
     {
+        label: 'Announcements',
+        href: '/admin/announcements',
+        adminOnly: true,
+        icon: 'M4 9.5h3l6-4v13l-6-4H4a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1Zm13-.5a4 4 0 0 1 0 6M8 14.5V19a1.5 1.5 0 0 0 3 0v-3',
+    },
+    {
         label: 'Clock attempts',
         href: '/admin/clock-attempts',
         adminOnly: true,

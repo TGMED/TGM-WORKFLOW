@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AnnouncementController;
 use App\Http\Controllers\Admin\ClockAttemptController;
 use App\Http\Controllers\Admin\LeaveAdjustmentController;
 use App\Http\Controllers\Admin\LeaveTypeController;
@@ -136,6 +137,11 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
         Route::patch('locations/{location}/reassign', [LocationController::class, 'reassign'])->name('locations.reassign');
 
         Route::get('clock-attempts', [ClockAttemptController::class, 'index'])->name('clock-attempts.index');
+
+        Route::get('announcements', [AnnouncementController::class, 'index'])->name('announcements.index');
+        Route::post('announcements', [AnnouncementController::class, 'store'])->name('announcements.store');
+        Route::put('announcements/{announcement}', [AnnouncementController::class, 'update'])->name('announcements.update');
+        Route::delete('announcements/{announcement}', [AnnouncementController::class, 'destroy'])->name('announcements.destroy');
 
         Route::get('request-settings', [RequestSettingsController::class, 'index'])->name('request-settings.index');
         Route::put('request-settings/approvers', [RequestSettingsController::class, 'approvers'])

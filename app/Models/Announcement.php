@@ -1,0 +1,118 @@
+<?php
+
+namespace App\Models;
+
+use Database\Factories\AnnouncementFactory;
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
+
+/**
+ * A notice shown to everyone on the dashboard.
+ *
+ * @property int $id
+ * @property int|null $user_id
+ * @property string $title
+ * @property string $body
+ * @property bool $is_pinned
+ * @property Carbon|null $published_at
+ * @property Carbon|null $expires_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read User|null $author
+ */
+#[Fillable(['title', 'body', 'is_pinned', 'published_at', 'expires_at'])]
+class Announcement extends Model
+{
+    /** @use HasFactory<AnnouncementFactory> */
+    use HasFactory;
+
+    /**
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'is_pinned' => false,
+    ];
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'is_pinned' => 'boolean',
+            'published_at' => 'datetime',
+            'expires_at' => 'datetime',
+        ];
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function author(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    /**
+     * Published, and not yet expired. An unpublished notice is a draft only
+     * its author sees; an expired one comes down on its own.
+     *
+     * @param  Builder<Announcement>  $query
+     */
+    public function scopeLive(Builder $query): void
+    {
+        $now = Carbon::now();
+
+        $query
+            ->whereNotNull('published_at')
+            ->where('published_at', '<=', $now)
+            ->where(fn (Builder $q) => $q
+                ->whereNull('expires_at')
+                ->orWhere('expires_at', '>', $now));
+    }
+
+    /**
+     * Pinned first, then newest. Used everywhere the notices are listed so
+     * the dashboard and the admin page agree on the order.
+     *
+     * @param  Builder<Announcement>  $query
+     */
+    public function scopeInReadingOrder(Builder $query): void
+    {
+        $query
+            ->orderByDesc('is_pinned')
+            ->orderByDesc('published_at')
+            ->orderByDesc('id');
+    }
+
+    public function isLive(): bool
+    {
+        if ($this->published_at === null || $this->published_at->isFuture()) {
+            return false;
+        }
+
+        return $this->expires_at === null || $this->expires_at->isFuture();
+    }
+
+    /**
+     * Where this notice stands, for the pill on the admin page.
+     */
+    public function state(): string
+    {
+        if ($this->published_at === null) {
+            return 'draft';
+        }
+
+        if ($this->published_at->isFuture()) {
+            return 'scheduled';
+        }
+
+        return $this->expires_at !== null && $this->expires_at->isPast()
+            ? 'expired'
+            : 'live';
+    }
+}

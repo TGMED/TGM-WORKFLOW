@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Enums\AttendanceStatus;
 use App\Enums\RequestStatus;
+use App\Models\Announcement;
 use App\Models\Attendance;
 use App\Models\ClockAttempt;
 use App\Models\LeaveRequest;
 use App\Models\Location;
 use App\Models\User;
+use App\Services\Celebrations;
 use App\Services\LeaveBalance;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -18,7 +20,10 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function __construct(protected LeaveBalance $balances) {}
+    public function __construct(
+        protected LeaveBalance $balances,
+        protected Celebrations $celebrations,
+    ) {}
 
     public function __invoke(Request $request): Response
     {
@@ -38,6 +43,8 @@ class DashboardController extends Controller
                 'lastAttempt' => null,
                 'leave' => null,
                 'overview' => $this->companyOverview(),
+                'celebrations' => $this->celebrations->upcoming(Carbon::now()),
+                'announcements' => $this->announcements(),
             ]);
         }
 
@@ -72,7 +79,37 @@ class DashboardController extends Controller
             'lastAttempt' => $this->lastRejectedAttempt($user),
             'leave' => $this->leaveSummary($user, $localNow),
             'overview' => null,
+            // Both read the same for everyone: the whole company celebrates
+            // together, and a notice is a notice wherever you sit.
+            'celebrations' => $this->celebrations->upcoming($localNow),
+            'announcements' => $this->announcements(),
         ]);
+    }
+
+    /**
+     * The notices that are up right now, newest first with the pinned ones
+     * held at the top. Capped, because the dashboard is not a noticeboard.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function announcements(int $limit = 4): array
+    {
+        return Announcement::query()
+            ->with('author:id,name')
+            ->live()
+            ->inReadingOrder()
+            ->limit($limit)
+            ->get()
+            ->map(fn (Announcement $announcement): array => [
+                'id' => $announcement->id,
+                'title' => $announcement->title,
+                'body' => $announcement->body,
+                'is_pinned' => $announcement->is_pinned,
+                'author' => $announcement->author?->name,
+                'published_at' => $announcement->published_at?->toIso8601String(),
+                'published_label' => $announcement->published_at?->diffForHumans(),
+            ])
+            ->all();
     }
 
     /**

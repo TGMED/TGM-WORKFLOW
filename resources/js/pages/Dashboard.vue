@@ -2,6 +2,8 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import ArrivalStrip from '@/components/ArrivalStrip.vue';
+import AnnouncementsPanel from '@/components/dashboard/AnnouncementsPanel.vue';
+import CelebrationsPanel from '@/components/dashboard/CelebrationsPanel.vue';
 import PunchDial from '@/components/PunchDial.vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
@@ -13,7 +15,7 @@ import { useGeoFix } from '@/composables/useGeoFix';
 import { useToasts } from '@/composables/useToasts';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { distance, duration, timeOfDay } from '@/lib/format';
-import type { SharedProps } from '@/types';
+import type { Celebrations, DashboardAnnouncement, SharedProps } from '@/types';
 
 type Attendance = {
     id: number;
@@ -128,6 +130,8 @@ const props = defineProps<{
             attendance_rate: number;
         }>;
     } | null;
+    celebrations: Celebrations;
+    announcements: DashboardAnnouncement[];
 }>();
 
 const page = usePage<SharedProps>();
@@ -843,6 +847,16 @@ const statusPill = computed(() => {
                     </Link>
                 </p>
             </Panel>
+
+            <!-- The company's own news, side by side. Same for everyone,
+                 admins included. -->
+            <div class="grid gap-5 lg:grid-cols-2">
+                <AnnouncementsPanel
+                    :announcements="announcements"
+                    :can-manage="user?.is_super_admin === true"
+                />
+                <CelebrationsPanel :celebrations="celebrations" />
+            </div>
 
             <!-- Personal history -->
             <Panel
