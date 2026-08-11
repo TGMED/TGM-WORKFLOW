@@ -9,7 +9,6 @@ use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
-use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -19,9 +18,15 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // AddLinkHeadersForPreloadedAssets, which the starter kit appends here,
+        // is deliberately left out. It repeats Vite's whole modulepreload graph
+        // as a Link response header on every request. Vite already writes the
+        // same hints as <link rel="modulepreload"> tags in the head, so the
+        // header buys nothing, and on a page with a wide component tree it grew
+        // past nginx's FastCGI header buffer and returned 502s. Do not re-add it
+        // without moving to 103 Early Hints at the edge.
         $middleware->web(append: [
             HandleInertiaRequests::class,
-            AddLinkHeadersForPreloadedAssets::class,
         ]);
 
         $middleware->alias([
