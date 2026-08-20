@@ -14,15 +14,20 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class ApprovalService
 {
+    public function __construct(protected RequestNotifier $notifier) {}
+
     /**
      * Record one approver's decision and settle the request if that decision
      * finished it. A rejection ends the request outright, however many
      * approvals were still outstanding.
      *
      * @param  Approvable&Model  $request
+     *
+     * @throws Throwable
      */
     public function decide(
         Approvable $request,
@@ -30,20 +35,20 @@ class ApprovalService
         ApprovalDecision $decision,
         ?string $comment = null,
     ): bool {
-        return DB::transaction(function () use ($request, $approver, $decision, $comment): bool {
+        $recorded = DB::transaction(function () use ($request, $approver, $decision, $comment): ?Approval {
             // Two approvers can click at the same moment. Re-read the row
             // under a lock so only one of them can be the deciding vote.
             $request->newQuery()->whereKey($request->getKey())->lockForUpdate()->first();
             $request->refresh()->load('approvals');
 
             if (! $request->awaitsDecisionFrom($approver)) {
-                return false;
+                return null;
             }
 
             $now = Carbon::now();
             $stage = $request->approvalStageFor($approver);
 
-            Approval::query()->create([
+            $approval = Approval::query()->create([
                 'approvable_type' => $request->getMorphClass(),
                 'approvable_id' => $request->getKey(),
                 'approver_id' => $approver->id,
@@ -63,7 +68,7 @@ class ApprovalService
                     'decided_at' => $now,
                 ])->save();
 
-                return true;
+                return $approval;
             }
 
             if ($stage->countsTowardsApproval() && $request->approvalsOutstanding() === 0) {
@@ -73,13 +78,23 @@ class ApprovalService
                 ])->save();
             }
 
-            return true;
+            return $approval;
         });
+
+        if ($recorded === null) {
+            return false;
+        }
+
+        // Told only once the decision is safely committed, so nobody is
+        // emailed about a transaction that then rolled back.
+        $this->notifier->decided($request, $recorded);
+
+        return true;
     }
 
     /**
-     * Open leave it is this person's turn to decide on. Whose turn it is
-     * depends on how far the request has got, which no single query can
+     * Open leave it is this person's turn to decide on. Whose turn it depends
+     * on how far the request has got, which no single query can
      * express, so the shortlist is narrowed in SQL and settled in PHP.
      *
      * @return Collection<int, LeaveRequest>

@@ -10,6 +10,7 @@ use App\Models\Attendance;
 use App\Models\LatenessRequest;
 use App\Models\User;
 use App\Services\ApprovalService;
+use App\Services\RequestNotifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -18,7 +19,10 @@ use Inertia\Response;
 
 class LatenessRequestController extends Controller
 {
-    public function __construct(protected ApprovalService $approvals) {}
+    public function __construct(
+        protected ApprovalService $approvals,
+        protected RequestNotifier $notifier,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -72,6 +76,8 @@ class LatenessRequestController extends Controller
             'status' => RequestStatus::Pending,
             'approvals_required' => ApprovalSetting::approversRequired(RequestModule::Lateness),
         ]);
+
+        $this->notifier->raised($late);
 
         return back()->with('toast', [
             'type' => 'success',

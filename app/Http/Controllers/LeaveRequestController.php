@@ -12,6 +12,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Services\ApprovalService;
 use App\Services\LeaveBalance;
+use App\Services\RequestNotifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -23,6 +24,7 @@ class LeaveRequestController extends Controller
     public function __construct(
         protected LeaveBalance $balances,
         protected ApprovalService $approvals,
+        protected RequestNotifier $notifier,
     ) {}
 
     public function index(Request $request): Response
@@ -77,6 +79,8 @@ class LeaveRequestController extends Controller
 
         $leave->load('leaveType', 'reliefOfficer');
 
+        $this->notifier->raised($leave);
+
         return back()->with('toast', [
             'type' => 'success',
             'message' => "Requested {$leave->summary()}. It is now with {$leave->reliefOfficer?->name} to agree cover.",
@@ -102,6 +106,12 @@ class LeaveRequestController extends Controller
         // the same people are asked afresh rather than being counted as done.
         $resubmitting = $leave->needsResubmitting();
 
+        // A change of hands is worth an email; a change of dates on a request
+        // nobody has seen yet is not, since the same people are still waiting
+        // on the same thing.
+        $handedOver = $leave->relief_officer_id !== $request->integer('relief_officer_id')
+            || $leave->supervisor_id !== $request->integer('supervisor_id');
+
         $leave->update([
             'leave_type_id' => $request->integer('leave_type_id'),
             'supervisor_id' => $request->integer('supervisor_id'),
@@ -118,6 +128,10 @@ class LeaveRequestController extends Controller
         ]);
 
         $leave->load('leaveType', 'reliefOfficer');
+
+        if ($resubmitting || $handedOver) {
+            $this->notifier->raised($leave);
+        }
 
         $lead = $resubmitting ? 'Resubmitted as' : 'Updated to';
 
