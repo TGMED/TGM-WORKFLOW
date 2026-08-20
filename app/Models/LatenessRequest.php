@@ -20,6 +20,7 @@ use Illuminate\Support\Carbon;
  *
  * @property int $id
  * @property int $user_id
+ * @property int|null $raised_by_id
  * @property int|null $attendance_id
  * @property Carbon $work_date
  * @property int $minutes_late
@@ -30,10 +31,12 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read User $user
+ * @property-read User|null $raisedBy
  * @property-read Attendance|null $attendance
  */
 #[Fillable([
     'user_id',
+    'raised_by_id',
     'attendance_id',
     'work_date',
     'minutes_late',
@@ -79,6 +82,17 @@ class LatenessRequest extends Model implements Approvable
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * The approver who filed this for the requester, when they did not file
+     * it themselves.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function raisedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'raised_by_id');
     }
 
     /**

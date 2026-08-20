@@ -26,6 +26,12 @@ interface Approvable
     public function requester(): User;
 
     /**
+     * The approver who filed the request on the requester's behalf, when it
+     * was not the requester who filed it.
+     */
+    public function filedBy(): ?User;
+
+    /**
      * A short line naming the request, used in toasts and the inbox.
      */
     public function summary(): string;
