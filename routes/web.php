@@ -22,6 +22,8 @@ use App\Http\Controllers\Profile\BankDetailsController;
 use App\Http\Controllers\Profile\ProfileController;
 use App\Http\Controllers\Profile\ProfilePhotoController;
 use App\Http\Controllers\Profile\RelationController;
+use App\Http\Controllers\Settings\NotificationSettingsController;
+use App\Http\Controllers\Settings\PushTokenController;
 use App\Http\Controllers\WorkLocationController;
 use Illuminate\Support\Facades\Route;
 
@@ -113,6 +115,16 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
 
     Route::get('settings/password', [PasswordController::class, 'edit'])->name('password.edit');
     Route::put('settings/password', [PasswordController::class, 'update'])->name('password.update');
+
+    Route::get('settings/notifications', [NotificationSettingsController::class, 'edit'])
+        ->name('notifications.edit');
+    Route::put('settings/notifications', [NotificationSettingsController::class, 'update'])
+        ->name('notifications.update');
+
+    // Written to by the page itself once the browser has handed it a Firebase
+    // registration token, rather than by anything the person fills in.
+    Route::post('push-tokens', [PushTokenController::class, 'store'])->name('push-tokens.store');
+    Route::delete('push-tokens', [PushTokenController::class, 'destroy'])->name('push-tokens.destroy');
 
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 

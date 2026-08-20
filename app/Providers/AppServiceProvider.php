@@ -2,12 +2,14 @@
 
 namespace App\Providers;
 
+use App\Notifications\Channels\FcmChannel;
 use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
@@ -32,6 +34,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
         $this->registerBrevoMailer();
         $this->registerRateLimiters();
+        $this->registerPushChannel();
     }
 
     /**
@@ -50,6 +53,15 @@ class AppServiceProvider extends ServiceProvider
             )),
             Limit::perMinute(20)->by('reset-password|ip|'.$request->ip()),
         ]);
+    }
+
+    /**
+     * Register Firebase Cloud Messaging as a notification channel, so a
+     * notification can list `fcm` alongside `mail`.
+     */
+    protected function registerPushChannel(): void
+    {
+        Notification::extend('fcm', fn ($app): FcmChannel => $app->make(FcmChannel::class));
     }
 
     /**

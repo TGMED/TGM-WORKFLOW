@@ -1,0 +1,49 @@
+<?php
+
+namespace App\Enums;
+
+/**
+ * The things the app writes to people about. Each one is a switch on the
+ * notification settings page, so adding a case here adds a row there.
+ */
+enum NotificationTopic: string
+{
+    /** Something is waiting on you to decide. */
+    case ApprovalRequested = 'approval_requested';
+
+    /** A request you raised, or raised for someone, has been ruled on. */
+    case RequestDecided = 'request_decided';
+
+    case Announcement = 'announcement';
+
+    case Birthday = 'birthday';
+
+    public function label(): string
+    {
+        return match ($this) {
+            self::ApprovalRequested => 'Approvals waiting on me',
+            self::RequestDecided => 'Decisions on my requests',
+            self::Announcement => 'Company announcements',
+            self::Birthday => 'Birthday greetings',
+        };
+    }
+
+    public function description(): string
+    {
+        return match ($this) {
+            self::ApprovalRequested => 'A colleague has sent you leave or lateness to rule on.',
+            self::RequestDecided => 'Your request was approved, declined or sent back.',
+            self::Announcement => 'Notices published to the whole company.',
+            self::Birthday => 'Our note to you on your birthday.',
+        };
+    }
+
+    /**
+     * Topics nobody should be able to switch off entirely. Approvals hold up
+     * somebody else's time off, so they are not optional.
+     */
+    public function isRequired(): bool
+    {
+        return $this === self::ApprovalRequested;
+    }
+}

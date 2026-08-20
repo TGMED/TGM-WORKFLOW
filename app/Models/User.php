@@ -126,6 +126,26 @@ class User extends Authenticatable
     }
 
     /**
+     * What this person has asked not to be written to about.
+     *
+     * @return HasMany<NotificationSetting, $this>
+     */
+    public function notificationSettings(): HasMany
+    {
+        return $this->hasMany(NotificationSetting::class);
+    }
+
+    /**
+     * Browsers this person has allowed notifications in.
+     *
+     * @return HasMany<PushToken, $this>
+     */
+    public function pushTokens(): HasMany
+    {
+        return $this->hasMany(PushToken::class);
+    }
+
+    /**
      * @return HasMany<Attendance, $this>
      */
     public function attendances(): HasMany
