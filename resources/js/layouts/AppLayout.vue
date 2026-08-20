@@ -87,6 +87,12 @@ const nav: NavItem[] = [
         icon: 'M12 8v4l2.5 2.5M3.5 12a8.5 8.5 0 1 0 17 0 8.5 8.5 0 0 0-17 0Z',
     },
     {
+        label: 'Announcements',
+        href: '/admin/announcements',
+        adminOnly: true,
+        icon: 'M3.5 10.5v3a1.5 1.5 0 0 0 1.5 1.5h2l5 4V5l-5 4H5a1.5 1.5 0 0 0-1.5 1.5Zm13-1.5a5 5 0 0 1 0 6',
+    },
+    {
         label: 'Request settings',
         href: '/admin/request-settings',
         adminOnly: true,

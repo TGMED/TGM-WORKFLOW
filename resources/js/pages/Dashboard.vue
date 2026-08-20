@@ -2,6 +2,7 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import ArrivalStrip from '@/components/ArrivalStrip.vue';
+import AnnouncementsPanel from '@/components/dashboard/AnnouncementsPanel.vue';
 import PunchDial from '@/components/PunchDial.vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
@@ -13,7 +14,7 @@ import { useGeoFix } from '@/composables/useGeoFix';
 import { useToasts } from '@/composables/useToasts';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { distance, duration, timeOfDay } from '@/lib/format';
-import type { SharedProps } from '@/types';
+import type { Announcement, SharedProps } from '@/types';
 
 type Attendance = {
     id: number;
@@ -106,6 +107,7 @@ const props = defineProps<{
         } | null;
         pending: number;
     } | null;
+    announcements: Announcement[];
     overview: {
         active_staff: number;
         locations: number;
@@ -702,6 +704,9 @@ const statusPill = computed(() => {
                     </Panel>
                 </div>
             </div>
+
+            <!-- What the company has been told, for everyone. -->
+            <AnnouncementsPanel :announcements="announcements" />
 
             <!-- Company snapshot, super admins only. -->
             <Panel

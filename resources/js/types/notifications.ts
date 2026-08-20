@@ -36,3 +36,27 @@ export type PushState = {
     /** How many browsers this person has push switched on in. */
     devices: number;
 };
+
+/** Where a notice stands: a draft, dated for later, up, or come down. */
+export type AnnouncementState = 'draft' | 'scheduled' | 'live' | 'expired';
+
+/** A live notice, as the dashboard panel shows it. */
+export type Announcement = {
+    id: number;
+    title: string;
+    body: string;
+    excerpt: string;
+    is_pinned: boolean;
+    /** Null once the administrator who wrote it has left. */
+    author: string | null;
+    published_at: string | null;
+};
+
+/** The fuller shape the admin page works with. */
+export type AnnouncementRow = Announcement & {
+    state: AnnouncementState;
+    expires_at: string | null;
+    /** When the company was written to, and null until they were. */
+    notified_at: string | null;
+    created_at: string | null;
+};

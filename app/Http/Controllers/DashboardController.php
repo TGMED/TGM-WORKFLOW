@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\AttendanceStatus;
 use App\Enums\RequestStatus;
+use App\Models\Announcement;
 use App\Models\Attendance;
 use App\Models\ClockAttempt;
 use App\Models\LeaveRequest;
@@ -37,6 +38,7 @@ class DashboardController extends Controller
                 'recent' => [],
                 'lastAttempt' => null,
                 'leave' => null,
+                'announcements' => $this->announcements(),
                 'overview' => $this->companyOverview(),
             ]);
         }
@@ -71,8 +73,35 @@ class DashboardController extends Controller
             'recent' => $month->take(7)->map(fn (Attendance $a) => $this->attendancePayload($a, $timezone))->values(),
             'lastAttempt' => $this->lastRejectedAttempt($user),
             'leave' => $this->leaveSummary($user, $localNow),
+            'announcements' => $this->announcements(),
             'overview' => null,
         ]);
+    }
+
+    /**
+     * The company notices worth showing on the dashboard: pinned ones first,
+     * then the newest. Deliberately few — this is a panel, not a noticeboard.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function announcements(): array
+    {
+        return Announcement::query()
+            ->with('author:id,name')
+            ->live()
+            ->inReadingOrder()
+            ->limit(4)
+            ->get()
+            ->map(fn (Announcement $announcement): array => [
+                'id' => $announcement->id,
+                'title' => $announcement->title,
+                'body' => $announcement->body,
+                'excerpt' => $announcement->excerpt(),
+                'is_pinned' => $announcement->is_pinned,
+                'author' => $announcement->author?->name,
+                'published_at' => $announcement->published_at?->toIso8601String(),
+            ])
+            ->all();
     }
 
     /**

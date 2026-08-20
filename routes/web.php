@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AnnouncementController;
 use App\Http\Controllers\Admin\ClockAttemptController;
 use App\Http\Controllers\Admin\LeaveTypeController;
 use App\Http\Controllers\Admin\LocationController;
@@ -156,6 +157,11 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
         Route::put('request-settings/{module}', [RequestSettingsController::class, 'update'])
             ->whereIn('module', ['leave', 'lateness'])
             ->name('request-settings.update');
+
+        Route::get('announcements', [AnnouncementController::class, 'index'])->name('announcements.index');
+        Route::post('announcements', [AnnouncementController::class, 'store'])->name('announcements.store');
+        Route::put('announcements/{announcement}', [AnnouncementController::class, 'update'])->name('announcements.update');
+        Route::delete('announcements/{announcement}', [AnnouncementController::class, 'destroy'])->name('announcements.destroy');
 
         Route::post('leave-types', [LeaveTypeController::class, 'store'])->name('leave-types.store');
         Route::put('leave-types/{leaveType}', [LeaveTypeController::class, 'update'])->name('leave-types.update');
