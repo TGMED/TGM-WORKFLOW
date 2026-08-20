@@ -26,6 +26,7 @@ use App\Http\Controllers\Profile\ProfilePhotoController;
 use App\Http\Controllers\Profile\RelationController;
 use App\Http\Controllers\Settings\NotificationSettingsController;
 use App\Http\Controllers\Settings\PushTokenController;
+use App\Http\Controllers\WhatsNewController;
 use App\Http\Controllers\WorkLocationController;
 use Illuminate\Support\Facades\Route;
 
@@ -135,6 +136,8 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
     // registration token, rather than by anything the person fills in.
     Route::post('push-tokens', [PushTokenController::class, 'store'])->name('push-tokens.store');
     Route::delete('push-tokens', [PushTokenController::class, 'destroy'])->name('push-tokens.destroy');
+
+    Route::post('whats-new/seen', [WhatsNewController::class, 'store'])->name('whats-new.seen');
 
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 

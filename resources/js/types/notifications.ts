@@ -60,3 +60,15 @@ export type AnnouncementRow = Announcement & {
     notified_at: string | null;
     created_at: string | null;
 };
+
+export type WhatsNewFeature = {
+    title: string;
+    description: string;
+};
+
+export type WhatsNewNotes = {
+    version: string;
+    title: string;
+    lede: string;
+    features: WhatsNewFeature[];
+};

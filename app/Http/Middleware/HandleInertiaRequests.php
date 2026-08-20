@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\User;
 use App\Services\ApprovalService;
+use App\Support\WhatsNew;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -75,6 +76,9 @@ class HandleInertiaRequests extends Middleware
             'pending_approvals' => fn (): int => $user === null
                 ? 0
                 : $this->approvals->inboxCount($user),
+            // Null once this person has read the current release's notes,
+            // which is what keeps the popup to one showing each.
+            'whats_new' => fn (): ?array => WhatsNew::forUser($user),
             'flash' => [
                 'status' => fn () => $request->session()->get('status'),
                 'toast' => fn () => $request->session()->get('toast'),

@@ -4,6 +4,7 @@ import { computed, ref, watch } from 'vue';
 import BrandMark from '@/components/BrandMark.vue';
 import Avatar from '@/components/ui/Avatar.vue';
 import ToastHost from '@/components/ui/ToastHost.vue';
+import WhatsNewModal from '@/components/WhatsNewModal.vue';
 import { useAppearance } from '@/composables/useAppearance';
 import { useToasts } from '@/composables/useToasts';
 import type { SharedProps } from '@/types';
@@ -516,5 +517,6 @@ watch(currentUrl, () => {
         </div>
 
         <ToastHost />
+        <WhatsNewModal />
     </div>
 </template>

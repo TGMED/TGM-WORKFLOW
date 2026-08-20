@@ -1,3 +1,5 @@
+import type { WhatsNewNotes } from './notifications';
+
 // Roles live in the database, so this covers the three the app ships with
 // while leaving room for any added later.
 export type Role = 'super_admin' | 'approver' | 'staff' | (string & {});
@@ -49,6 +51,8 @@ export type SharedProps = {
     name: string;
     auth: Auth;
     pending_approvals: number;
+    /** Null once this person has read the current release's notes. */
+    whats_new: WhatsNewNotes | null;
     flash: {
         status: string | null;
         toast: Toast | null;

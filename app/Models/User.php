@@ -30,6 +30,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $email_verified_at
  * @property string $password
  * @property string|null $remember_token
+ * @property string|null $whats_new_seen
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read Location|null $location
@@ -49,6 +50,7 @@ use Illuminate\Support\Carbon;
     'is_active',
     'deactivated_at',
     'location_id',
+    'whats_new_seen',
 ])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
