@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Head, useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
+import RaiseForColleagueModal from '@/components/approvals/RaiseForColleagueModal.vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import Avatar from '@/components/ui/Avatar.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
@@ -9,7 +10,7 @@ import Panel from '@/components/ui/Panel.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dateTime, duration, relative } from '@/lib/format';
-import type { RequestStatusTone, RequestTrail } from '@/types';
+import type { RaiseOptions, RequestStatusTone, RequestTrail } from '@/types';
 
 type Requester = {
     id: number;
@@ -60,9 +61,14 @@ const props = defineProps<{
     leave: PendingRequest[];
     lateness: PendingRequest[];
     history: HistoryRow[];
+    // Null for a relief officer, who reaches this page without being an
+    // approver and so cannot file for anyone.
+    raise: RaiseOptions | null;
 }>();
 
 const tab = ref<'leave' | 'lateness'>('leave');
+
+const raising = ref(false);
 
 const deciding = ref<PendingRequest | null>(null);
 const decision = ref<'approved' | 'rejected'>('approved');
@@ -134,6 +140,12 @@ function submit() {
                 : `${total} request${total === 1 ? '' : 's'} waiting on you.`
         "
     >
+        <template v-if="raise" #toolbar>
+            <AppButton size="sm" variant="secondary" @click="raising = true">
+                Raise for a colleague
+            </AppButton>
+        </template>
+
         <div class="space-y-6">
             <div class="flex items-center gap-1 rounded-xl bg-sunken p-1">
                 <button
@@ -403,5 +415,12 @@ function submit() {
                 </AppButton>
             </template>
         </ModalShell>
+
+        <RaiseForColleagueModal
+            v-if="raise"
+            :open="raising"
+            :options="raise"
+            @close="raising = false"
+        />
     </AppLayout>
 </template>

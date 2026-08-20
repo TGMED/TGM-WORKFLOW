@@ -37,7 +37,7 @@ class StoreLeaveRequest extends FormRequest
                 'required',
                 'integer',
                 'different:relief_officer_id',
-                Rule::notIn([$this->user()?->id]),
+                Rule::notIn($this->ineligibleApprovers()),
                 Rule::exists('users', 'id')->where('is_active', true)->whereIn(
                     'role_id',
                     Role::query()->whereIn('slug', [Role::APPROVER, Role::SUPER_ADMIN])->pluck('id')->all(),
@@ -46,7 +46,7 @@ class StoreLeaveRequest extends FormRequest
             'relief_officer_id' => [
                 'required',
                 'integer',
-                Rule::notIn([$this->user()?->id]),
+                Rule::notIn($this->ineligibleOfficers()),
                 Rule::exists('users', 'id')->where('is_active', true),
             ],
             'start_date' => ['required', 'date', 'after_or_equal:'.Carbon::now()->subYear()->toDateString()],
@@ -113,6 +113,27 @@ class StoreLeaveRequest extends FormRequest
         $user = $this->user();
 
         return $user->loadMissing('location');
+    }
+
+    /**
+     * Who may not be named as the approver. Nobody rules on their own leave.
+     *
+     * @return array<int, int>
+     */
+    protected function ineligibleApprovers(): array
+    {
+        return [$this->staff()->id];
+    }
+
+    /**
+     * Who may not be named as the relief officer. Somebody else has to cover
+     * the desk of the person going away.
+     *
+     * @return array<int, int>
+     */
+    protected function ineligibleOfficers(): array
+    {
+        return [$this->staff()->id];
     }
 
     /**

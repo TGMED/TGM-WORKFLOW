@@ -16,6 +16,7 @@ use App\Http\Controllers\ClockController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LatenessRequestController;
 use App\Http\Controllers\LeaveRequestController;
+use App\Http\Controllers\OnBehalfRequestController;
 use App\Http\Controllers\PasswordController;
 use App\Http\Controllers\Profile\AddressController;
 use App\Http\Controllers\Profile\BankDetailsController;
@@ -91,6 +92,14 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
             ->whereIn('module', ['leave', 'lateness'])
             ->whereNumber('id')
             ->name('approvals.store');
+
+        // An approver filing a request for a member of staff who cannot file
+        // it themselves. Guarded again in the form request, since a relief
+        // officer reaches this group without approval rights.
+        Route::post('approvals/on-behalf/leave', [OnBehalfRequestController::class, 'leave'])
+            ->name('approvals.on-behalf.leave');
+        Route::post('approvals/on-behalf/lateness', [OnBehalfRequestController::class, 'lateness'])
+            ->name('approvals.on-behalf.lateness');
     });
 
     // The employee's own HR record. Reachable with the profile half-filled,

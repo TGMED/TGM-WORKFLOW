@@ -10,6 +10,8 @@ use App\Enums\RequestStatus;
 use App\Models\Approval;
 use App\Models\LatenessRequest;
 use App\Models\LeaveRequest;
+use App\Models\LeaveType;
+use App\Models\Role;
 use App\Models\User;
 use App\Services\ApprovalService;
 use Illuminate\Database\Eloquent\Model;
@@ -30,6 +32,9 @@ class ApprovalController extends Controller
             'leave' => $this->openLeave($approver),
             'lateness' => $this->openLateness($approver),
             'history' => $this->history($approver),
+            // Only approvers may file for someone else, and a relief officer
+            // reaches this page without being one.
+            'raise' => $approver->canApprove() ? $this->raiseOptions($approver) : null,
         ]);
     }
 
@@ -78,6 +83,67 @@ class ApprovalController extends Controller
             'type' => 'success',
             'message' => $this->outcomeMessage($subject, $decision, $stage),
         ]);
+    }
+
+    /**
+     * The lists behind the "raise for a colleague" form: who it can be for,
+     * what they can be booked off for, and who rules on it.
+     *
+     * @return array<string, mixed>
+     */
+    protected function raiseOptions(User $approver): array
+    {
+        $staff = User::query()
+            ->active()
+            ->clocksIn()
+            ->whereKeyNot($approver->id)
+            ->orderBy('name')
+            ->get(['id', 'name', 'department', 'location_id']);
+
+        return [
+            'staff' => $staff
+                ->map(fn (User $person): array => [
+                    'value' => $person->id,
+                    'label' => $person->department === null
+                        ? $person->name
+                        : "{$person->name} · {$person->department}",
+                ])
+                ->all(),
+            'leave_types' => LeaveType::query()
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name'])
+                ->map(fn (LeaveType $type): array => ['value' => $type->id, 'label' => $type->name])
+                ->all(),
+            // The filer cannot approve what they filed, so they are not on
+            // the list of approvers they can name.
+            'approvers' => User::query()
+                ->active()
+                ->withRole(Role::APPROVER, Role::SUPER_ADMIN)
+                ->whereKeyNot($approver->id)
+                ->orderBy('name')
+                ->get(['id', 'name', 'position'])
+                ->map(fn (User $person): array => [
+                    'value' => $person->id,
+                    'label' => $person->position === null
+                        ? $person->name
+                        : "{$person->name} · {$person->position}",
+                ])
+                ->all(),
+            // Anyone still on the books can cover a desk, the filer included.
+            'colleagues' => User::query()
+                ->active()
+                ->clocksIn()
+                ->orderBy('name')
+                ->get(['id', 'name', 'department'])
+                ->map(fn (User $person): array => [
+                    'value' => $person->id,
+                    'label' => $person->department === null
+                        ? $person->name
+                        : "{$person->name} · {$person->department}",
+                ])
+                ->all(),
+        ];
     }
 
     /**

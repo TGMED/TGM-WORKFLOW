@@ -1,3 +1,13 @@
+import type { Option } from './profile';
+
+/** The lists behind the approvals page's "raise for a colleague" form. */
+export type RaiseOptions = {
+    staff: Option[];
+    leave_types: Option[];
+    approvers: Option[];
+    colleagues: Option[];
+};
+
 /** One row on the notification settings page. */
 export type NotificationTopicSetting = {
     topic: string;
