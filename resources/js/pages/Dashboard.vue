@@ -107,6 +107,10 @@ const props = defineProps<{
         } | null;
         pending: number;
     } | null;
+    away: {
+        today: number;
+        names: string[];
+    } | null;
     announcements: Announcement[];
     overview: {
         active_staff: number;
@@ -700,6 +704,39 @@ const statusPill = computed(() => {
                                     </span>
                                 </template>
                             </p>
+
+                            <!-- Who else is out, so cover is easy to plan. -->
+                            <Link
+                                v-if="away"
+                                href="/away"
+                                class="flex items-center gap-2 rounded-xl border border-line bg-sunken px-3.5 py-2.5 text-[12.5px] transition-colors hover:border-faint/40"
+                            >
+                                <span class="text-text">
+                                    <template v-if="away.today === 0">
+                                        Nobody else is on leave today
+                                    </template>
+                                    <template v-else>
+                                        {{ away.today }} colleague{{
+                                            away.today === 1 ? '' : 's'
+                                        }}
+                                        away today
+                                    </template>
+                                </span>
+                                <span
+                                    v-if="away.names.length"
+                                    class="min-w-0 truncate text-faint"
+                                >
+                                    · {{ away.names.join(', ')
+                                    }}{{
+                                        away.today > away.names.length
+                                            ? ' and others'
+                                            : ''
+                                    }}
+                                </span>
+                                <span class="ml-auto shrink-0 text-muted">
+                                    See who →
+                                </span>
+                            </Link>
                         </div>
                     </Panel>
                 </div>
@@ -747,11 +784,13 @@ const statusPill = computed(() => {
                         :value="overview.late_today"
                         :tone="overview.late_today > 0 ? 'brass' : 'default'"
                     />
-                    <StatTile
-                        label="On leave"
-                        :value="overview.on_leave_today"
-                        caption="Approved for today"
-                    />
+                    <Link href="/away" class="block">
+                        <StatTile
+                            label="On leave"
+                            :value="overview.on_leave_today"
+                            caption="Approved for today · see who"
+                        />
+                    </Link>
                     <StatTile
                         label="Yet to arrive"
                         :value="overview.still_out"

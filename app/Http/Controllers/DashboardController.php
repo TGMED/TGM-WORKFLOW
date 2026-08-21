@@ -38,6 +38,7 @@ class DashboardController extends Controller
                 'recent' => [],
                 'lastAttempt' => null,
                 'leave' => null,
+                'away' => null,
                 'announcements' => $this->announcements(),
                 'overview' => $this->companyOverview(),
             ]);
@@ -73,6 +74,7 @@ class DashboardController extends Controller
             'recent' => $month->take(7)->map(fn (Attendance $a) => $this->attendancePayload($a, $timezone))->values(),
             'lastAttempt' => $this->lastRejectedAttempt($user),
             'leave' => $this->leaveSummary($user, $localNow),
+            'away' => $this->awaySummary($user, $localNow),
             'announcements' => $this->announcements(),
             'overview' => null,
         ]);
@@ -289,6 +291,29 @@ class DashboardController extends Controller
     }
 
     /**
+     * Who else is out today. A count and a couple of names is all the
+     * dashboard carries; the roster itself lives on its own page.
+     *
+     * @return array<string, mixed>
+     */
+    protected function awaySummary(User $user, Carbon $localNow): array
+    {
+        $colleagues = LeaveRequest::query()
+            ->with('user:id,name')
+            ->approved()
+            ->overlapping($localNow, $localNow)
+            ->where('user_id', '!=', $user->id)
+            ->get()
+            ->unique('user_id')
+            ->values();
+
+        return [
+            'today' => $colleagues->count(),
+            'names' => $colleagues->take(3)->map(fn (LeaveRequest $leave): string => $leave->user->name)->all(),
+        ];
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     protected function lastRejectedAttempt(User $user): ?array
@@ -318,12 +343,9 @@ class DashboardController extends Controller
      */
     protected function onLeaveToday(): int
     {
-        $today = Carbon::now()->toDateString();
-
         return LeaveRequest::query()
-            ->where('status', RequestStatus::Approved->value)
-            ->where('start_date', '<=', $today)
-            ->where('end_date', '>=', $today)
+            ->approved()
+            ->overlapping(Carbon::now(), Carbon::now())
             ->distinct()
             ->count('user_id');
     }

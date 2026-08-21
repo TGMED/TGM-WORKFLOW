@@ -27,6 +27,7 @@ use App\Http\Controllers\Profile\RelationController;
 use App\Http\Controllers\Settings\NotificationSettingsController;
 use App\Http\Controllers\Settings\PushTokenController;
 use App\Http\Controllers\WhatsNewController;
+use App\Http\Controllers\WhoIsAwayController;
 use App\Http\Controllers\WorkLocationController;
 use Illuminate\Support\Facades\Route;
 
@@ -57,6 +58,10 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
     Route::get('attendance', [AttendanceController::class, 'index'])
         ->middleware('clocks-in')
         ->name('attendance.index');
+
+    // Who the company is missing today, open to everyone: cover is easier to
+    // arrange when you can see who is out.
+    Route::get('away', [WhoIsAwayController::class, 'index'])->name('away.index');
 
     // Staff who signed up before a site existed claim one here.
     Route::post('work-location', [WorkLocationController::class, 'store'])

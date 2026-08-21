@@ -286,6 +286,16 @@ class LeaveRequest extends Model implements Approvable
     }
 
     /**
+     * Requests that were granted.
+     *
+     * @param  Builder<LeaveRequest>  $query
+     */
+    public function scopeApproved(Builder $query): void
+    {
+        $query->where('status', RequestStatus::Approved->value);
+    }
+
+    /**
      * Requests whose dates touch the range given, both ends inclusive.
      *
      * @param  Builder<LeaveRequest>  $query

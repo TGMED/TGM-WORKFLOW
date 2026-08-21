@@ -34,6 +34,10 @@ return [
             'description' => 'Administrators can publish a notice to the whole company. It lands on the dashboard and in everyone\'s inbox at the same time.',
         ],
         [
+            'title' => "Who's away",
+            'description' => 'A company-wide leave roster: who is out today, when they are back, and what is booked ahead. It sits in the sidebar, and the count also shows on your dashboard.',
+        ],
+        [
             'title' => 'Birthday greetings',
             'description' => 'We will write to you on your birthday. Nobody else is told; it is your day to share if you want to.',
         ],

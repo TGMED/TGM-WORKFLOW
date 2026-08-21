@@ -63,6 +63,11 @@ const nav: NavItem[] = [
         ],
     },
     {
+        label: "Who's away",
+        href: '/away',
+        icon: 'M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20M9 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM16.5 8.5h5',
+    },
+    {
         label: 'Approvals',
         href: '/approvals',
         approverOnly: true,
