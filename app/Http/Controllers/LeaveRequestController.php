@@ -8,6 +8,7 @@ use App\Http\Requests\StoreLeaveRequest;
 use App\Http\Requests\UpdateLeaveRequest;
 use App\Models\ApprovalSetting;
 use App\Models\LeaveRequest;
+use App\Models\LeaveRestrictedPeriod;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\ApprovalService;
@@ -49,6 +50,10 @@ class LeaveRequestController extends Controller
             'supervisors' => $this->supervisors($user),
             'cover_duties' => $this->coverDuties($user),
             'relief_officers' => $this->reliefOfficers($user),
+            // The days the business has closed to leave, already worked out
+            // against this person, so the form can say no before the server
+            // has to.
+            'restricted_periods' => $this->restrictedPeriods($user),
             'approvers_required' => ApprovalSetting::approversRequired(RequestModule::Leave),
             'stats' => [
                 'pending' => $requests->where('status', RequestStatus::Pending)->count(),
@@ -165,6 +170,37 @@ class LeaveRequestController extends Controller
             'type' => 'success',
             'message' => 'Your leave request has been withdrawn.',
         ]);
+    }
+
+    /**
+     * Periods closed to leave, as they apply to this person: whether their
+     * marital status lets them through, and which types of leave the period
+     * leaves alone. Past windows come too, since leave can be backdated into
+     * one and the server would turn that away.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function restrictedPeriods(User $user): array
+    {
+        $exemptible = $user->profile?->marital_status === null;
+
+        return LeaveRestrictedPeriod::query()
+            ->with('leaveTypes:id')
+            ->orderBy('start_date')
+            ->get()
+            ->map(fn (LeaveRestrictedPeriod $period): array => [
+                'name' => $period->name,
+                'reason' => $period->reason,
+                'start' => $period->start_date->toDateString(),
+                'end' => $period->end_date->toDateString(),
+                'range_label' => $period->rangeLabel(),
+                'exempt' => $period->exempts($user),
+                'allowed_type_ids' => $period->leaveTypes->pluck('id')->all(),
+                // Worth telling somebody the window has a door they might fit
+                // through, but whose profile does not say either way.
+                'needs_marital_status' => $exemptible && $period->exempt_marital_statuses !== [],
+            ])
+            ->all();
     }
 
     /**

@@ -27,9 +27,23 @@ type LeaveTypeRow = {
     requests: number;
 };
 
+type RestrictedPeriodRow = {
+    id: number;
+    name: string;
+    reason: string | null;
+    start_date: string;
+    end_date: string;
+    range_label: string;
+    is_over: boolean;
+    exempt_marital_statuses: string[];
+    exempt_leave_types: { id: number; name: string }[];
+};
+
 const props = defineProps<{
     modules: ModuleRow[];
     leave_types: LeaveTypeRow[];
+    restricted_periods: RestrictedPeriodRow[];
+    marital_statuses: string[];
     approver_count: number;
     totals: { leave_requests: number; lateness_requests: number };
 }>();
@@ -102,6 +116,70 @@ function submit() {
     } else {
         form.post('/admin/leave-types', done);
     }
+}
+
+const periodModalOpen = ref(false);
+const editingPeriod = ref<RestrictedPeriodRow | null>(null);
+const lifting = ref<RestrictedPeriodRow | null>(null);
+const dropping = ref(false);
+
+const today = new Date().toISOString().slice(0, 10);
+
+const periodForm = useForm({
+    name: '',
+    reason: '',
+    start_date: today,
+    end_date: today,
+    exempt_marital_statuses: [] as string[],
+    exempt_leave_type_ids: [] as number[],
+});
+
+function openPeriod(period: RestrictedPeriodRow | null) {
+    editingPeriod.value = period;
+
+    periodForm.clearErrors();
+    periodForm.defaults({
+        name: period?.name ?? '',
+        reason: period?.reason ?? '',
+        start_date: period?.start_date ?? today,
+        end_date: period?.end_date ?? today,
+        exempt_marital_statuses: [...(period?.exempt_marital_statuses ?? [])],
+        exempt_leave_type_ids: (period?.exempt_leave_types ?? []).map(
+            (type) => type.id,
+        ),
+    });
+    periodForm.reset();
+    periodModalOpen.value = true;
+}
+
+function submitPeriod() {
+    const done = {
+        preserveScroll: true,
+        onSuccess: () => {
+            periodModalOpen.value = false;
+        },
+    };
+
+    if (editingPeriod.value) {
+        periodForm.put(
+            `/admin/restricted-periods/${editingPeriod.value.id}`,
+            done,
+        );
+    } else {
+        periodForm.post('/admin/restricted-periods', done);
+    }
+}
+
+function lift(period: RestrictedPeriodRow) {
+    dropping.value = true;
+
+    router.delete(`/admin/restricted-periods/${period.id}`, {
+        preserveScroll: true,
+        onFinish: () => {
+            dropping.value = false;
+            lifting.value = null;
+        },
+    });
 }
 
 function toggle(type: LeaveTypeRow) {
@@ -305,6 +383,122 @@ function toggle(type: LeaveTypeRow) {
                     </table>
                 </div>
             </Panel>
+            <Panel
+                title="Restricted periods"
+                subtitle="Days closed to leave. Staff cannot book over one unless their marital status or the type of leave they pick is exempt. An approver filing on behalf of someone still gets through."
+                flush
+            >
+                <template #action>
+                    <AppButton size="sm" @click="openPeriod(null)">
+                        Close a period
+                    </AppButton>
+                </template>
+
+                <div v-if="restricted_periods.length" class="overflow-x-auto">
+                    <table class="w-full text-left text-[13.5px]">
+                        <thead
+                            class="border-b border-line-soft text-[12px] tracking-wide text-faint uppercase"
+                        >
+                            <tr>
+                                <th class="px-5 py-3 font-medium">Period</th>
+                                <th class="px-5 py-3 font-medium">Dates</th>
+                                <th class="px-5 py-3 font-medium">
+                                    Can book anyway
+                                </th>
+                                <th class="px-5 py-3 font-medium">Status</th>
+                                <th class="px-5 py-3" />
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line-soft">
+                            <tr
+                                v-for="period in restricted_periods"
+                                :key="period.id"
+                                class="transition-colors hover:bg-line-soft/40"
+                            >
+                                <td class="px-5 py-3.5">
+                                    <p class="font-medium">{{ period.name }}</p>
+                                    <p
+                                        v-if="period.reason"
+                                        class="mt-0.5 max-w-sm text-[12.5px] text-muted"
+                                    >
+                                        {{ period.reason }}
+                                    </p>
+                                </td>
+                                <td class="px-5 py-3.5 text-muted">
+                                    {{ period.range_label }}
+                                </td>
+                                <td class="px-5 py-3.5 text-muted">
+                                    <p
+                                        v-if="
+                                            period.exempt_marital_statuses
+                                                .length
+                                        "
+                                    >
+                                        {{
+                                            period.exempt_marital_statuses.join(
+                                                ', ',
+                                            )
+                                        }}
+                                    </p>
+                                    <p
+                                        v-if="period.exempt_leave_types.length"
+                                        class="text-[12.5px] text-faint"
+                                    >
+                                        {{
+                                            period.exempt_leave_types
+                                                .map((type) => type.name)
+                                                .join(', ')
+                                        }}
+                                    </p>
+                                    <p
+                                        v-if="
+                                            !period.exempt_marital_statuses
+                                                .length &&
+                                            !period.exempt_leave_types.length
+                                        "
+                                    >
+                                        Nobody
+                                    </p>
+                                </td>
+                                <td class="px-5 py-3.5">
+                                    <StatusPill
+                                        :tone="
+                                            period.is_over ? 'neutral' : 'alert'
+                                        "
+                                    >
+                                        {{ period.is_over ? 'Over' : 'Closed' }}
+                                    </StatusPill>
+                                </td>
+                                <td class="px-5 py-3.5">
+                                    <div
+                                        class="flex items-center justify-end gap-1"
+                                    >
+                                        <AppButton
+                                            variant="ghost"
+                                            size="sm"
+                                            @click="openPeriod(period)"
+                                        >
+                                            Edit
+                                        </AppButton>
+                                        <AppButton
+                                            variant="ghost"
+                                            size="sm"
+                                            @click="lifting = period"
+                                        >
+                                            Lift
+                                        </AppButton>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <p v-else class="px-5 py-6 text-[13.5px] text-muted">
+                    No periods are closed. Staff can book leave on any working
+                    day.
+                </p>
+            </Panel>
         </div>
 
         <ModalShell
@@ -387,6 +581,140 @@ function toggle(type: LeaveTypeRow) {
                     @click="retiring && toggle(retiring)"
                 >
                     Retire
+                </AppButton>
+            </template>
+        </ModalShell>
+        <ModalShell
+            :open="periodModalOpen"
+            :title="
+                editingPeriod
+                    ? `Edit ${editingPeriod.name}`
+                    : 'Close a period to leave'
+            "
+            subtitle="Nobody can book leave touching these days unless you let them through below."
+            @close="periodModalOpen = false"
+        >
+            <form class="space-y-4" @submit.prevent="submitPeriod">
+                <TextField
+                    v-model="periodForm.name"
+                    label="Name"
+                    required
+                    placeholder="Year-end stock count"
+                    :error="periodForm.errors.name"
+                />
+
+                <TextField
+                    v-model="periodForm.reason"
+                    label="Reason"
+                    placeholder="Shown to staff when a request is turned away."
+                    :error="periodForm.errors.reason"
+                />
+
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <TextField
+                        v-model="periodForm.start_date"
+                        label="First day"
+                        type="date"
+                        required
+                        :error="periodForm.errors.start_date"
+                    />
+                    <TextField
+                        v-model="periodForm.end_date"
+                        label="Last day"
+                        type="date"
+                        required
+                        :min="periodForm.start_date"
+                        :error="periodForm.errors.end_date"
+                    />
+                </div>
+
+                <div class="space-y-2">
+                    <p class="text-[13px] font-medium text-muted">
+                        Marital statuses that can book anyway
+                    </p>
+                    <div class="flex flex-wrap gap-x-5 gap-y-2.5">
+                        <label
+                            v-for="status in marital_statuses"
+                            :key="status"
+                            class="flex items-center gap-2.5"
+                        >
+                            <input
+                                v-model="periodForm.exempt_marital_statuses"
+                                type="checkbox"
+                                :value="status"
+                                class="size-4 rounded border-line text-brand focus:ring-brand/30"
+                            />
+                            <span class="text-[13.5px]">{{ status }}</span>
+                        </label>
+                    </div>
+                    <p class="text-[12.5px] text-faint">
+                        Staff whose profile records no marital status are turned
+                        away, and told to set one.
+                    </p>
+                </div>
+
+                <div class="space-y-2">
+                    <p class="text-[13px] font-medium text-muted">
+                        Leave types the period does not cover
+                    </p>
+                    <div class="flex flex-wrap gap-x-5 gap-y-2.5">
+                        <label
+                            v-for="type in leave_types"
+                            :key="type.id"
+                            class="flex items-center gap-2.5"
+                        >
+                            <input
+                                v-model="periodForm.exempt_leave_type_ids"
+                                type="checkbox"
+                                :value="type.id"
+                                class="size-4 rounded border-line text-brand focus:ring-brand/30"
+                            />
+                            <span class="text-[13.5px]">{{ type.name }}</span>
+                        </label>
+                    </div>
+                    <p class="text-[12.5px] text-faint">
+                        Sick and compassionate leave are nobody's choice of
+                        date, so they are usually left out of a closed window.
+                    </p>
+                </div>
+            </form>
+
+            <template #footer>
+                <AppButton variant="ghost" @click="periodModalOpen = false">
+                    Cancel
+                </AppButton>
+                <AppButton
+                    :loading="periodForm.processing"
+                    @click="submitPeriod"
+                >
+                    {{ editingPeriod ? 'Save changes' : 'Close the period' }}
+                </AppButton>
+            </template>
+        </ModalShell>
+
+        <ModalShell
+            :open="lifting !== null"
+            width="md"
+            title="Lift this restriction?"
+            :subtitle="lifting?.name"
+            @close="lifting = null"
+        >
+            <p class="text-[13.5px] leading-relaxed text-muted">
+                Staff will be able to book leave over
+                {{ lifting?.range_label }} again. Leave already granted over
+                those days is unaffected either way.
+            </p>
+
+            <template #footer>
+                <AppButton variant="ghost" @click="lifting = null">
+                    Keep it closed
+                </AppButton>
+                <AppButton
+                    variant="danger"
+                    :loading="dropping"
+                    @click="lifting && lift(lifting)"
+                >
+                    Lift
                 </AppButton>
             </template>
         </ModalShell>

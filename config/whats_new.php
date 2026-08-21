@@ -42,6 +42,10 @@ return [
             'description' => 'We will write to you on your birthday. Nobody else is told; it is your day to share if you want to.',
         ],
         [
+            'title' => 'Restricted periods',
+            'description' => 'The business can close a stretch of the calendar to leave — a stock count, a year-end close. The leave form says so before you book, and administrators can let certain marital statuses or types of leave through.',
+        ],
+        [
             'title' => 'Push notifications',
             'description' => 'Turn push on and the same alerts reach you in the browser, even with the tab closed.',
         ],

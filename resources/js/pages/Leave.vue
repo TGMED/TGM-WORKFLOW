@@ -42,6 +42,19 @@ type CoverDuty = DateRange & {
     colleague: string;
 };
 
+/** A stretch of the calendar the business has closed to leave. */
+type RestrictedPeriod = DateRange & {
+    name: string;
+    reason: string | null;
+    range_label: string;
+    /** Whether this person's marital status lets them book over it anyway. */
+    exempt: boolean;
+    /** Types of leave the period does not stand in the way of. */
+    allowed_type_ids: number[];
+    /** They might have been let through, but their profile does not say. */
+    needs_marital_status: boolean;
+};
+
 type LeaveRow = {
     id: number;
     type: string;
@@ -77,6 +90,7 @@ const props = defineProps<{
     supervisors: PersonOption[];
     relief_officers: ReliefOption[];
     cover_duties: CoverDuty[];
+    restricted_periods: RestrictedPeriod[];
     approvers_required: number;
     stats: { pending: number; approved_days: number };
 }>();
@@ -119,6 +133,18 @@ const clashingDuty = computed(
     () =>
         props.cover_duties.find((duty) =>
             overlaps(duty, form.start_date, form.end_date),
+        ) ?? null,
+);
+
+// Days closed to leave that this person cannot book over: the period does not
+// exempt them, and does not let the type they picked through either.
+const closedPeriod = computed(
+    () =>
+        props.restricted_periods.find(
+            (period) =>
+                !period.exempt &&
+                !period.allowed_type_ids.includes(Number(form.leave_type_id)) &&
+                overlaps(period, form.start_date, form.end_date),
         ) ?? null,
 );
 
@@ -261,6 +287,7 @@ const canSubmit = computed(
         !overAllowance.value &&
         workingDays.value > 0 &&
         clashingDuty.value === null &&
+        closedPeriod.value === null &&
         form.supervisor_id !== null &&
         form.relief_officer_id !== null,
 );
@@ -636,6 +663,22 @@ function toggleTrail(row: LeaveRow) {
                                 : undefined
                         "
                     />
+                </div>
+
+                <div
+                    v-if="closedPeriod"
+                    class="rounded-xl bg-alert-soft px-3.5 py-2.5 text-[13px] text-alert"
+                >
+                    <p>
+                        Leave is closed from {{ closedPeriod.range_label }} for
+                        {{ closedPeriod.name }}.
+                        {{ closedPeriod.reason }}
+                    </p>
+                    <p v-if="closedPeriod.needs_marital_status" class="mt-1.5">
+                        Some staff can book over it on their marital status,
+                        which your profile does not record. Set it on your
+                        profile if it applies to you.
+                    </p>
                 </div>
 
                 <p

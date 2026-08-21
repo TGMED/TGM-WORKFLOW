@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\LeaveRequest;
+use App\Models\LeaveRestrictedPeriod;
 use App\Models\LeaveType;
 use App\Models\Role;
 use App\Models\User;
@@ -79,6 +80,7 @@ class StoreLeaveRequest extends FormRequest
             }
 
             $this->guardAgainstOverlap($validator);
+            $this->guardAgainstRestrictedPeriod($validator);
             $this->guardAgainstNoWorkdays($validator);
             $this->guardAgainstAllowance($validator);
             $this->guardAgainstCoverAlreadyOwed($validator);
@@ -143,6 +145,86 @@ class StoreLeaveRequest extends FormRequest
     protected function editing(): ?LeaveRequest
     {
         return null;
+    }
+
+    /**
+     * Whether the periods the business has closed to leave apply here. They
+     * apply to anybody booking their own time off; an approver filing for
+     * someone else is the exception the restriction is meant to have.
+     */
+    protected function enforcesRestrictions(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Leave cannot be booked over a period the business has closed, unless
+     * the period lets this type of leave through, or lets this person through
+     * on the marital status their profile carries.
+     */
+    protected function guardAgainstRestrictedPeriod(Validator $validator): void
+    {
+        if (! $this->enforcesRestrictions()) {
+            return;
+        }
+
+        $type = LeaveType::query()->find($this->integer('leave_type_id'));
+
+        $period = LeaveRestrictedPeriod::query()
+            ->with('leaveTypes:id')
+            ->overlapping($this->startDate(), $this->endDate())
+            ->orderBy('start_date')
+            ->get()
+            ->first(fn (LeaveRestrictedPeriod $period): bool => ! ($type !== null && $period->allows($type))
+                && ! $period->exempts($this->staff()));
+
+        if ($period === null) {
+            return;
+        }
+
+        $validator->errors()->add('start_date', $this->restrictionMessage($period));
+    }
+
+    /**
+     * What a member of staff is told when a closed period turns their request
+     * away. Somebody the period would have let through but for a blank
+     * marital status is pointed at their profile rather than left guessing.
+     */
+    protected function restrictionMessage(LeaveRestrictedPeriod $period): string
+    {
+        $message = sprintf(
+            'Leave is closed from %s for %s.',
+            $period->rangeLabel(),
+            $period->name,
+        );
+
+        if ($period->reason !== null) {
+            $message .= ' '.$period->reason;
+        }
+
+        if ($period->exempt_marital_statuses !== [] && $this->staff()->profile?->marital_status === null) {
+            $message .= ' Your profile does not record a marital status, and this period is open to '
+                .$this->statusList($period->exempt_marital_statuses)
+                .' staff. Set it on your profile if it applies to you.';
+        }
+
+        return $message;
+    }
+
+    /**
+     * @param  array<int, string>  $statuses
+     */
+    protected function statusList(array $statuses): string
+    {
+        $statuses = array_map(fn (string $status): string => mb_strtolower($status), $statuses);
+
+        if (count($statuses) === 1) {
+            return $statuses[0];
+        }
+
+        $last = array_pop($statuses);
+
+        return implode(', ', $statuses).' and '.$last;
     }
 
     protected function guardAgainstOverlap(Validator $validator): void

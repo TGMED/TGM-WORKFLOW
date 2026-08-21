@@ -8,11 +8,13 @@ use App\Http\Controllers\Controller;
 use App\Models\ApprovalSetting;
 use App\Models\LatenessRequest;
 use App\Models\LeaveRequest;
+use App\Models\LeaveRestrictedPeriod;
 use App\Models\LeaveType;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -35,6 +37,10 @@ class RequestSettingsController extends Controller
                 ])
                 ->all(),
             'leave_types' => $this->leaveTypes(),
+            'restricted_periods' => $this->restrictedPeriods(),
+            // The pick-list the profile form writes from, so a period can
+            // only ever exempt a status somebody could actually be recorded as.
+            'marital_statuses' => config('profile.marital_statuses'),
             // A threshold higher than the number of approvers on staff would
             // leave every request stuck, so the page warns about it.
             'approver_count' => $approvers,
@@ -74,6 +80,36 @@ class RequestSettingsController extends Controller
                 $count === 1 ? '' : 's',
             ),
         ]);
+    }
+
+    /**
+     * Periods closed to leave, newest window first. Past ones stay listed:
+     * they still stand in the way of a request backdated into them, and an
+     * administrator may want last year's window to copy from.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function restrictedPeriods(): array
+    {
+        return LeaveRestrictedPeriod::query()
+            ->with('leaveTypes:id,name')
+            ->orderByDesc('start_date')
+            ->get()
+            ->map(fn (LeaveRestrictedPeriod $period): array => [
+                'id' => $period->id,
+                'name' => $period->name,
+                'reason' => $period->reason,
+                'start_date' => $period->start_date->toDateString(),
+                'end_date' => $period->end_date->toDateString(),
+                'range_label' => $period->rangeLabel(),
+                'is_over' => $period->end_date->isBefore(Carbon::now()->startOfDay()),
+                'exempt_marital_statuses' => $period->exempt_marital_statuses,
+                'exempt_leave_types' => $period->leaveTypes
+                    ->map(fn (LeaveType $type): array => ['id' => $type->id, 'name' => $type->name])
+                    ->values()
+                    ->all(),
+            ])
+            ->all();
     }
 
     /**

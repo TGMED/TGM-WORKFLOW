@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AnnouncementController;
 use App\Http\Controllers\Admin\ClockAttemptController;
+use App\Http\Controllers\Admin\LeaveRestrictedPeriodController;
 use App\Http\Controllers\Admin\LeaveTypeController;
 use App\Http\Controllers\Admin\LocationController;
 use App\Http\Controllers\Admin\RequestSettingsController;
@@ -174,5 +175,9 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
         Route::post('leave-types', [LeaveTypeController::class, 'store'])->name('leave-types.store');
         Route::put('leave-types/{leaveType}', [LeaveTypeController::class, 'update'])->name('leave-types.update');
         Route::patch('leave-types/{leaveType}/toggle', [LeaveTypeController::class, 'toggle'])->name('leave-types.toggle');
+
+        Route::post('restricted-periods', [LeaveRestrictedPeriodController::class, 'store'])->name('restricted-periods.store');
+        Route::put('restricted-periods/{restrictedPeriod}', [LeaveRestrictedPeriodController::class, 'update'])->name('restricted-periods.update');
+        Route::delete('restricted-periods/{restrictedPeriod}', [LeaveRestrictedPeriodController::class, 'destroy'])->name('restricted-periods.destroy');
     });
 });

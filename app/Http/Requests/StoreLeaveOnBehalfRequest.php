@@ -36,6 +36,16 @@ class StoreLeaveOnBehalfRequest extends StoreLeaveRequest
     }
 
     /**
+     * A closed period is closed to staff booking their own time off. An
+     * approver filing for somebody else is the way through it, so the
+     * restriction does not stand in their way here.
+     */
+    protected function enforcesRestrictions(): bool
+    {
+        return false;
+    }
+
+    /**
      * The person who files a request does not then get to approve it, so they
      * are out along with the member of staff it is for.
      *
