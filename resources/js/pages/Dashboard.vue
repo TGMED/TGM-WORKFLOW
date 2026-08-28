@@ -13,7 +13,13 @@ import StatusPill from '@/components/ui/StatusPill.vue';
 import { useGeoFix } from '@/composables/useGeoFix';
 import { useToasts } from '@/composables/useToasts';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { distance, duration, timeOfDay } from '@/lib/format';
+import {
+    attendanceLabel,
+    attendanceTone,
+    distance,
+    duration,
+    timeOfDay,
+} from '@/lib/format';
 import type { Announcement, SharedProps } from '@/types';
 
 type Attendance = {
@@ -273,13 +279,23 @@ const statusPill = computed(() => {
         return { tone: 'beacon' as const, text: 'On break', pulse: true };
     }
 
-    return props.today.status === 'late'
-        ? {
-              tone: 'brass' as const,
-              text: 'On the clock · late arrival',
-              pulse: true,
-          }
-        : { tone: 'signal' as const, text: 'On the clock', pulse: true };
+    if (props.today.status === 'late') {
+        return {
+            tone: 'alert' as const,
+            text: 'On the clock · late arrival',
+            pulse: true,
+        };
+    }
+
+    if (props.today.status === 'grace') {
+        return {
+            tone: 'brass' as const,
+            text: 'On the clock · within grace',
+            pulse: true,
+        };
+    }
+
+    return { tone: 'signal' as const, text: 'On the clock', pulse: true };
 });
 </script>
 
@@ -962,18 +978,16 @@ const statusPill = computed(() => {
                                 </td>
                                 <td class="px-5 py-3 text-right">
                                     <StatusPill
-                                        :tone="
-                                            record.status === 'late'
-                                                ? 'brass'
-                                                : 'signal'
-                                        "
+                                        :tone="attendanceTone(record.status)"
                                     >
                                         <template
                                             v-if="record.status === 'late'"
                                         >
                                             +{{ duration(record.late_minutes) }}
                                         </template>
-                                        <template v-else>On time</template>
+                                        <template v-else>
+                                            {{ attendanceLabel(record.status) }}
+                                        </template>
                                     </StatusPill>
                                 </td>
                             </tr>

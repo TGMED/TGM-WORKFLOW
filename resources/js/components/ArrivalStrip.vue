@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { duration, fullDate } from '@/lib/format';
+import { attendanceLabel, duration, fullDate } from '@/lib/format';
 
 /**
  * Lateness read as deviation, not as a count. Each day is a bar measured from
  * the opening-time baseline: above the line you arrived early, below it you
- * arrived late. The shape of the fortnight is legible at a glance.
+ * arrived after the hour. Bars below the line are amber while they are still
+ * inside the grace window and red once past it, so late reads as late.
  */
 type Day = {
     date: string;
@@ -26,6 +27,22 @@ const HALF = 46; // px available above and below the baseline
 
 const hovered = ref<string | null>(null);
 
+/**
+ * The stored status is the verdict recorded at punch time, so it wins. The
+ * offset is only a fallback for days recorded before grace was tracked.
+ */
+function verdict(day: Day): 'on_time' | 'grace' | 'late' {
+    if (day.status === 'late' || day.status === 'grace') {
+        return day.status;
+    }
+
+    if (day.status === 'on_time' || day.offset === null || day.offset <= 0) {
+        return 'on_time';
+    }
+
+    return day.offset > props.graceMinutes ? 'late' : 'grace';
+}
+
 const bars = computed(() =>
     props.days.map((day) => {
         const offset = day.offset;
@@ -33,26 +50,32 @@ const bars = computed(() =>
             offset === null ? 0 : Math.min(Math.abs(offset), CLAMP);
         const height =
             offset === null ? 0 : Math.max(4, (magnitude / CLAMP) * HALF);
-        const late = offset !== null && offset > props.graceMinutes;
+        const state = offset === null ? null : verdict(day);
 
         return {
             ...day,
             height,
-            late,
-            // Late bars hang below the baseline, early ones stand above it.
+            state,
+            // Bars past the hour hang below the baseline, early ones above it.
             below: offset !== null && offset > 0,
-            tone: offset === null ? 'none' : late ? 'brass' : 'signal',
+            fill:
+                state === 'late'
+                    ? 'bg-alert'
+                    : state === 'grace'
+                      ? 'bg-brass'
+                      : 'bg-signal',
         };
     }),
 );
 
 const summary = computed(() => {
-    const recorded = props.days.filter((day) => day.offset !== null);
-    const late = recorded.filter(
-        (day) => (day.offset ?? 0) > props.graceMinutes,
-    );
+    const recorded = bars.value.filter((day) => day.state !== null);
 
-    return { recorded: recorded.length, late: late.length };
+    return {
+        recorded: recorded.length,
+        late: recorded.filter((day) => day.state === 'late').length,
+        grace: recorded.filter((day) => day.state === 'grace').length,
+    };
 });
 </script>
 
@@ -69,7 +92,10 @@ const summary = computed(() => {
                 baseline
             </p>
             <p class="tabular text-[13px] text-faint">
-                {{ summary.late }} late of {{ summary.recorded }} recorded
+                {{ summary.late }} late<template v-if="summary.grace">
+                    · {{ summary.grace }} within grace</template
+                >
+                of {{ summary.recorded }} recorded
             </p>
         </div>
 
@@ -105,7 +131,7 @@ const summary = computed(() => {
                         v-if="day.offset !== null && day.below"
                         :class="[
                             'w-full max-w-[18px] rounded-b-[3px] transition-all duration-500 ease-out group-hover:brightness-115',
-                            day.late ? 'bg-brass' : 'bg-signal',
+                            day.fill,
                         ]"
                         :style="{ height: `${day.height}px` }"
                     />
@@ -141,7 +167,8 @@ const summary = computed(() => {
                             </template>
                             <template v-else-if="day.offset > 0">
                                 +{{ duration(day.offset) }} after
-                                {{ workStart }}
+                                {{ workStart }} ·
+                                {{ attendanceLabel(day.state) }}
                             </template>
                             <template v-else-if="day.offset < 0">
                                 −{{ duration(Math.abs(day.offset)) }} before

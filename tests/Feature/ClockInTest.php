@@ -88,18 +88,47 @@ class ClockInTest extends TestCase
         $this->assertSame(25, $attendance->late_minutes);
     }
 
-    public function test_arriving_inside_the_grace_window_is_on_time(): void
+    public function test_arriving_inside_the_grace_window_is_not_late(): void
     {
-        // 09:08 Lagos.
+        // 09:08 Lagos, inside the 10 minute grace window.
         Carbon::setTestNow(Carbon::parse('2026-06-15 08:08:00', 'UTC'));
 
         $this->actingAs($this->staff())
             ->post('/clock/in', $this->atOffice());
 
+        $attendance = Attendance::query()->firstOrFail();
+
+        $this->assertSame(AttendanceStatus::Grace, $attendance->status);
+        $this->assertFalse($attendance->status->isLate());
+        $this->assertSame(0, $attendance->late_minutes);
+    }
+
+    public function test_arriving_on_the_last_minute_of_grace_is_still_not_late(): void
+    {
+        // 09:10 Lagos, the final minute that still counts.
+        Carbon::setTestNow(Carbon::parse('2026-06-15 08:10:00', 'UTC'));
+
+        $this->actingAs($this->staff())
+            ->post('/clock/in', $this->atOffice());
+
         $this->assertSame(
-            AttendanceStatus::OnTime,
+            AttendanceStatus::Grace,
             Attendance::query()->firstOrFail()->status,
         );
+    }
+
+    public function test_the_first_minute_after_grace_is_late(): void
+    {
+        // 09:11 Lagos, one minute past the cutoff.
+        Carbon::setTestNow(Carbon::parse('2026-06-15 08:11:00', 'UTC'));
+
+        $this->actingAs($this->staff())
+            ->post('/clock/in', $this->atOffice());
+
+        $attendance = Attendance::query()->firstOrFail();
+
+        $this->assertSame(AttendanceStatus::Late, $attendance->status);
+        $this->assertSame(11, $attendance->late_minutes);
     }
 
     public function test_a_punch_outside_the_fence_is_rejected_but_still_logged(): void

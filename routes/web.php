@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AnnouncementController;
+use App\Http\Controllers\Admin\AttendanceReportController;
 use App\Http\Controllers\Admin\ClockAttemptController;
 use App\Http\Controllers\Admin\LeaveRestrictedPeriodController;
 use App\Http\Controllers\Admin\LeaveTypeController;
@@ -159,6 +160,10 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
         Route::put('locations/{location}', [LocationController::class, 'update'])->name('locations.update');
         Route::patch('locations/{location}/toggle', [LocationController::class, 'toggle'])->name('locations.toggle');
         Route::patch('locations/{location}/reassign', [LocationController::class, 'reassign'])->name('locations.reassign');
+
+        // Attendance across the whole company for a chosen window, as
+        // opposed to the personal month view staff see.
+        Route::get('attendance', [AttendanceReportController::class, 'index'])->name('attendance.index');
 
         Route::get('clock-attempts', [ClockAttemptController::class, 'index'])->name('clock-attempts.index');
 

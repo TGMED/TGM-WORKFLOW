@@ -11,7 +11,7 @@ import SelectField from '@/components/ui/SelectField.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import TextField from '@/components/ui/TextField.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { timeOfDay } from '@/lib/format';
+import { attendanceTone, timeOfDay } from '@/lib/format';
 
 type StaffRow = {
     id: number;
@@ -345,9 +345,7 @@ const statusOptions = [
                                     <StatusPill
                                         v-else-if="person.today?.clocked_in_at"
                                         :tone="
-                                            person.today.status === 'late'
-                                                ? 'brass'
-                                                : 'signal'
+                                            attendanceTone(person.today.status)
                                         "
                                         dot
                                         :pulse="!person.today.clocked_out_at"
