@@ -1,6 +1,9 @@
 <?php
 
+use App\Http\Controllers\Admin\AnnouncementController;
+use App\Http\Controllers\Admin\AttendanceReportController;
 use App\Http\Controllers\Admin\ClockAttemptController;
+use App\Http\Controllers\Admin\LeaveRestrictedPeriodController;
 use App\Http\Controllers\Admin\LeaveTypeController;
 use App\Http\Controllers\Admin\LocationController;
 use App\Http\Controllers\Admin\RequestSettingsController;
@@ -16,12 +19,17 @@ use App\Http\Controllers\ClockController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LatenessRequestController;
 use App\Http\Controllers\LeaveRequestController;
+use App\Http\Controllers\OnBehalfRequestController;
 use App\Http\Controllers\PasswordController;
 use App\Http\Controllers\Profile\AddressController;
 use App\Http\Controllers\Profile\BankDetailsController;
 use App\Http\Controllers\Profile\ProfileController;
 use App\Http\Controllers\Profile\ProfilePhotoController;
 use App\Http\Controllers\Profile\RelationController;
+use App\Http\Controllers\Settings\NotificationSettingsController;
+use App\Http\Controllers\Settings\PushTokenController;
+use App\Http\Controllers\WhatsNewController;
+use App\Http\Controllers\WhoIsAwayController;
 use App\Http\Controllers\WorkLocationController;
 use Illuminate\Support\Facades\Route;
 
@@ -52,6 +60,10 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
     Route::get('attendance', [AttendanceController::class, 'index'])
         ->middleware('clocks-in')
         ->name('attendance.index');
+
+    // Who the company is missing today, open to everyone: cover is easier to
+    // arrange when you can see who is out.
+    Route::get('away', [WhoIsAwayController::class, 'index'])->name('away.index');
 
     // Staff who signed up before a site existed claim one here.
     Route::post('work-location', [WorkLocationController::class, 'store'])
@@ -89,6 +101,14 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
             ->whereIn('module', ['leave', 'lateness'])
             ->whereNumber('id')
             ->name('approvals.store');
+
+        // An approver filing a request for a member of staff who cannot file
+        // it themselves. Guarded again in the form request, since a relief
+        // officer reaches this group without approval rights.
+        Route::post('approvals/on-behalf/leave', [OnBehalfRequestController::class, 'leave'])
+            ->name('approvals.on-behalf.leave');
+        Route::post('approvals/on-behalf/lateness', [OnBehalfRequestController::class, 'lateness'])
+            ->name('approvals.on-behalf.lateness');
     });
 
     // The employee's own HR record. Reachable with the profile half-filled,
@@ -114,6 +134,18 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
     Route::get('settings/password', [PasswordController::class, 'edit'])->name('password.edit');
     Route::put('settings/password', [PasswordController::class, 'update'])->name('password.update');
 
+    Route::get('settings/notifications', [NotificationSettingsController::class, 'edit'])
+        ->name('notifications.edit');
+    Route::put('settings/notifications', [NotificationSettingsController::class, 'update'])
+        ->name('notifications.update');
+
+    // Written to by the page itself once the browser has handed it a Firebase
+    // registration token, rather than by anything the person fills in.
+    Route::post('push-tokens', [PushTokenController::class, 'store'])->name('push-tokens.store');
+    Route::delete('push-tokens', [PushTokenController::class, 'destroy'])->name('push-tokens.destroy');
+
+    Route::post('whats-new/seen', [WhatsNewController::class, 'store'])->name('whats-new.seen');
+
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 
     Route::middleware('super-admin')->prefix('admin')->name('admin.')->group(function (): void {
@@ -129,6 +161,10 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
         Route::patch('locations/{location}/toggle', [LocationController::class, 'toggle'])->name('locations.toggle');
         Route::patch('locations/{location}/reassign', [LocationController::class, 'reassign'])->name('locations.reassign');
 
+        // Attendance across the whole company for a chosen window, as
+        // opposed to the personal month view staff see.
+        Route::get('attendance', [AttendanceReportController::class, 'index'])->name('attendance.index');
+
         Route::get('clock-attempts', [ClockAttemptController::class, 'index'])->name('clock-attempts.index');
 
         Route::get('request-settings', [RequestSettingsController::class, 'index'])->name('request-settings.index');
@@ -136,8 +172,17 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
             ->whereIn('module', ['leave', 'lateness'])
             ->name('request-settings.update');
 
+        Route::get('announcements', [AnnouncementController::class, 'index'])->name('announcements.index');
+        Route::post('announcements', [AnnouncementController::class, 'store'])->name('announcements.store');
+        Route::put('announcements/{announcement}', [AnnouncementController::class, 'update'])->name('announcements.update');
+        Route::delete('announcements/{announcement}', [AnnouncementController::class, 'destroy'])->name('announcements.destroy');
+
         Route::post('leave-types', [LeaveTypeController::class, 'store'])->name('leave-types.store');
         Route::put('leave-types/{leaveType}', [LeaveTypeController::class, 'update'])->name('leave-types.update');
         Route::patch('leave-types/{leaveType}/toggle', [LeaveTypeController::class, 'toggle'])->name('leave-types.toggle');
+
+        Route::post('restricted-periods', [LeaveRestrictedPeriodController::class, 'store'])->name('restricted-periods.store');
+        Route::put('restricted-periods/{restrictedPeriod}', [LeaveRestrictedPeriodController::class, 'update'])->name('restricted-periods.update');
+        Route::delete('restricted-periods/{restrictedPeriod}', [LeaveRestrictedPeriodController::class, 'destroy'])->name('restricted-periods.destroy');
     });
 });

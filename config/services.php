@@ -14,6 +14,26 @@ return [
     |
     */
 
+    /*
+    | Firebase Cloud Messaging. The service account drives the server side;
+    | the `web` block is handed to the browser so it can ask Firebase for a
+    | registration token. With either half missing, push quietly does nothing.
+    */
+
+    'fcm' => [
+        'project_id' => env('FCM_PROJECT_ID'),
+        'client_email' => env('FCM_CLIENT_EMAIL'),
+        'private_key' => env('FCM_PRIVATE_KEY'),
+        'web' => [
+            'api_key' => env('FIREBASE_API_KEY'),
+            'auth_domain' => env('FIREBASE_AUTH_DOMAIN'),
+            'project_id' => env('FIREBASE_PROJECT_ID', env('FCM_PROJECT_ID')),
+            'messaging_sender_id' => env('FIREBASE_MESSAGING_SENDER_ID'),
+            'app_id' => env('FIREBASE_APP_ID'),
+            'vapid_key' => env('FIREBASE_VAPID_KEY'),
+        ],
+    ],
+
     'brevo' => [
         'key' => env('BREVO_API_KEY'),
     ],

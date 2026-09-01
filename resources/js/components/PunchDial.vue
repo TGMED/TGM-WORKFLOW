@@ -168,14 +168,20 @@ const onTheClockMinutes = computed(() => {
 });
 
 const isLate = computed(() => props.status === 'late');
+const inGrace = computed(() => props.status === 'grace');
 
-const accent = computed(() => {
-    if (phase.value === 'out') {
-        return 'var(--text-faint)';
+/** Green on time, amber inside the grace window, red once past it. */
+const statusColor = computed(() => {
+    if (isLate.value) {
+        return 'var(--alert)';
     }
 
-    return isLate.value ? 'var(--brass)' : 'var(--signal)';
+    return inGrace.value ? 'var(--brass)' : 'var(--signal)';
 });
+
+const accent = computed(() =>
+    phase.value === 'out' ? 'var(--text-faint)' : statusColor.value,
+);
 
 const headline = computed(() => {
     if (phase.value === 'done') {
@@ -298,7 +304,7 @@ const detail = computed(() => {
                     :cx="arrivalNotch.x"
                     :cy="arrivalNotch.y"
                     r="6.5"
-                    :fill="isLate ? 'var(--brass)' : 'var(--signal)'"
+                    :fill="statusColor"
                     class="animate-pop-in"
                 />
             </g>
@@ -342,9 +348,16 @@ const detail = computed(() => {
 
             <p
                 v-if="isLate && lateMinutes > 0"
-                class="mt-1.5 font-mono text-[11px] font-semibold tracking-wide text-brass uppercase"
+                class="mt-1.5 font-mono text-[11px] font-semibold tracking-wide text-alert uppercase"
             >
                 {{ duration(lateMinutes) }} late
+            </p>
+
+            <p
+                v-else-if="inGrace"
+                class="mt-1.5 font-mono text-[11px] font-semibold tracking-wide text-brass uppercase"
+            >
+                Within grace · not late
             </p>
         </div>
 

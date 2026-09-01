@@ -114,6 +114,7 @@ class DatabaseSeeder extends Seeder
                 }
 
                 $late = $inMinutes > $location->grace_minutes;
+                $inGrace = ! $late && $inMinutes > 0;
                 $distance = random_int(5, (int) ($location->radius_meters * 0.9));
 
                 $clockOut = $isToday && random_int(1, 100) <= 70
@@ -138,7 +139,11 @@ class DatabaseSeeder extends Seeder
                     'clock_out_longitude' => $clockOut ? $this->jitter($location->longitude) : null,
                     'clock_out_accuracy' => $clockOut ? random_int(8, 60) : null,
                     'clock_out_distance' => $clockOut ? random_int(5, 140) : null,
-                    'status' => $late ? AttendanceStatus::Late : AttendanceStatus::OnTime,
+                    'status' => match (true) {
+                        $late => AttendanceStatus::Late,
+                        $inGrace => AttendanceStatus::Grace,
+                        default => AttendanceStatus::OnTime,
+                    },
                     'late_minutes' => $late ? $inMinutes : 0,
                     'worked_minutes' => $clockOut ? (int) $clockIn->diffInMinutes($clockOut) : null,
                 ]);

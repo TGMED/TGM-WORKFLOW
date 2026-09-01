@@ -6,7 +6,14 @@ import Panel from '@/components/ui/Panel.vue';
 import StatTile from '@/components/ui/StatTile.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { dateTime, distance, duration, timeOfDay } from '@/lib/format';
+import {
+    attendanceLabel,
+    attendanceTone,
+    dateTime,
+    distance,
+    duration,
+    timeOfDay,
+} from '@/lib/format';
 
 const props = defineProps<{
     month: string;
@@ -266,11 +273,7 @@ const resultTone = (result: string) =>
                                 </td>
                                 <td class="px-5 py-3 text-right">
                                     <StatusPill
-                                        :tone="
-                                            record.status === 'late'
-                                                ? 'brass'
-                                                : 'signal'
-                                        "
+                                        :tone="attendanceTone(record.status)"
                                     >
                                         <template
                                             v-if="record.status === 'late'"
@@ -278,7 +281,9 @@ const resultTone = (result: string) =>
                                             +{{ duration(record.late_minutes) }}
                                             late
                                         </template>
-                                        <template v-else>On time</template>
+                                        <template v-else>
+                                            {{ attendanceLabel(record.status) }}
+                                        </template>
                                     </StatusPill>
                                 </td>
                             </tr>

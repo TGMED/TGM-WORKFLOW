@@ -12,6 +12,7 @@ import StatusPill from '@/components/ui/StatusPill.vue';
 import TextField from '@/components/ui/TextField.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import {
+    attendanceTone,
     dateTime,
     distance,
     duration,
@@ -411,9 +412,9 @@ const resultTone = (result: string) =>
                                         <td class="px-5 py-3 text-right">
                                             <StatusPill
                                                 :tone="
-                                                    record.status === 'late'
-                                                        ? 'brass'
-                                                        : 'signal'
+                                                    attendanceTone(
+                                                        record.status,
+                                                    )
                                                 "
                                             >
                                                 <template

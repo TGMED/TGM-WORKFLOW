@@ -4,6 +4,7 @@ import { computed, ref, watch } from 'vue';
 import BrandMark from '@/components/BrandMark.vue';
 import Avatar from '@/components/ui/Avatar.vue';
 import ToastHost from '@/components/ui/ToastHost.vue';
+import WhatsNewModal from '@/components/WhatsNewModal.vue';
 import { useAppearance } from '@/composables/useAppearance';
 import { useToasts } from '@/composables/useToasts';
 import type { SharedProps } from '@/types';
@@ -62,6 +63,11 @@ const nav: NavItem[] = [
         ],
     },
     {
+        label: "Who's away",
+        href: '/away',
+        icon: 'M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20M9 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM16.5 8.5h5',
+    },
+    {
         label: 'Approvals',
         href: '/approvals',
         approverOnly: true,
@@ -81,10 +87,22 @@ const nav: NavItem[] = [
         icon: 'M12 21s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11Zm0-8.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
     },
     {
+        label: 'Attendance',
+        href: '/admin/attendance',
+        adminOnly: true,
+        icon: 'M8 3v3m8-3v3M3.5 9.5h17M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v12A1.5 1.5 0 0 1 19 20.5H5A1.5 1.5 0 0 1 3.5 19V7A1.5 1.5 0 0 1 5 5.5Zm3.5 7.5 2 2 4.5-4.5',
+    },
+    {
         label: 'Clock attempts',
         href: '/admin/clock-attempts',
         adminOnly: true,
         icon: 'M12 8v4l2.5 2.5M3.5 12a8.5 8.5 0 1 0 17 0 8.5 8.5 0 0 0-17 0Z',
+    },
+    {
+        label: 'Announcements',
+        href: '/admin/announcements',
+        adminOnly: true,
+        icon: 'M3.5 10.5v3a1.5 1.5 0 0 0 1.5 1.5h2l5 4V5l-5 4H5a1.5 1.5 0 0 0-1.5 1.5Zm13-1.5a5 5 0 0 1 0 6',
     },
     {
         label: 'Request settings',
@@ -370,6 +388,25 @@ watch(currentUrl, () => {
                                 />
                             </Link>
                             <Link
+                                href="/settings/notifications"
+                                class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-muted transition-colors hover:bg-line-soft hover:text-text"
+                            >
+                                <svg
+                                    class="size-4"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.7"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                >
+                                    <path
+                                        d="M18 8.5a6 6 0 1 0-12 0c0 5-2 6.5-2 6.5h16s-2-1.5-2-6.5ZM13.7 18.5a2 2 0 0 1-3.4 0"
+                                    />
+                                </svg>
+                                Notifications
+                            </Link>
+                            <Link
                                 href="/settings/password"
                                 class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-muted transition-colors hover:bg-line-soft hover:text-text"
                             >
@@ -491,5 +528,6 @@ watch(currentUrl, () => {
         </div>
 
         <ToastHost />
+        <WhatsNewModal />
     </div>
 </template>

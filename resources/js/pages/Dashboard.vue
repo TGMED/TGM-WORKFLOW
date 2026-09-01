@@ -2,18 +2,26 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import ArrivalStrip from '@/components/ArrivalStrip.vue';
+import AnnouncementsPanel from '@/components/dashboard/AnnouncementsPanel.vue';
 import PunchDial from '@/components/PunchDial.vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import LocationSelect from '@/components/ui/LocationSelect.vue';
+import ModalShell from '@/components/ui/ModalShell.vue';
 import Panel from '@/components/ui/Panel.vue';
 import StatTile from '@/components/ui/StatTile.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import { useGeoFix } from '@/composables/useGeoFix';
 import { useToasts } from '@/composables/useToasts';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { distance, duration, timeOfDay } from '@/lib/format';
-import type { SharedProps } from '@/types';
+import {
+    attendanceLabel,
+    attendanceTone,
+    distance,
+    duration,
+    timeOfDay,
+} from '@/lib/format';
+import type { Announcement, SharedProps } from '@/types';
 
 type Attendance = {
     id: number;
@@ -106,6 +114,11 @@ const props = defineProps<{
         } | null;
         pending: number;
     } | null;
+    away: {
+        today: number;
+        names: string[];
+    } | null;
+    announcements: Announcement[];
     overview: {
         active_staff: number;
         locations: number;
@@ -169,6 +182,14 @@ const canTakeBreak = computed(
 );
 
 const breakBusy = ref(false);
+
+// Clocking out closes the day for good, so it goes through a confirmation.
+const confirmOut = ref(false);
+
+function confirmClockOut() {
+    confirmOut.value = false;
+    punch('out');
+}
 
 function breakPunch(action: 'start' | 'end') {
     if (breakBusy.value) {
@@ -267,13 +288,23 @@ const statusPill = computed(() => {
         return { tone: 'beacon' as const, text: 'On break', pulse: true };
     }
 
-    return props.today.status === 'late'
-        ? {
-              tone: 'brass' as const,
-              text: 'On the clock · late arrival',
-              pulse: true,
-          }
-        : { tone: 'signal' as const, text: 'On the clock', pulse: true };
+    if (props.today.status === 'late') {
+        return {
+            tone: 'alert' as const,
+            text: 'On the clock · late arrival',
+            pulse: true,
+        };
+    }
+
+    if (props.today.status === 'grace') {
+        return {
+            tone: 'brass' as const,
+            text: 'On the clock · within grace',
+            pulse: true,
+        };
+    }
+
+    return { tone: 'signal' as const, text: 'On the clock', pulse: true };
 });
 </script>
 
@@ -467,7 +498,7 @@ const statusPill = computed(() => {
                                     variant="secondary"
                                     :loading="busy"
                                     :disabled="onBreak"
-                                    @click="punch('out')"
+                                    @click="confirmOut = true"
                                 >
                                     {{
                                         busy
@@ -698,10 +729,46 @@ const statusPill = computed(() => {
                                     </span>
                                 </template>
                             </p>
+
+                            <!-- Who else is out, so cover is easy to plan. -->
+                            <Link
+                                v-if="away"
+                                href="/away"
+                                class="flex items-center gap-2 rounded-xl border border-line bg-sunken px-3.5 py-2.5 text-[12.5px] transition-colors hover:border-faint/40"
+                            >
+                                <span class="text-text">
+                                    <template v-if="away.today === 0">
+                                        Nobody else is on leave today
+                                    </template>
+                                    <template v-else>
+                                        {{ away.today }} colleague{{
+                                            away.today === 1 ? '' : 's'
+                                        }}
+                                        away today
+                                    </template>
+                                </span>
+                                <span
+                                    v-if="away.names.length"
+                                    class="min-w-0 truncate text-faint"
+                                >
+                                    · {{ away.names.join(', ')
+                                    }}{{
+                                        away.today > away.names.length
+                                            ? ' and others'
+                                            : ''
+                                    }}
+                                </span>
+                                <span class="ml-auto shrink-0 text-muted">
+                                    See who →
+                                </span>
+                            </Link>
                         </div>
                     </Panel>
                 </div>
             </div>
+
+            <!-- What the company has been told, for everyone. -->
+            <AnnouncementsPanel :announcements="announcements" />
 
             <!-- Company snapshot, super admins only. -->
             <Panel
@@ -742,11 +809,13 @@ const statusPill = computed(() => {
                         :value="overview.late_today"
                         :tone="overview.late_today > 0 ? 'brass' : 'default'"
                     />
-                    <StatTile
-                        label="On leave"
-                        :value="overview.on_leave_today"
-                        caption="Approved for today"
-                    />
+                    <Link href="/away" class="block">
+                        <StatTile
+                            label="On leave"
+                            :value="overview.on_leave_today"
+                            caption="Approved for today · see who"
+                        />
+                    </Link>
                     <StatTile
                         label="Yet to arrive"
                         :value="overview.still_out"
@@ -918,18 +987,16 @@ const statusPill = computed(() => {
                                 </td>
                                 <td class="px-5 py-3 text-right">
                                     <StatusPill
-                                        :tone="
-                                            record.status === 'late'
-                                                ? 'brass'
-                                                : 'signal'
-                                        "
+                                        :tone="attendanceTone(record.status)"
                                     >
                                         <template
                                             v-if="record.status === 'late'"
                                         >
                                             +{{ duration(record.late_minutes) }}
                                         </template>
-                                        <template v-else>On time</template>
+                                        <template v-else>
+                                            {{ attendanceLabel(record.status) }}
+                                        </template>
                                     </StatusPill>
                                 </td>
                             </tr>
@@ -955,5 +1022,41 @@ const statusPill = computed(() => {
                 </span>
             </p>
         </div>
+
+        <ModalShell
+            :open="confirmOut"
+            width="md"
+            title="Clock out for the day?"
+            @close="confirmOut = false"
+        >
+            <p class="text-[13.5px] leading-relaxed text-muted">
+                You clocked in at
+                <span class="font-medium text-text">
+                    {{ timeOfDay(today?.clocked_in_at) }}
+                </span>
+                . Clocking out closes today's record, and you cannot clock in
+                again until tomorrow.
+            </p>
+            <p
+                v-if="canTakeBreak"
+                class="mt-3 text-[12.5px] leading-relaxed text-brass"
+            >
+                You have not taken your
+                {{ location?.break_minutes }}-minute break yet.
+            </p>
+
+            <template #footer>
+                <AppButton variant="ghost" @click="confirmOut = false">
+                    Cancel
+                </AppButton>
+                <AppButton
+                    variant="secondary"
+                    :loading="busy"
+                    @click="confirmClockOut"
+                >
+                    Clock out
+                </AppButton>
+            </template>
+        </ModalShell>
     </AppLayout>
 </template>

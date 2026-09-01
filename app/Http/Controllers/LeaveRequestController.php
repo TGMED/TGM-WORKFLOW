@@ -8,10 +8,12 @@ use App\Http\Requests\StoreLeaveRequest;
 use App\Http\Requests\UpdateLeaveRequest;
 use App\Models\ApprovalSetting;
 use App\Models\LeaveRequest;
+use App\Models\LeaveRestrictedPeriod;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\ApprovalService;
 use App\Services\LeaveBalance;
+use App\Services\RequestNotifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -23,6 +25,7 @@ class LeaveRequestController extends Controller
     public function __construct(
         protected LeaveBalance $balances,
         protected ApprovalService $approvals,
+        protected RequestNotifier $notifier,
     ) {}
 
     public function index(Request $request): Response
@@ -47,6 +50,10 @@ class LeaveRequestController extends Controller
             'supervisors' => $this->supervisors($user),
             'cover_duties' => $this->coverDuties($user),
             'relief_officers' => $this->reliefOfficers($user),
+            // The days the business has closed to leave, already worked out
+            // against this person, so the form can say no before the server
+            // has to.
+            'restricted_periods' => $this->restrictedPeriods($user),
             'approvers_required' => ApprovalSetting::approversRequired(RequestModule::Leave),
             'stats' => [
                 'pending' => $requests->where('status', RequestStatus::Pending)->count(),
@@ -77,6 +84,8 @@ class LeaveRequestController extends Controller
 
         $leave->load('leaveType', 'reliefOfficer');
 
+        $this->notifier->raised($leave);
+
         return back()->with('toast', [
             'type' => 'success',
             'message' => "Requested {$leave->summary()}. It is now with {$leave->reliefOfficer?->name} to agree cover.",
@@ -102,6 +111,12 @@ class LeaveRequestController extends Controller
         // the same people are asked afresh rather than being counted as done.
         $resubmitting = $leave->needsResubmitting();
 
+        // A change of hands is worth an email; a change of dates on a request
+        // nobody has seen yet is not, since the same people are still waiting
+        // on the same thing.
+        $handedOver = $leave->relief_officer_id !== $request->integer('relief_officer_id')
+            || $leave->supervisor_id !== $request->integer('supervisor_id');
+
         $leave->update([
             'leave_type_id' => $request->integer('leave_type_id'),
             'supervisor_id' => $request->integer('supervisor_id'),
@@ -118,6 +133,10 @@ class LeaveRequestController extends Controller
         ]);
 
         $leave->load('leaveType', 'reliefOfficer');
+
+        if ($resubmitting || $handedOver) {
+            $this->notifier->raised($leave);
+        }
 
         $lead = $resubmitting ? 'Resubmitted as' : 'Updated to';
 
@@ -151,6 +170,37 @@ class LeaveRequestController extends Controller
             'type' => 'success',
             'message' => 'Your leave request has been withdrawn.',
         ]);
+    }
+
+    /**
+     * Periods closed to leave, as they apply to this person: whether their
+     * marital status lets them through, and which types of leave the period
+     * leaves alone. Past windows come too, since leave can be backdated into
+     * one and the server would turn that away.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function restrictedPeriods(User $user): array
+    {
+        $exemptible = $user->profile?->marital_status === null;
+
+        return LeaveRestrictedPeriod::query()
+            ->with('leaveTypes:id')
+            ->orderBy('start_date')
+            ->get()
+            ->map(fn (LeaveRestrictedPeriod $period): array => [
+                'name' => $period->name,
+                'reason' => $period->reason,
+                'start' => $period->start_date->toDateString(),
+                'end' => $period->end_date->toDateString(),
+                'range_label' => $period->rangeLabel(),
+                'exempt' => $period->exempts($user),
+                'allowed_type_ids' => $period->leaveTypes->pluck('id')->all(),
+                // Worth telling somebody the window has a door they might fit
+                // through, but whose profile does not say either way.
+                'needs_marital_status' => $exemptible && $period->exempt_marital_statuses !== [],
+            ])
+            ->all();
     }
 
     /**

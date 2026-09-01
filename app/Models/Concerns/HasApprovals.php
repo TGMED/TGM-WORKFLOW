@@ -67,6 +67,14 @@ trait HasApprovals
         return $this->status;
     }
 
+    /**
+     * Who filed this, when it was not the person it belongs to.
+     */
+    public function filedBy(): ?User
+    {
+        return $this->raised_by_id === null ? null : $this->raisedBy;
+    }
+
     public function approvalsRequired(): int
     {
         return $this->approvals_required;

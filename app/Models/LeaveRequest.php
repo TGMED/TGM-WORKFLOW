@@ -22,6 +22,7 @@ use Illuminate\Support\Carbon;
  *
  * @property int $id
  * @property int $user_id
+ * @property int|null $raised_by_id
  * @property int $leave_type_id
  * @property int|null $supervisor_id
  * @property int|null $relief_officer_id
@@ -36,12 +37,14 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read User $user
+ * @property-read User|null $raisedBy
  * @property-read LeaveType $leaveType
  * @property-read User|null $supervisor
  * @property-read User|null $reliefOfficer
  */
 #[Fillable([
     'user_id',
+    'raised_by_id',
     'leave_type_id',
     'supervisor_id',
     'relief_officer_id',
@@ -108,6 +111,17 @@ class LeaveRequest extends Model implements Approvable
     }
 
     /**
+     * The approver who filed this for the requester, when they did not file
+     * it themselves.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function raisedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'raised_by_id');
+    }
+
+    /**
      * @return BelongsTo<LeaveType, $this>
      */
     public function leaveType(): BelongsTo
@@ -148,9 +162,14 @@ class LeaveRequest extends Model implements Approvable
             ->isNotEmpty();
     }
 
+    /**
+     * The column carries a default of 1, which a row just created has not
+     * read back yet, so a request in hand counts as being on its first round
+     * until the database says otherwise.
+     */
     public function currentRound(): int
     {
-        return $this->round;
+        return $this->round ?? 1;
     }
 
     /**
@@ -264,6 +283,16 @@ class LeaveRequest extends Model implements Approvable
             RequestStatus::Pending->value,
             RequestStatus::Approved->value,
         ]);
+    }
+
+    /**
+     * Requests that were granted.
+     *
+     * @param  Builder<LeaveRequest>  $query
+     */
+    public function scopeApproved(Builder $query): void
+    {
+        $query->where('status', RequestStatus::Approved->value);
     }
 
     /**

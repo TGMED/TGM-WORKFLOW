@@ -76,9 +76,16 @@ class ClockService
             ],
         ));
 
-        $message = $status === AttendanceStatus::Late
-            ? sprintf('Clocked in at %s at %s, %s late.', $localNow->format('g:i A'), $location->name, $this->humanizeMinutes($lateMinutes))
-            : sprintf('Clocked in at %s at %s. You are on time.', $localNow->format('g:i A'), $location->name);
+        $message = match ($status) {
+            AttendanceStatus::Late => sprintf('Clocked in at %s at %s, %s late.', $localNow->format('g:i A'), $location->name, $this->humanizeMinutes($lateMinutes)),
+            AttendanceStatus::Grace => sprintf(
+                'Clocked in at %s at %s, inside the %s grace period. You are not late.',
+                $localNow->format('g:i A'),
+                $location->name,
+                $this->humanizeMinutes($location->grace_minutes),
+            ),
+            AttendanceStatus::OnTime => sprintf('Clocked in at %s at %s. You are on time.', $localNow->format('g:i A'), $location->name),
+        };
 
         return new ClockResult(
             AttemptResult::Success,
@@ -269,6 +276,9 @@ class ClockService
     }
 
     /**
+     * Three outcomes, not two: on the hour, inside the site's grace window, or
+     * late. Grace is not lateness, so it carries no late minutes.
+     *
      * @return array{0: AttendanceStatus, 1: int}
      */
     protected function evaluateLateness(Location $location, Carbon $localNow): array
@@ -276,8 +286,12 @@ class ClockService
         $start = $location->startOfWorkFor($localNow);
         $cutoff = $location->latenessCutoffFor($localNow);
 
-        if ($localNow->lessThanOrEqualTo($cutoff)) {
+        if ($localNow->lessThanOrEqualTo($start)) {
             return [AttendanceStatus::OnTime, 0];
+        }
+
+        if ($localNow->lessThanOrEqualTo($cutoff)) {
+            return [AttendanceStatus::Grace, 0];
         }
 
         return [AttendanceStatus::Late, (int) $start->diffInMinutes($localNow)];

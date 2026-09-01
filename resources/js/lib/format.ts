@@ -130,3 +130,26 @@ export function minutesToClock(minutes: number): string {
 
     return `${display}:${String(rest).padStart(2, '0')} ${suffix}`;
 }
+
+/**
+ * Attendance has three states, not two: on time, inside the site's grace
+ * window, and late. Grace is amber and explicitly not late; only a genuinely
+ * late arrival goes red.
+ */
+export function attendanceTone(
+    status: string | null | undefined,
+): 'signal' | 'brass' | 'alert' {
+    if (status === 'late') {
+        return 'alert';
+    }
+
+    return status === 'grace' ? 'brass' : 'signal';
+}
+
+export function attendanceLabel(status: string | null | undefined): string {
+    if (status === 'late') {
+        return 'Late';
+    }
+
+    return status === 'grace' ? 'Within grace' : 'On time';
+}
