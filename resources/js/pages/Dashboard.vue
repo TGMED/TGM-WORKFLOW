@@ -7,6 +7,7 @@ import PunchDial from '@/components/PunchDial.vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import LocationSelect from '@/components/ui/LocationSelect.vue';
+import ModalShell from '@/components/ui/ModalShell.vue';
 import Panel from '@/components/ui/Panel.vue';
 import StatTile from '@/components/ui/StatTile.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
@@ -181,6 +182,14 @@ const canTakeBreak = computed(
 );
 
 const breakBusy = ref(false);
+
+// Clocking out closes the day for good, so it goes through a confirmation.
+const confirmOut = ref(false);
+
+function confirmClockOut() {
+    confirmOut.value = false;
+    punch('out');
+}
 
 function breakPunch(action: 'start' | 'end') {
     if (breakBusy.value) {
@@ -489,7 +498,7 @@ const statusPill = computed(() => {
                                     variant="secondary"
                                     :loading="busy"
                                     :disabled="onBreak"
-                                    @click="punch('out')"
+                                    @click="confirmOut = true"
                                 >
                                     {{
                                         busy
@@ -1013,5 +1022,41 @@ const statusPill = computed(() => {
                 </span>
             </p>
         </div>
+
+        <ModalShell
+            :open="confirmOut"
+            width="md"
+            title="Clock out for the day?"
+            @close="confirmOut = false"
+        >
+            <p class="text-[13.5px] leading-relaxed text-muted">
+                You clocked in at
+                <span class="font-medium text-text">
+                    {{ timeOfDay(today?.clocked_in_at) }}
+                </span>
+                . Clocking out closes today's record, and you cannot clock in
+                again until tomorrow.
+            </p>
+            <p
+                v-if="canTakeBreak"
+                class="mt-3 text-[12.5px] leading-relaxed text-brass"
+            >
+                You have not taken your
+                {{ location?.break_minutes }}-minute break yet.
+            </p>
+
+            <template #footer>
+                <AppButton variant="ghost" @click="confirmOut = false">
+                    Cancel
+                </AppButton>
+                <AppButton
+                    variant="secondary"
+                    :loading="busy"
+                    @click="confirmClockOut"
+                >
+                    Clock out
+                </AppButton>
+            </template>
+        </ModalShell>
     </AppLayout>
 </template>
