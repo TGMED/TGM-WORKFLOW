@@ -429,7 +429,7 @@ const statusPill = computed(() => {
                  clock rather than punch it, so they never see this. -->
             <div
                 v-if="clocksIn && stats"
-                class="grid gap-5 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]"
+                class="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]"
             >
                 <Panel
                     v-if="location"
