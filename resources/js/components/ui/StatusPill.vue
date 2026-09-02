@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, useAttrs } from 'vue';
+import { cn } from '@/lib/utils';
 
 const props = withDefaults(
     defineProps<{
@@ -10,6 +11,19 @@ const props = withDefaults(
     { tone: 'neutral', dot: false, pulse: false },
 );
 
+// The class attribute is consumed by hand: Vue would otherwise append it to
+// the base list, and an override like "hidden" would lose to the "inline-flex"
+// below on stylesheet order rather than winning as written.
+defineOptions({ inheritAttrs: false });
+
+const attrs = useAttrs();
+
+const rest = computed(() => {
+    const { class: _class, ...remaining } = attrs;
+
+    return remaining;
+});
+
 const tones = {
     signal: 'bg-signal-soft text-signal',
     brass: 'bg-brass-soft text-brass',
@@ -18,17 +32,18 @@ const tones = {
     neutral: 'bg-line-soft text-muted',
 } as const;
 
-const classes = computed(() => tones[props.tone]);
+const classes = computed(() =>
+    cn(
+        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1',
+        'text-[11.5px] font-semibold tracking-tight whitespace-nowrap',
+        tones[props.tone],
+        attrs.class as string | undefined,
+    ),
+);
 </script>
 
 <template>
-    <span
-        :class="[
-            'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1',
-            'text-[11.5px] font-semibold tracking-tight whitespace-nowrap',
-            classes,
-        ]"
-    >
+    <span v-bind="rest" :class="classes">
         <span v-if="dot" class="relative flex size-1.5">
             <span
                 v-if="pulse"

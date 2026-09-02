@@ -12,7 +12,7 @@ withDefaults(
 
 <template>
     <section
-        class="overflow-hidden rounded-2xl border border-line bg-panel shadow-panel"
+        class="min-w-0 overflow-hidden rounded-2xl border border-line bg-panel shadow-panel"
     >
         <header
             v-if="eyebrow || title || $slots.action"
