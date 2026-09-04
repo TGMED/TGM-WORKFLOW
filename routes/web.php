@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AnnouncementController;
 use App\Http\Controllers\Admin\AttendanceReportController;
+use App\Http\Controllers\Admin\AuditController;
 use App\Http\Controllers\Admin\ClockAttemptController;
 use App\Http\Controllers\Admin\LeaveRestrictedPeriodController;
 use App\Http\Controllers\Admin\LeaveTypeController;
@@ -223,5 +224,10 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
             Route::put('roles/{role}', [RoleController::class, 'update'])->name('roles.update');
             Route::delete('roles/{role}', [RoleController::class, 'destroy'])->name('roles.destroy');
         });
+
+        // Read-only by design: an audit trail somebody can edit is not one.
+        Route::get('audit', [AuditController::class, 'index'])
+            ->middleware('permission:audit.view')
+            ->name('audit.index');
     });
 });

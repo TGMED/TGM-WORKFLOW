@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
+use OwenIt\Auditing\Auditable;
+use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
 
 /**
  * A kind of leave staff can request, together with the policy rules that
@@ -46,8 +48,10 @@ use Illuminate\Support\Carbon;
     'is_paid',
     'is_active',
 ])]
-class LeaveType extends Model
+class LeaveType extends Model implements AuditableContract
 {
+    use Auditable;
+
     /** @use HasFactory<LeaveTypeFactory> */
     use HasFactory;
 

@@ -6,6 +6,8 @@ use App\Enums\RequestModule;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
+use OwenIt\Auditing\Auditable;
+use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
 
 /**
  * How many approvals a module's requests need before they are granted.
@@ -17,8 +19,10 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  */
 #[Fillable(['module', 'approvers_required'])]
-class ApprovalSetting extends Model
+class ApprovalSetting extends Model implements AuditableContract
 {
+    use Auditable;
+
     /**
      * @return array<string, string>
      */

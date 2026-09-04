@@ -6,6 +6,8 @@ use App\Enums\Permission;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use OwenIt\Auditing\Auditable;
+use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
 
 /**
  * One thing one role may do. A row per grant, so the roles page can hand a
@@ -18,8 +20,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read Role $role
  */
 #[Fillable(['role_id', 'permission'])]
-class RolePermission extends Model
+class RolePermission extends Model implements AuditableContract
 {
+    use Auditable;
+
     public $timestamps = false;
 
     /**

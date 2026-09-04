@@ -16,6 +16,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
+use OwenIt\Auditing\Auditable;
+use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
 
 /**
  * Time off asked for by a member of staff.
@@ -61,8 +63,9 @@ use Illuminate\Support\Carbon;
     'round',
     'decided_at',
 ])]
-class LeaveRequest extends Model implements Approvable
+class LeaveRequest extends Model implements Approvable, AuditableContract
 {
+    use Auditable;
     use HasApprovals;
 
     /** @use HasFactory<LeaveRequestFactory> */

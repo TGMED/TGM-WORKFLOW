@@ -117,6 +117,12 @@ const nav: NavItem[] = [
         permission: 'roles.manage',
         icon: 'M12 3.5 4.5 6.5v5c0 4.3 3.1 7.9 7.5 9 4.4-1.1 7.5-4.7 7.5-9v-5L12 3.5Zm0 5.5a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm-3.5 8a3.5 3.5 0 0 1 7 0',
     },
+    {
+        label: 'Audit trail',
+        href: '/admin/audit',
+        permission: 'audit.view',
+        icon: 'M8 3.5h5.5L18.5 8v11a1.5 1.5 0 0 1-1.5 1.5H8A1.5 1.5 0 0 1 6.5 19V5A1.5 1.5 0 0 1 8 3.5Zm5 0V8h4.5M9.5 13h6m-6 3h4',
+    },
 ];
 
 function may(permission: Permission | undefined): boolean {

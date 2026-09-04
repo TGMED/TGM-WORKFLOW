@@ -12,6 +12,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Carbon;
+use OwenIt\Auditing\Auditable;
+use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
 
 /**
  * A stretch of the calendar closed to leave.
@@ -34,8 +36,10 @@ use Illuminate\Support\Carbon;
  * @property-read Collection<int, LeaveType> $leaveTypes
  */
 #[Fillable(['user_id', 'name', 'reason', 'start_date', 'end_date', 'exempt_marital_statuses'])]
-class LeaveRestrictedPeriod extends Model
+class LeaveRestrictedPeriod extends Model implements AuditableContract
 {
+    use Auditable;
+
     /** @use HasFactory<LeaveRestrictedPeriodFactory> */
     use HasFactory;
 

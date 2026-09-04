@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use OwenIt\Auditing\Auditable;
+use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
 
 /**
  * What a person may do. Roles live in the database so new ones can be added
@@ -24,8 +26,10 @@ use Illuminate\Support\Collection;
  * @property Carbon|null $updated_at
  */
 #[Fillable(['slug', 'name', 'description', 'is_system'])]
-class Role extends Model
+class Role extends Model implements AuditableContract
 {
+    use Auditable;
+
     public const SUPER_ADMIN = 'super_admin';
 
     public const APPROVER = 'approver';
