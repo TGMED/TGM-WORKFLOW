@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Enums\LeaveAnchor;
+use App\Enums\Permission;
 use App\Enums\RequestModule;
 use App\Enums\RequestStatus;
 use App\Http\Controllers\Controller;
@@ -11,7 +12,6 @@ use App\Models\LatenessRequest;
 use App\Models\LeaveRequest;
 use App\Models\LeaveRestrictedPeriod;
 use App\Models\LeaveType;
-use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -23,7 +23,7 @@ class RequestSettingsController extends Controller
 {
     public function index(): Response
     {
-        $approvers = User::query()->active()->withRole(Role::APPROVER, Role::SUPER_ADMIN)->count();
+        $approvers = User::query()->active()->withPermission(Permission::ApproveRequests)->count();
 
         return Inertia::render('admin/RequestSettings', [
             'modules' => collect(RequestModule::cases())

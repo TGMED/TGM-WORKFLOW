@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\LeaveAnchor;
+use App\Enums\Permission;
 use App\Models\LeaveType;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
@@ -13,7 +14,7 @@ class LeaveTypeRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->isSuperAdmin() ?? false;
+        return $this->user()?->hasPermission(Permission::ManageRequestSettings) ?? false;
     }
 
     /**

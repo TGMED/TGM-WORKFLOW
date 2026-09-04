@@ -7,7 +7,7 @@ import ToastHost from '@/components/ui/ToastHost.vue';
 import WhatsNewModal from '@/components/WhatsNewModal.vue';
 import { useAppearance } from '@/composables/useAppearance';
 import { useToasts } from '@/composables/useToasts';
-import type { SharedProps } from '@/types';
+import type { Permission, SharedProps } from '@/types';
 
 defineProps<{ heading?: string; lede?: string }>();
 
@@ -23,7 +23,8 @@ type NavItem = {
     label: string;
     href: string;
     icon: string;
-    adminOnly?: boolean;
+    /** Hidden unless the person's role holds this. */
+    permission?: Permission;
     staffOnly?: boolean;
     approverOnly?: boolean;
     badge?: () => number;
@@ -77,40 +78,53 @@ const nav: NavItem[] = [
     {
         label: 'Staff',
         href: '/admin/staff',
-        adminOnly: true,
+        permission: 'staff.manage',
         icon: 'M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20M9 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM22 20v-1.5a4 4 0 0 0-3-3.87M16 3.63a4 4 0 0 1 0 7.75',
     },
     {
         label: 'Locations',
         href: '/admin/locations',
-        adminOnly: true,
+        permission: 'locations.manage',
         icon: 'M12 21s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11Zm0-8.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
     },
     {
         label: 'Attendance',
         href: '/admin/attendance',
-        adminOnly: true,
+        permission: 'attendance.report',
         icon: 'M8 3v3m8-3v3M3.5 9.5h17M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v12A1.5 1.5 0 0 1 19 20.5H5A1.5 1.5 0 0 1 3.5 19V7A1.5 1.5 0 0 1 5 5.5Zm3.5 7.5 2 2 4.5-4.5',
     },
     {
         label: 'Clock attempts',
         href: '/admin/clock-attempts',
-        adminOnly: true,
+        permission: 'clock-attempts.view',
         icon: 'M12 8v4l2.5 2.5M3.5 12a8.5 8.5 0 1 0 17 0 8.5 8.5 0 0 0-17 0Z',
     },
     {
         label: 'Announcements',
         href: '/admin/announcements',
-        adminOnly: true,
+        permission: 'announcements.manage',
         icon: 'M3.5 10.5v3a1.5 1.5 0 0 0 1.5 1.5h2l5 4V5l-5 4H5a1.5 1.5 0 0 0-1.5 1.5Zm13-1.5a5 5 0 0 1 0 6',
     },
     {
         label: 'Request settings',
         href: '/admin/request-settings',
-        adminOnly: true,
+        permission: 'request-settings.manage',
         icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm7.4-3a7.4 7.4 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7.4 7.4 0 0 0-2-1.2L14.5 3h-4l-.4 2.6a7.4 7.4 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.5a7.4 7.4 0 0 0 0 2.5l-2 1.5 2 3.4 2.4-1a7.4 7.4 0 0 0 2 1.2l.4 2.6h4l.4-2.6a7.4 7.4 0 0 0 2-1.2l2.4 1 2-3.4-2-1.5c.05-.4.1-.8.1-1.2Z',
     },
+    {
+        label: 'Roles',
+        href: '/admin/roles',
+        permission: 'roles.manage',
+        icon: 'M12 3.5 4.5 6.5v5c0 4.3 3.1 7.9 7.5 9 4.4-1.1 7.5-4.7 7.5-9v-5L12 3.5Zm0 5.5a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm-3.5 8a3.5 3.5 0 0 1 7 0',
+    },
 ];
+
+function may(permission: Permission | undefined): boolean {
+    return (
+        permission === undefined ||
+        user.value?.permissions.includes(permission) === true
+    );
+}
 
 // Admins run the clock rather than punch it, so the personal attendance
 // view is not theirs to see. And until a profile is finished every one of
@@ -121,7 +135,7 @@ const visibleNav = computed(() =>
         ? []
         : nav.filter(
               (item) =>
-                  (!item.adminOnly || user.value?.is_super_admin) &&
+                  may(item.permission) &&
                   (!item.staffOnly || user.value?.clocks_in) &&
                   (!item.approverOnly || user.value?.can_use_approvals),
           ),

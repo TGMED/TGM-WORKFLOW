@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\Permission;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Validation\Rule;
@@ -21,7 +22,7 @@ trait RaisesOnBehalf
      */
     public function authorize(): bool
     {
-        return $this->user()?->canApprove() === true;
+        return $this->user()?->hasPermission(Permission::ApproveRequests) === true;
     }
 
     /**

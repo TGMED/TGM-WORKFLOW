@@ -5,13 +5,13 @@ namespace App\Http\Controllers;
 use App\Contracts\Approvable;
 use App\Enums\ApprovalDecision;
 use App\Enums\ApprovalStage;
+use App\Enums\Permission;
 use App\Enums\RequestModule;
 use App\Enums\RequestStatus;
 use App\Models\Approval;
 use App\Models\LatenessRequest;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
-use App\Models\Role;
 use App\Models\User;
 use App\Services\ApprovalService;
 use Illuminate\Database\Eloquent\Model;
@@ -119,7 +119,7 @@ class ApprovalController extends Controller
             // the list of approvers they can name.
             'approvers' => User::query()
                 ->active()
-                ->withRole(Role::APPROVER, Role::SUPER_ADMIN)
+                ->withPermission(Permission::ApproveRequests)
                 ->whereKeyNot($approver->id)
                 ->orderBy('name')
                 ->get(['id', 'name', 'position'])

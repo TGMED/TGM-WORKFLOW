@@ -3,10 +3,10 @@
 namespace App\Services;
 
 use App\Contracts\Approvable;
+use App\Enums\Permission;
 use App\Enums\RequestModule;
 use App\Models\Approval;
 use App\Models\LeaveRequest;
-use App\Models\Role;
 use App\Models\User;
 use App\Notifications\ApprovalRequested;
 use App\Notifications\RequestDecided;
@@ -95,7 +95,7 @@ class RequestNotifier
     {
         $approvers = User::query()
             ->active()
-            ->withRole(Role::APPROVER, Role::SUPER_ADMIN)
+            ->withPermission(Permission::ApproveRequests)
             ->whereKeyNot($request->requester()->id)
             ->get();
 

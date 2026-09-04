@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\Permission;
 use App\Models\LeaveRequest;
 use App\Models\LeaveRestrictedPeriod;
 use App\Models\LeaveType;
@@ -45,7 +46,7 @@ class StoreLeaveRequest extends FormRequest
                 Rule::notIn($this->ineligibleApprovers()),
                 Rule::exists('users', 'id')->where('is_active', true)->whereIn(
                     'role_id',
-                    Role::query()->whereIn('slug', [Role::APPROVER, Role::SUPER_ADMIN])->pluck('id')->all(),
+                    Role::idsWithPermission(Permission::ApproveRequests),
                 ),
             ],
             'relief_officer_id' => [

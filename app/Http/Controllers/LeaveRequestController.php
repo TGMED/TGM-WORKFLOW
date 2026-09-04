@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\Permission;
 use App\Enums\RequestModule;
 use App\Enums\RequestStatus;
 use App\Http\Requests\StoreLeaveRequest;
@@ -9,7 +10,6 @@ use App\Http\Requests\UpdateLeaveRequest;
 use App\Models\ApprovalSetting;
 use App\Models\LeaveRequest;
 use App\Models\LeaveRestrictedPeriod;
-use App\Models\Role;
 use App\Models\User;
 use App\Services\ApprovalService;
 use App\Services\LeaveBalance;
@@ -244,7 +244,7 @@ class LeaveRequestController extends Controller
     {
         return User::query()
             ->active()
-            ->withRole(Role::APPROVER, Role::SUPER_ADMIN)
+            ->withPermission(Permission::ApproveRequests)
             ->whereKeyNot($user->id)
             ->orderBy('name')
             ->get(['id', 'name', 'position'])
