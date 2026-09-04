@@ -85,6 +85,9 @@ class ReclassifyAttendance extends Command
      */
     private function verdict(Location $location, CarbonInterface $localIn): array
     {
+        // Read on the minute, the same way the punch itself is judged.
+        $localIn = $localIn->copy()->startOfMinute();
+
         $start = $location->startOfWorkFor($localIn);
         $cutoff = $location->latenessCutoffFor($localIn);
 

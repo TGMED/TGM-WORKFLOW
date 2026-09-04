@@ -283,6 +283,10 @@ class ClockService
      */
     protected function evaluateLateness(Location $location, Carbon $localNow): array
     {
+        // Start and cutoff both sit on the minute, so the arrival is read on the
+        // minute too. Otherwise 8:30:20 misses an 8:30 cutoff it appears to meet.
+        $localNow = $localNow->copy()->startOfMinute();
+
         $start = $location->startOfWorkFor($localNow);
         $cutoff = $location->latenessCutoffFor($localNow);
 

@@ -117,6 +117,21 @@ class ClockInTest extends TestCase
         );
     }
 
+    public function test_seconds_inside_the_last_minute_of_grace_are_still_not_late(): void
+    {
+        // 09:10:47 Lagos. The cutoff sits on the minute, so the arrival is read
+        // on the minute too rather than losing the last 59 seconds of grace.
+        Carbon::setTestNow(Carbon::parse('2026-06-15 08:10:47', 'UTC'));
+
+        $this->actingAs($this->staff())
+            ->post('/clock/in', $this->atOffice());
+
+        $attendance = Attendance::query()->firstOrFail();
+
+        $this->assertSame(AttendanceStatus::Grace, $attendance->status);
+        $this->assertSame(0, $attendance->late_minutes);
+    }
+
     public function test_the_first_minute_after_grace_is_late(): void
     {
         // 09:11 Lagos, one minute past the cutoff.
