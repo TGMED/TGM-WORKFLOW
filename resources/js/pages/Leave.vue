@@ -12,6 +12,12 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { dateTime } from '@/lib/format';
 import type { RequestTrail } from '@/types';
 
+type Window = {
+    start: string;
+    end: string;
+    label: string;
+};
+
 type Balance = {
     id: number;
     slug: string;
@@ -21,6 +27,12 @@ type Balance = {
     allowance: number | null;
     used: number;
     remaining: number | null;
+    /** Whether the policy opens this type to you at all. */
+    eligible: boolean;
+    ineligible_reason: string | null;
+    requires_evidence: boolean;
+    /** Set on entitlement that lapses, such as birthday leave. */
+    window: Window | null;
 };
 
 type DateRange = {
@@ -72,6 +84,10 @@ type LeaveRow = {
     range_label: string;
     days: number;
     reason: string | null;
+    /** The supporting document, where the type asks for one. */
+    has_evidence: boolean;
+    evidence_name: string | null;
+    evidence_url: string | null;
     status: string;
     status_label: string;
     status_tone: 'signal' | 'brass' | 'alert' | 'neutral';
@@ -104,13 +120,17 @@ const busy = ref(false);
 
 const today = new Date().toISOString().slice(0, 10);
 
+// Types the policy has closed stay on the list rather than quietly vanishing:
+// somebody looking for sick leave should find it and be told why it is shut,
+// not wonder where it went.
 const typeOptions = computed(() =>
     props.balances.map((balance) => ({
         value: balance.id,
-        label:
-            balance.remaining === null
-                ? balance.name
-                : `${balance.name} (${balance.remaining} left)`,
+        label: !balance.eligible
+            ? `${balance.name} — not open to you yet`
+            : balance.remaining === null
+              ? balance.name
+              : `${balance.name} (${balance.remaining} left)`,
     })),
 );
 
@@ -121,6 +141,7 @@ const form = useForm({
     start_date: today,
     end_date: today,
     reason: '',
+    evidence: null as File | null,
 });
 
 function overlaps(range: DateRange, start: string, end: string): boolean {
@@ -274,6 +295,34 @@ const latestEndDate = computed(() => {
     return spent === budget ? toIsoDate(last) : null;
 });
 
+// The policy gates on the chosen type, read from the same figures the server
+// checks against, so the form says no in the same words rather than letting
+// somebody fill the whole thing in first.
+const ineligibleReason = computed(() =>
+    selectedBalance.value && !selectedBalance.value.eligible
+        ? selectedBalance.value.ineligible_reason
+        : null,
+);
+
+/** Set on entitlement that lapses, and caps the picker at both ends. */
+const claimWindow = computed(() => selectedBalance.value?.window ?? null);
+
+const needsEvidence = computed(
+    () =>
+        selectedBalance.value?.requires_evidence === true &&
+        !editing.value?.has_evidence,
+);
+
+const outsideWindow = computed(() => {
+    const claim = claimWindow.value;
+
+    if (claim === null) {
+        return false;
+    }
+
+    return form.start_date < claim.start || form.end_date > claim.end;
+});
+
 const exhausted = computed(
     () => remaining.value !== null && remaining.value <= 0,
 );
@@ -285,6 +334,9 @@ const canSubmit = computed(
     () =>
         !exhausted.value &&
         !overAllowance.value &&
+        ineligibleReason.value === null &&
+        !outsideWindow.value &&
+        (!needsEvidence.value || form.evidence !== null) &&
         workingDays.value > 0 &&
         clashingDuty.value === null &&
         closedPeriod.value === null &&
@@ -314,6 +366,7 @@ function open() {
         start_date: today,
         end_date: today,
         reason: '',
+        evidence: null,
     });
     form.reset();
     modalOpen.value = true;
@@ -329,6 +382,8 @@ function edit(row: LeaveRow) {
         start_date: row.start_date,
         end_date: row.end_date,
         reason: row.reason ?? '',
+        // The document already on file stands unless a new one is picked.
+        evidence: null,
     });
     form.reset();
     modalOpen.value = true;
@@ -344,12 +399,15 @@ function submit() {
     };
 
     if (editing.value) {
-        form.put(`/leave/${editing.value.id}`, options);
+        form.transform((data) => ({ ...data, _method: 'put' })).post(
+            `/leave/${editing.value.id}`,
+            options,
+        );
 
         return;
     }
 
-    form.post('/leave', options);
+    form.transform((data) => data).post('/leave', options);
 }
 
 function withdraw() {
@@ -420,6 +478,19 @@ function toggleTrail(row: LeaveRow) {
                             {{ balance.is_paid ? 'Paid' : 'Unpaid' }}
                         </StatusPill>
                     </div>
+
+                    <p
+                        v-if="!balance.eligible"
+                        class="mt-3 rounded-xl bg-brass-soft px-3 py-2 text-[12.5px] text-brass"
+                    >
+                        {{ balance.ineligible_reason }}
+                    </p>
+                    <p
+                        v-else-if="balance.window"
+                        class="mt-3 text-[12px] text-faint"
+                    >
+                        Claimable {{ balance.window.label }}, then it lapses.
+                    </p>
 
                     <div class="mt-4 flex items-end gap-2">
                         <span
@@ -618,6 +689,13 @@ function toggleTrail(row: LeaveRow) {
                     :error="form.errors.leave_type_id"
                 />
 
+                <p
+                    v-if="ineligibleReason"
+                    class="rounded-xl bg-alert-soft px-3.5 py-2.5 text-[13px] text-alert"
+                >
+                    {{ ineligibleReason }}
+                </p>
+
                 <div class="grid gap-4 sm:grid-cols-2">
                     <SelectField
                         v-model="form.supervisor_id"
@@ -646,6 +724,8 @@ function toggleTrail(row: LeaveRow) {
                         type="date"
                         required
                         :disabled="exhausted"
+                        :min="claimWindow?.start"
+                        :max="claimWindow?.end"
                         :error="form.errors.start_date"
                     />
                     <TextField
@@ -655,7 +735,7 @@ function toggleTrail(row: LeaveRow) {
                         required
                         :disabled="exhausted"
                         :min="form.start_date"
-                        :max="latestEndDate ?? undefined"
+                        :max="claimWindow?.end ?? latestEndDate ?? undefined"
                         :error="form.errors.end_date"
                         :hint="
                             workingDays > 0
@@ -716,6 +796,60 @@ function toggleTrail(row: LeaveRow) {
                     {{ selectedBalance?.name?.toLowerCase() }} left this year,
                     so the last day cannot go past {{ latestEndDate }}.
                 </p>
+
+                <p
+                    v-if="outsideWindow && claimWindow"
+                    class="rounded-xl bg-alert-soft px-3.5 py-2.5 text-[13px] text-alert"
+                >
+                    {{ selectedBalance?.name }} has to be taken
+                    {{ claimWindow.label }}. After that it lapses.
+                </p>
+
+                <div
+                    v-if="selectedBalance?.requires_evidence"
+                    class="space-y-1.5"
+                >
+                    <label
+                        for="leave-evidence"
+                        class="flex items-center gap-1 text-[13px] font-medium text-muted"
+                    >
+                        Supporting document
+                        <span
+                            v-if="needsEvidence"
+                            class="text-alert"
+                            aria-hidden="true"
+                            >*</span
+                        >
+                    </label>
+                    <input
+                        id="leave-evidence"
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png,.webp"
+                        class="w-full cursor-pointer rounded-xl border border-line bg-panel-raised px-3.5 py-2.5 text-sm text-text transition-all duration-200 ease-out file:mr-3 file:rounded-lg file:border-0 file:bg-line-soft file:px-3 file:py-1.5 file:text-[13px] file:text-text focus:border-beacon focus:ring-4 focus:ring-beacon/15 focus:outline-none"
+                        @change="
+                            form.evidence =
+                                ($event.target as HTMLInputElement)
+                                    .files?.[0] ?? null
+                        "
+                    />
+                    <p
+                        v-if="form.errors.evidence"
+                        class="text-[13px] text-alert"
+                    >
+                        {{ form.errors.evidence }}
+                    </p>
+                    <p
+                        v-else-if="editing?.has_evidence"
+                        class="text-[12px] text-faint"
+                    >
+                        {{ editing.evidence_name }} is already on file. Pick a
+                        file only to replace it.
+                    </p>
+                    <p v-else class="text-[12px] text-faint">
+                        {{ selectedBalance.name }} needs a sick paper, letter or
+                        certificate. PDF or image, under 8 MB.
+                    </p>
+                </div>
 
                 <div class="space-y-1.5">
                     <label

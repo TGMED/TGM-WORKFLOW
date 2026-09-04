@@ -4,6 +4,7 @@ import { reactive, ref } from 'vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
 import Panel from '@/components/ui/Panel.vue';
+import SelectField from '@/components/ui/SelectField.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import TextField from '@/components/ui/TextField.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -22,6 +23,14 @@ type LeaveTypeRow = {
     name: string;
     description: string | null;
     days_per_year: number | null;
+    /** The separate figure managers and above draw, where the type sets one. */
+    days_per_year_manager: number | null;
+    min_service_months: number;
+    requires_confirmed: boolean;
+    requires_evidence: boolean;
+    /** The date an expiring entitlement is counted from, if any. */
+    anchor: string | null;
+    window_months: number | null;
     is_paid: boolean;
     is_active: boolean;
     requests: number;
@@ -42,6 +51,7 @@ type RestrictedPeriodRow = {
 const props = defineProps<{
     modules: ModuleRow[];
     leave_types: LeaveTypeRow[];
+    leave_anchors: Array<{ value: string; label: string }>;
     restricted_periods: RestrictedPeriodRow[];
     marital_statuses: string[];
     approver_count: number;
@@ -86,6 +96,12 @@ const form = useForm({
     name: '',
     description: '',
     days_per_year: null as number | null,
+    days_per_year_manager: null as number | null,
+    min_service_months: 0,
+    requires_confirmed: false,
+    requires_evidence: false,
+    anchor: null as string | null,
+    window_months: null as number | null,
     is_paid: true,
 });
 
@@ -97,6 +113,12 @@ function open(type: LeaveTypeRow | null) {
         name: type?.name ?? '',
         description: type?.description ?? '',
         days_per_year: type?.days_per_year ?? null,
+        days_per_year_manager: type?.days_per_year_manager ?? null,
+        min_service_months: type?.min_service_months ?? 0,
+        requires_confirmed: type?.requires_confirmed ?? false,
+        requires_evidence: type?.requires_evidence ?? false,
+        anchor: type?.anchor ?? null,
+        window_months: type?.window_months ?? null,
         is_paid: type?.is_paid ?? true,
     });
     form.reset();
@@ -180,6 +202,32 @@ function lift(period: RestrictedPeriodRow) {
             lifting.value = null;
         },
     });
+}
+
+/**
+ * The policy gates on a type, in a line, so an administrator can see what a
+ * type asks for without opening it.
+ */
+function ruleSummary(type: LeaveTypeRow): string {
+    const rules: string[] = [];
+
+    if (type.min_service_months > 0) {
+        rules.push(`after ${type.min_service_months} months`);
+    }
+
+    if (type.requires_confirmed) {
+        rules.push('confirmed staff');
+    }
+
+    if (type.requires_evidence) {
+        rules.push('evidence');
+    }
+
+    if (type.window_months !== null) {
+        rules.push(`expires after ${type.window_months} months`);
+    }
+
+    return rules.join(' · ');
 }
 
 function toggle(type: LeaveTypeRow) {
@@ -331,6 +379,12 @@ function toggle(type: LeaveTypeRow) {
                                 </td>
                                 <td class="px-5 py-3.5 text-muted">
                                     {{ type.is_paid ? 'Paid' : 'Unpaid' }}
+                                    <span
+                                        v-if="ruleSummary(type)"
+                                        class="block text-[12px] text-faint"
+                                    >
+                                        {{ ruleSummary(type) }}
+                                    </span>
                                 </td>
                                 <td class="px-5 py-3.5 text-muted">
                                     {{ type.requests }}
@@ -523,15 +577,87 @@ function toggle(type: LeaveTypeRow) {
                     :error="form.errors.description"
                 />
 
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <TextField
+                        v-model="form.days_per_year"
+                        label="Days per year"
+                        type="number"
+                        min="1"
+                        max="365"
+                        placeholder="Blank for uncapped"
+                        :error="form.errors.days_per_year"
+                    />
+                    <TextField
+                        v-model="form.days_per_year_manager"
+                        label="Days per year · managers"
+                        type="number"
+                        min="1"
+                        max="365"
+                        placeholder="Blank for the same as everyone"
+                        hint="Managers and above draw this instead."
+                        :error="form.errors.days_per_year_manager"
+                    />
+                </div>
+
                 <TextField
-                    v-model="form.days_per_year"
-                    label="Days per year"
+                    v-model="form.min_service_months"
+                    label="Months of service before it opens"
                     type="number"
-                    min="1"
-                    max="365"
-                    placeholder="Blank for uncapped"
-                    :error="form.errors.days_per_year"
+                    min="0"
+                    max="120"
+                    hint="0 for a type anyone can take from their first day."
+                    :error="form.errors.min_service_months"
                 />
+
+                <label class="flex items-center gap-2.5">
+                    <input
+                        v-model="form.requires_confirmed"
+                        type="checkbox"
+                        class="size-4 rounded border-line text-brand focus:ring-brand/30"
+                    />
+                    <span class="text-[13.5px]">
+                        Confirmed staff only
+                        <span class="text-faint">
+                            · closed to anyone still on probation
+                        </span>
+                    </span>
+                </label>
+
+                <label class="flex items-center gap-2.5">
+                    <input
+                        v-model="form.requires_evidence"
+                        type="checkbox"
+                        class="size-4 rounded border-line text-brand focus:ring-brand/30"
+                    />
+                    <span class="text-[13.5px]">
+                        Needs supporting evidence
+                        <span class="text-faint">
+                            · a sick paper, letter or certificate is attached
+                        </span>
+                    </span>
+                </label>
+
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <SelectField
+                        v-model="form.anchor"
+                        label="Entitlement expires from"
+                        :options="leave_anchors"
+                        :error="form.errors.anchor"
+                        hint="Leave blank for a type that runs the calendar year."
+                    >
+                        <option :value="null">Does not expire</option>
+                    </SelectField>
+                    <TextField
+                        v-model="form.window_months"
+                        label="Claimable for (months)"
+                        type="number"
+                        min="1"
+                        max="24"
+                        placeholder="e.g. 6"
+                        :disabled="form.anchor === null"
+                        :error="form.errors.window_months"
+                    />
+                </div>
 
                 <label class="flex items-center gap-2.5">
                     <input

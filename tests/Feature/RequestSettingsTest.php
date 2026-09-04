@@ -69,16 +69,16 @@ class RequestSettingsTest extends TestCase
     {
         $this->actingAs($this->admin())
             ->post('/admin/leave-types', [
-                'name' => 'Compassionate leave',
-                'description' => 'Time off after a bereavement.',
+                'name' => 'Sabbatical leave',
+                'description' => 'An extended break agreed with the company.',
                 'days_per_year' => 5,
                 'is_paid' => true,
             ])
             ->assertSessionHasNoErrors();
 
-        $type = LeaveType::query()->where('name', 'Compassionate leave')->firstOrFail();
+        $type = LeaveType::query()->where('name', 'Sabbatical leave')->firstOrFail();
 
-        $this->assertSame('compassionate-leave', $type->slug);
+        $this->assertSame('sabbatical-leave', $type->slug);
         $this->assertSame(5, $type->days_per_year);
         $this->assertTrue($type->is_active);
     }
@@ -173,7 +173,7 @@ class RequestSettingsTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->component('admin/RequestSettings')
                 ->has('modules', 2)
-                ->has('leave_types', 2)
+                ->has('leave_types', 11)
                 ->where('modules.0.value', 'leave'));
     }
 }

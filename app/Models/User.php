@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\EmploymentStatus;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -24,6 +25,8 @@ use Illuminate\Support\Carbon;
  * @property string|null $department
  * @property string|null $position
  * @property Carbon|null $hired_at
+ * @property EmploymentStatus $employment_status
+ * @property Carbon|null $confirmed_at
  * @property bool $is_active
  * @property Carbon|null $deactivated_at
  * @property int|null $location_id
@@ -47,6 +50,8 @@ use Illuminate\Support\Carbon;
     'department',
     'position',
     'hired_at',
+    'employment_status',
+    'confirmed_at',
     'is_active',
     'deactivated_at',
     'location_id',
@@ -75,6 +80,8 @@ class User extends Authenticatable
             'password' => 'hashed',
             'role_id' => 'integer',
             'hired_at' => 'date',
+            'employment_status' => EmploymentStatus::class,
+            'confirmed_at' => 'date',
             'is_active' => 'boolean',
             'deactivated_at' => 'datetime',
             'location_id' => 'integer',
@@ -201,6 +208,39 @@ class User extends Authenticatable
     public function canApprove(): bool
     {
         return $this->hasRole(Role::APPROVER, Role::SUPER_ADMIN);
+    }
+
+    /**
+     * Whether this person sits at manager level or above, which the policy
+     * uses to set the larger leave entitlement. The app has no separate grade
+     * to read: holding approval rights is what being a manager here means.
+     */
+    public function isManagerOrAbove(): bool
+    {
+        return $this->canApprove();
+    }
+
+    /**
+     * Whether probation has been passed. Somebody with no start date on file
+     * is taken at their recorded status rather than guessed at.
+     */
+    public function isConfirmed(): bool
+    {
+        return $this->employment_status === EmploymentStatus::Confirmed;
+    }
+
+    /**
+     * Whole months served, counted from the start date. Null when no start
+     * date is on file, which leaves a service rule unenforceable rather than
+     * shutting somebody out on a blank field.
+     */
+    public function serviceMonths(?Carbon $on = null): ?int
+    {
+        if ($this->hired_at === null) {
+            return null;
+        }
+
+        return (int) $this->hired_at->diffInMonths($on ?? Carbon::now());
     }
 
     /**

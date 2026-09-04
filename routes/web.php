@@ -18,6 +18,7 @@ use App\Http\Controllers\BreakController;
 use App\Http\Controllers\ClockController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LatenessRequestController;
+use App\Http\Controllers\LeaveEvidenceController;
 use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\OnBehalfRequestController;
 use App\Http\Controllers\PasswordController;
@@ -81,6 +82,13 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
         ->whereIn('action', ['start', 'end'])
         ->middleware(['throttle:20,1', 'clocks-in'])
         ->name('break.store');
+
+    // The document behind a request, which an approver has to be able to open
+    // as well as the person it belongs to. It sits outside the group below
+    // because an administrator does not work a shift but may still be asked
+    // to rule on one.
+    Route::get('leave/{leave}/evidence', [LeaveEvidenceController::class, 'show'])
+        ->name('leave.evidence');
 
     // Requests are raised by the people who work a shift, so admins, who do
     // not, only see the settings and the approval inbox.

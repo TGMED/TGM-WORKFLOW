@@ -11,6 +11,7 @@ use App\Models\Attendance;
 use App\Models\LatenessRequest;
 use App\Models\LeaveRequest;
 use App\Models\User;
+use App\Services\LeaveEvidence;
 use App\Services\RequestNotifier;
 use Illuminate\Http\RedirectResponse;
 
@@ -24,7 +25,10 @@ use Illuminate\Http\RedirectResponse;
  */
 class OnBehalfRequestController extends Controller
 {
-    public function __construct(protected RequestNotifier $notifier) {}
+    public function __construct(
+        protected RequestNotifier $notifier,
+        protected LeaveEvidence $evidence,
+    ) {}
 
     public function leave(StoreLeaveOnBehalfRequest $request): RedirectResponse
     {
@@ -43,6 +47,12 @@ class OnBehalfRequestController extends Controller
             'status' => RequestStatus::Pending,
             'approvals_required' => ApprovalSetting::approversRequired(RequestModule::Leave),
         ]);
+
+        // Optional here: an approver filing for somebody signed off sick may
+        // not have their paperwork yet, but attaches it when they do.
+        if ($request->hasFile('evidence')) {
+            $this->evidence->attach($leave, $request->file('evidence'));
+        }
 
         $leave->load('leaveType', 'reliefOfficer', 'user', 'raisedBy');
 

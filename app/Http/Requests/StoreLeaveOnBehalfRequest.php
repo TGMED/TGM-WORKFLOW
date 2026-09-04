@@ -46,6 +46,17 @@ class StoreLeaveOnBehalfRequest extends StoreLeaveRequest
     }
 
     /**
+     * An approver filing for somebody signed off sick will not have their
+     * paperwork in hand. The policy still wants it, so HR chases the document
+     * separately rather than the form blocking a request nobody else can
+     * raise.
+     */
+    protected function needsEvidence(): bool
+    {
+        return false;
+    }
+
+    /**
      * The person who files a request does not then get to approve it, so they
      * are out along with the member of staff it is for.
      *
