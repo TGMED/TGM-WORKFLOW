@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AnnouncementController;
 use App\Http\Controllers\Admin\AttendanceReportController;
 use App\Http\Controllers\Admin\AuditController;
@@ -166,6 +167,10 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
     // one blanket administrator check, so a role can be given the attendance
     // report without also being handed the staff list.
     Route::prefix('admin')->name('admin.')->group(function (): void {
+        Route::middleware('permission:admin.dashboard')->group(function (): void {
+            Route::get('/', AdminDashboardController::class)->name('dashboard');
+        });
+
         Route::middleware('permission:staff.manage')->group(function (): void {
             Route::get('staff', [StaffController::class, 'index'])->name('staff.index');
             Route::post('staff', [StaffController::class, 'store'])->name('staff.store');
