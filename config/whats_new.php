@@ -22,6 +22,10 @@ return [
 
     'features' => [
         [
+            'title' => 'Import from a spreadsheet',
+            'description' => 'Administrators can now load sites, staff, HR records, salaries and past attendance in bulk from a CSV. Every sheet comes with a template and a reference, and a file is checked and reported on before anything is written.',
+        ],
+        [
             'title' => 'Payslips',
             'description' => 'Your pay, month by month, with every line of it shown: what you earned, what came off, and what reached your account. Each one prints on its own if you need a copy.',
         ],

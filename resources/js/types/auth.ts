@@ -17,6 +17,7 @@ export type Permission =
     | 'requests.approve'
     | 'payroll.manage'
     | 'reports.handle'
+    | 'data.import'
     | 'roles.manage'
     | 'audit.view';
 

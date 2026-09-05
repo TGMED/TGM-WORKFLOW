@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\AnnouncementController;
 use App\Http\Controllers\Admin\AttendanceReportController;
 use App\Http\Controllers\Admin\AuditController;
 use App\Http\Controllers\Admin\ClockAttemptController;
+use App\Http\Controllers\Admin\ImportController;
 use App\Http\Controllers\Admin\LeaveRestrictedPeriodController;
 use App\Http\Controllers\Admin\LeaveTypeController;
 use App\Http\Controllers\Admin\LocationController;
@@ -42,7 +43,15 @@ use App\Http\Controllers\Settings\PushTokenController;
 use App\Http\Controllers\WhatsNewController;
 use App\Http\Controllers\WhoIsAwayController;
 use App\Http\Controllers\WorkLocationController;
+use App\Imports\ImportRegistry;
 use Illuminate\Support\Facades\Route;
+
+// Import sheets are resolved by key rather than by id: an importer is code,
+// not a row, and the registry is what knows the catalogue.
+Route::bind('importer', function (string $key) {
+    return app(ImportRegistry::class)->find($key)
+        ?? abort(404, 'There is no import by that name.');
+});
 
 Route::redirect('/', '/dashboard')->name('home');
 
@@ -280,6 +289,29 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
             Route::post('roles', [RoleController::class, 'store'])->name('roles.store');
             Route::put('roles/{role}', [RoleController::class, 'update'])->name('roles.update');
             Route::delete('roles/{role}', [RoleController::class, 'destroy'])->name('roles.destroy');
+        });
+
+        // Loading records in bulk. Two gates, both of which have to open: the
+        // import permission below says somebody may use these pages at all,
+        // and each sheet answers again to the permission that guards editing
+        // those records by hand. So an import is never a way into a page
+        // somebody cannot reach — it widens how much they can change at once,
+        // never what.
+        Route::middleware('permission:data.import')->group(function (): void {
+            Route::get('imports', [ImportController::class, 'index'])->name('imports.index');
+
+            Route::middleware('import-permitted')->group(function (): void {
+                Route::get('imports/{importer}', [ImportController::class, 'show'])->name('imports.show');
+                Route::get('imports/{importer}/template', [ImportController::class, 'template'])->name('imports.template');
+                Route::get('imports/{importer}/reference', [ImportController::class, 'reference'])->name('imports.reference');
+
+                // Checking a file and importing it are the same request, told
+                // apart by one flag. A check writes nothing, so it is not
+                // throttled any more tightly than the import it precedes.
+                Route::post('imports/{importer}', [ImportController::class, 'store'])
+                    ->middleware('throttle:20,1')
+                    ->name('imports.store');
+            });
         });
 
         // Read-only by design: an audit trail somebody can edit is not one.
