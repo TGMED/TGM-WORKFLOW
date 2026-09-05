@@ -42,6 +42,7 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  * @property-read Location|null $location
  * @property-read Role $role
  * @property-read EmployeeProfile|null $profile
+ * @property-read SalaryProfile|null $salaryProfile
  */
 #[Fillable([
     'employee_id',
@@ -173,6 +174,25 @@ class User extends Authenticatable implements AuditableContract
     public function clockAttempts(): HasMany
     {
         return $this->hasMany(ClockAttempt::class);
+    }
+
+    /**
+     * What this person is paid. Separate from the HR profile because the HR
+     * profile is theirs to edit and this is not.
+     *
+     * @return HasOne<SalaryProfile, $this>
+     */
+    public function salaryProfile(): HasOne
+    {
+        return $this->hasOne(SalaryProfile::class);
+    }
+
+    /**
+     * @return HasMany<Payslip, $this>
+     */
+    public function payslips(): HasMany
+    {
+        return $this->hasMany(Payslip::class);
     }
 
     /**

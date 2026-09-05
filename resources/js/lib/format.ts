@@ -153,3 +153,44 @@ export function attendanceLabel(status: string | null | undefined): string {
 
     return status === 'grace' ? 'Within grace' : 'On time';
 }
+
+/**
+ * An amount of money, with the currency symbol the payroll settings name.
+ * Always two decimal places: a payslip that rounds to the naira does not add
+ * up against a bank statement that does not.
+ */
+export function money(
+    amount: number | null | undefined,
+    currency = 'NGN',
+): string {
+    if (amount === null || amount === undefined) {
+        return '-';
+    }
+
+    try {
+        return new Intl.NumberFormat('en-NG', {
+            style: 'currency',
+            currency,
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        }).format(amount);
+    } catch {
+        // An unrecognised currency code should not blank out a payslip.
+        return `${currency} ${amount.toFixed(2)}`;
+    }
+}
+
+/**
+ * The same figure without the symbol, for tables that carry the currency in
+ * the column heading instead of on every row.
+ */
+export function amount(value: number | null | undefined): string {
+    if (value === null || value === undefined) {
+        return '-';
+    }
+
+    return value.toLocaleString('en-NG', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
+}

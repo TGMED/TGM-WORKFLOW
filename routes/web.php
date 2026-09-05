@@ -8,9 +8,12 @@ use App\Http\Controllers\Admin\ClockAttemptController;
 use App\Http\Controllers\Admin\LeaveRestrictedPeriodController;
 use App\Http\Controllers\Admin\LeaveTypeController;
 use App\Http\Controllers\Admin\LocationController;
+use App\Http\Controllers\Admin\PayrollController;
+use App\Http\Controllers\Admin\PayrollSettingsController;
 use App\Http\Controllers\Admin\ReportController as AdminReportController;
 use App\Http\Controllers\Admin\RequestSettingsController;
 use App\Http\Controllers\Admin\RoleController;
+use App\Http\Controllers\Admin\SalaryController;
 use App\Http\Controllers\Admin\StaffController;
 use App\Http\Controllers\ApprovalController;
 use App\Http\Controllers\AttendanceController;
@@ -26,6 +29,7 @@ use App\Http\Controllers\LeaveEvidenceController;
 use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\OnBehalfRequestController;
 use App\Http\Controllers\PasswordController;
+use App\Http\Controllers\PayslipController;
 use App\Http\Controllers\Profile\AddressController;
 use App\Http\Controllers\Profile\BankDetailsController;
 use App\Http\Controllers\Profile\ProfileController;
@@ -95,6 +99,12 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
     // to rule on one.
     Route::get('leave/{leave}/evidence', [LeaveEvidenceController::class, 'show'])
         ->name('leave.evidence');
+
+    // Somebody's own payslips. Outside the `clocks-in` group only because it
+    // reads naturally beside the rest of the personal pages; an administrator
+    // draws no salary here and simply sees an empty list.
+    Route::get('payslips', [PayslipController::class, 'index'])->name('payslips.index');
+    Route::get('payslips/{payslip}', [PayslipController::class, 'show'])->name('payslips.show');
 
     // Raising an incident is open to everyone who signs in, admins included:
     // there is no group of staff whose concerns the company does not want to
@@ -235,6 +245,24 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
             Route::post('restricted-periods', [LeaveRestrictedPeriodController::class, 'store'])->name('restricted-periods.store');
             Route::put('restricted-periods/{restrictedPeriod}', [LeaveRestrictedPeriodController::class, 'update'])->name('restricted-periods.update');
             Route::delete('restricted-periods/{restrictedPeriod}', [LeaveRestrictedPeriodController::class, 'destroy'])->name('restricted-periods.destroy');
+        });
+
+        // Payroll: salaries, the rates pay is worked out under, and the
+        // monthly runs. Behind its own permission — knowing what everyone in
+        // the company earns is not something staff management should carry
+        // along with it.
+        Route::middleware('permission:payroll.manage')->group(function (): void {
+            Route::get('payroll', [PayrollController::class, 'index'])->name('payroll.index');
+            Route::post('payroll', [PayrollController::class, 'store'])->name('payroll.store');
+            Route::get('payroll/{run}', [PayrollController::class, 'show'])->name('payroll.show');
+            Route::post('payroll/{run}/rebuild', [PayrollController::class, 'rebuild'])->name('payroll.rebuild');
+            Route::post('payroll/{run}/finalise', [PayrollController::class, 'finalise'])->name('payroll.finalise');
+            Route::delete('payroll/{run}', [PayrollController::class, 'destroy'])->name('payroll.destroy');
+
+            Route::put('payroll-settings', [PayrollSettingsController::class, 'update'])->name('payroll-settings.update');
+
+            Route::post('salaries', [SalaryController::class, 'store'])->name('salaries.store');
+            Route::delete('salaries/{salaryProfile}', [SalaryController::class, 'destroy'])->name('salaries.destroy');
         });
 
         // The reports desk. Behind its own permission because it is the one

@@ -15,6 +15,7 @@ export type Permission =
     | 'announcements.manage'
     | 'request-settings.manage'
     | 'requests.approve'
+    | 'payroll.manage'
     | 'reports.handle'
     | 'roles.manage'
     | 'audit.view';
