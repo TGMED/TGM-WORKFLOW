@@ -47,11 +47,15 @@ class WhatsNewTest extends TestCase
 
         $this->actingAs($staff)->post('/whats-new/seen');
 
-        config(['whats_new.version' => '2026.09']);
+        // Any version that is not the one they just dismissed, derived rather
+        // than written down so shipping a release does not break this test.
+        $next = WhatsNew::version().'-next';
+
+        config(['whats_new.version' => $next]);
 
         $this->actingAs($staff->fresh())
             ->get('/dashboard')
-            ->assertInertia(fn ($page) => $page->where('whats_new.version', '2026.09'));
+            ->assertInertia(fn ($page) => $page->where('whats_new.version', $next));
     }
 
     public function test_the_notes_are_not_offered_to_a_visitor_who_is_not_signed_in(): void

@@ -14,13 +14,25 @@ return [
     |
     */
 
-    'version' => '2026.08',
+    'version' => '2026.09',
 
     'title' => "What's new",
 
     'lede' => 'A few things have landed since you were last here.',
 
     'features' => [
+        [
+            'title' => 'Payslips',
+            'description' => 'Your pay, month by month, with every line of it shown: what you earned, what came off, and what reached your account. Each one prints on its own if you need a copy.',
+        ],
+        [
+            'title' => 'Report an incident',
+            'description' => 'Raise something that happened to you, something you saw, or the conduct of a colleague, with a file attached if you have one. It is read only by the people team, and your name is never shown to the person you report or to anyone else in the company.',
+        ],
+        [
+            'title' => 'Leave is counted in working days',
+            'description' => 'It always was, but the pages now say so. Your allowance and everything booked against it are working days at your site: weekends and non-working days are never deducted.',
+        ],
         [
             'title' => 'Requests raised for you',
             'description' => 'An approver can now file leave or lateness on behalf of someone who cannot get to the app. It still runs the usual approval chain, and it still belongs to the person it is for.',
