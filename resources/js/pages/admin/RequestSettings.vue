@@ -374,7 +374,7 @@ function toggle(type: LeaveTypeRow) {
                                     {{
                                         type.days_per_year === null
                                             ? 'Uncapped'
-                                            : `${type.days_per_year} days/year`
+                                            : `${type.days_per_year} working days/year`
                                     }}
                                 </td>
                                 <td class="px-5 py-3.5 text-muted">
@@ -558,7 +558,7 @@ function toggle(type: LeaveTypeRow) {
         <ModalShell
             :open="modalOpen"
             :title="editing ? `Edit ${editing.name}` : 'Add a leave type'"
-            subtitle="Leave the allowance blank for a type with no yearly cap."
+            subtitle="Allowances are counted in working days: non-working days at a site are never deducted. Leave it blank for a type with no yearly cap."
             @close="modalOpen = false"
         >
             <form class="space-y-4" @submit.prevent="submit">
@@ -580,7 +580,7 @@ function toggle(type: LeaveTypeRow) {
                 <div class="grid gap-4 sm:grid-cols-2">
                     <TextField
                         v-model="form.days_per_year"
-                        label="Days per year"
+                        label="Working days per year"
                         type="number"
                         min="1"
                         max="365"
@@ -589,7 +589,7 @@ function toggle(type: LeaveTypeRow) {
                     />
                     <TextField
                         v-model="form.days_per_year_manager"
-                        label="Days per year · managers"
+                        label="Working days per year · managers"
                         type="number"
                         min="1"
                         max="365"

@@ -502,7 +502,7 @@ function toggleTrail(row: LeaveRow) {
                             {{
                                 balance.allowance === null
                                     ? 'no yearly cap'
-                                    : `of ${balance.allowance} days left`
+                                    : `of ${balance.allowance} working days left`
                             }}
                         </span>
                     </div>
@@ -519,7 +519,7 @@ function toggleTrail(row: LeaveRow) {
                         />
                     </div>
                     <p class="mt-2 text-[12px] text-faint">
-                        {{ balance.used }} day{{
+                        {{ balance.used }} working day{{
                             balance.used === 1 ? '' : 's'
                         }}
                         used this year
@@ -529,7 +529,7 @@ function toggleTrail(row: LeaveRow) {
 
             <Panel
                 title="Your requests"
-                :subtitle="`${stats.pending} awaiting a decision · ${stats.approved_days} approved days in ${year}`"
+                :subtitle="`${stats.pending} awaiting a decision · ${stats.approved_days} approved working days in ${year}`"
                 flush
             >
                 <EmptyState
@@ -739,7 +739,7 @@ function toggleTrail(row: LeaveRow) {
                         :error="form.errors.end_date"
                         :hint="
                             workingDays > 0
-                                ? `${workingDays} working day(s) selected`
+                                ? `${workingDays} working day${workingDays === 1 ? '' : 's'} selected`
                                 : undefined
                         "
                     />

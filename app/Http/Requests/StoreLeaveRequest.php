@@ -335,7 +335,7 @@ class StoreLeaveRequest extends FormRequest
 
         if ($this->days() > $balance['remaining']) {
             $validator->errors()->add('leave_type_id', sprintf(
-                'That is %d day(s) of %s but you have %d left this year.',
+                'That is %d working day(s) of %s but you have %d left this year.',
                 $this->days(),
                 $type->name,
                 $balance['remaining'],

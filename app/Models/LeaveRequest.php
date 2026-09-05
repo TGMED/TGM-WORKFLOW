@@ -296,7 +296,7 @@ class LeaveRequest extends Model implements Approvable, AuditableContract
 
     public function summary(): string
     {
-        return "{$this->days} day".($this->days === 1 ? '' : 's').
+        return "{$this->days} working day".($this->days === 1 ? '' : 's').
             " of {$this->leaveType->name} from ".$this->start_date->format('j M Y');
     }
 

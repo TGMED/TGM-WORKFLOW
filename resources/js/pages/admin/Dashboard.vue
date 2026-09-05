@@ -341,7 +341,7 @@ const turnout = computed(() =>
                                 </span>
                                 <span class="tabular text-[12.5px] text-muted">
                                     {{ type.outstanding }} of
-                                    {{ type.entitled }} days left
+                                    {{ type.entitled }} working days left
                                 </span>
                             </div>
                             <div
@@ -384,7 +384,7 @@ const turnout = computed(() =>
                                     {{ row.staff }}
                                 </p>
                                 <p class="text-[12px] text-faint">
-                                    {{ row.days }} day(s) of
+                                    {{ row.days }} working day(s) of
                                     {{ row.type.toLowerCase() }} ·
                                     {{ row.range_label }}
                                     <template v-if="row.with">
