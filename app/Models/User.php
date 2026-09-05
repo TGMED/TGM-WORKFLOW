@@ -229,6 +229,17 @@ class User extends Authenticatable implements AuditableContract
     }
 
     /**
+     * Whether this person may read the reports desk. Kept beside canApprove()
+     * as a named check rather than a permission test scattered through the
+     * code, because it guards the one thing in the app that identifies a
+     * reporter to somebody other than themselves.
+     */
+    public function canHandleReports(): bool
+    {
+        return $this->hasPermission(Permission::HandleReports);
+    }
+
+    /**
      * Whether this person sits at manager level or above, which the policy
      * uses to set the larger leave entitlement. The app has no separate grade
      * to read: holding approval rights is what being a manager here means.

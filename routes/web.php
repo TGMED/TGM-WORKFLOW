@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\ClockAttemptController;
 use App\Http\Controllers\Admin\LeaveRestrictedPeriodController;
 use App\Http\Controllers\Admin\LeaveTypeController;
 use App\Http\Controllers\Admin\LocationController;
+use App\Http\Controllers\Admin\ReportController as AdminReportController;
 use App\Http\Controllers\Admin\RequestSettingsController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\StaffController;
@@ -30,6 +31,8 @@ use App\Http\Controllers\Profile\BankDetailsController;
 use App\Http\Controllers\Profile\ProfileController;
 use App\Http\Controllers\Profile\ProfilePhotoController;
 use App\Http\Controllers\Profile\RelationController;
+use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ReportEvidenceController;
 use App\Http\Controllers\Settings\NotificationSettingsController;
 use App\Http\Controllers\Settings\PushTokenController;
 use App\Http\Controllers\WhatsNewController;
@@ -92,6 +95,19 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
     // to rule on one.
     Route::get('leave/{leave}/evidence', [LeaveEvidenceController::class, 'show'])
         ->name('leave.evidence');
+
+    // Raising an incident is open to everyone who signs in, admins included:
+    // there is no group of staff whose concerns the company does not want to
+    // hear. It sits outside the `clocks-in` group below for that reason.
+    Route::get('reports', [ReportController::class, 'index'])->name('reports.index');
+    Route::post('reports', [ReportController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('reports.store');
+
+    // Guarded on the row rather than by a permission: the person who filed a
+    // report can open their own attachment, and so can the reports desk.
+    Route::get('reports/{report}/evidence', [ReportEvidenceController::class, 'show'])
+        ->name('reports.evidence');
 
     // Requests are raised by the people who work a shift, so admins, who do
     // not, only see the settings and the approval inbox.
@@ -219,6 +235,14 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
             Route::post('restricted-periods', [LeaveRestrictedPeriodController::class, 'store'])->name('restricted-periods.store');
             Route::put('restricted-periods/{restrictedPeriod}', [LeaveRestrictedPeriodController::class, 'update'])->name('restricted-periods.update');
             Route::delete('restricted-periods/{restrictedPeriod}', [LeaveRestrictedPeriodController::class, 'destroy'])->name('restricted-periods.destroy');
+        });
+
+        // The reports desk. Behind its own permission because it is the one
+        // page that identifies a reporter to somebody else; by default only
+        // super admins hold it.
+        Route::middleware('permission:reports.handle')->group(function (): void {
+            Route::get('reports', [AdminReportController::class, 'index'])->name('reports.index');
+            Route::put('reports/{report}', [AdminReportController::class, 'update'])->name('reports.update');
         });
 
         // Who may do what. Guarded by its own permission, which by default

@@ -20,6 +20,7 @@ enum Permission: string
     case ManageAnnouncements = 'announcements.manage';
     case ManageRequestSettings = 'request-settings.manage';
     case ApproveRequests = 'requests.approve';
+    case HandleReports = 'reports.handle';
     case ManageRoles = 'roles.manage';
     case ViewAuditTrail = 'audit.view';
 
@@ -34,6 +35,7 @@ enum Permission: string
             self::ManageAnnouncements => 'Manage announcements',
             self::ManageRequestSettings => 'Manage request settings',
             self::ApproveRequests => 'Decide on requests',
+            self::HandleReports => 'Read and handle incident reports',
             self::ManageRoles => 'Manage roles and permissions',
             self::ViewAuditTrail => 'See the audit trail',
         };
@@ -50,6 +52,7 @@ enum Permission: string
             self::ManageAnnouncements => 'Write and publish company notices.',
             self::ManageRequestSettings => 'Leave types, their policy rules, closed periods and approval counts.',
             self::ApproveRequests => 'The approvals inbox, and filing a request for somebody else.',
+            self::HandleReports => 'The reports desk: read what staff have raised, including who raised it, and close a case. Give this to as few people as the company can manage.',
             self::ManageRoles => 'Create roles and choose what each one may do.',
             self::ViewAuditTrail => 'Who changed what, and when. Read-only.',
         };
@@ -63,6 +66,7 @@ enum Permission: string
         return match ($this) {
             self::ViewAdminDashboard, self::ViewAttendanceReport, self::ViewClockAttempts, self::ViewAuditTrail => 'Visibility',
             self::ManageStaff, self::ManageLocations, self::ManageAnnouncements => 'People and sites',
+            self::HandleReports => 'Confidential',
             self::ManageRequestSettings, self::ApproveRequests => 'Requests',
             self::ManageRoles => 'System',
         };
