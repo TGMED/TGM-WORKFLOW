@@ -46,6 +46,18 @@ class StoreLeaveOnBehalfRequest extends StoreLeaveRequest
     }
 
     /**
+     * Cover already agreed stops somebody booking their own time off. An
+     * approver filing for them is the way through that, the same as it is
+     * through a closed period: the request is being raised precisely because
+     * the person is not going to be at their desk, so holding them to the
+     * cover they promised settles nothing.
+     */
+    protected function enforcesCoverOwed(): bool
+    {
+        return false;
+    }
+
+    /**
      * An approver filing for somebody signed off sick will not have their
      * paperwork in hand. The policy still wants it, so HR chases the document
      * separately rather than the form blocking a request nobody else can

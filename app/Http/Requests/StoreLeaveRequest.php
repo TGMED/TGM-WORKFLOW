@@ -179,6 +179,16 @@ class StoreLeaveRequest extends FormRequest
     }
 
     /**
+     * Whether cover this person has already agreed to stands in the way of
+     * the request. It does when they are booking their own time off, for the
+     * same reason a closed period does.
+     */
+    protected function enforcesCoverOwed(): bool
+    {
+        return true;
+    }
+
+    /**
      * Leave cannot be booked over a period the business has closed, unless
      * the period lets this type of leave through, or lets this person through
      * on the marital status their profile carries.
@@ -282,6 +292,10 @@ class StoreLeaveRequest extends FormRequest
      */
     protected function guardAgainstCoverAlreadyOwed(Validator $validator): void
     {
+        if (! $this->enforcesCoverOwed()) {
+            return;
+        }
+
         $clash = LeaveRequest::query()
             ->with('user:id,name')
             ->coveredBy($this->staff()->id)
