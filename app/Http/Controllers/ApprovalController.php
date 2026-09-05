@@ -79,10 +79,18 @@ class ApprovalController extends Controller
 
         $subject->refresh();
 
-        return back()->with('toast', [
+        $toast = [
             'type' => 'success',
             'message' => $this->outcomeMessage($subject, $decision, $stage),
-        ]);
+        ];
+
+        // A relief officer is only here on the strength of the cover they
+        // owe. Answering it can be the last thing waiting on them, and going
+        // "back" would then put them on a page that is no longer theirs to
+        // see. They go to their own instead, told what they just did.
+        return $request->user()->usesApprovals()
+            ? back()->with('toast', $toast)
+            : redirect()->route('dashboard')->with('toast', $toast);
     }
 
     /**

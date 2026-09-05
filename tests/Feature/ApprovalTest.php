@@ -202,6 +202,76 @@ class ApprovalTest extends TestCase
         );
     }
 
+    /**
+     * Agreeing the cover can be the last thing waiting on a relief officer,
+     * and the approvals page is not theirs once it is. Sending them "back"
+     * to it would answer the one thing they were asked for with a 403.
+     */
+    public function test_a_relief_officer_is_sent_home_once_the_cover_is_agreed(): void
+    {
+        $relief = $this->staff();
+        $leave = LeaveRequest::factory()
+            ->chained($relief, $this->approver())
+            ->create(['user_id' => $this->staff()->id]);
+
+        $this->actingAs($relief)
+            ->from('/approvals')
+            ->post("/approvals/leave/{$leave->id}", ['decision' => 'approved'])
+            ->assertRedirect('/dashboard')
+            ->assertSessionHas('toast.type', 'success');
+    }
+
+    /**
+     * An approver still has an inbox after deciding, so they stay on it.
+     */
+    public function test_an_approver_stays_on_the_inbox_after_deciding(): void
+    {
+        $leave = LeaveRequest::factory()->create(['user_id' => $this->staff()->id]);
+
+        $this->actingAs($this->approver())
+            ->from('/approvals')
+            ->post("/approvals/leave/{$leave->id}", ['decision' => 'approved'])
+            ->assertRedirect('/approvals');
+    }
+
+    /**
+     * The profile gate is about somebody using the app on a half-filled
+     * record of their own. Answering what a colleague asked of you is not
+     * that, and turning it away strands the colleague rather than the person
+     * with the unfinished profile: their leave sits with cover that cannot
+     * agree it, and they cannot hand it to anybody else.
+     */
+    public function test_an_unfinished_profile_does_not_stop_a_relief_officer_agreeing_cover(): void
+    {
+        $relief = User::factory()->withoutProfile()->create(['location_id' => $this->location->id]);
+        $leave = LeaveRequest::factory()
+            ->chained($relief, $this->approver())
+            ->create(['user_id' => $this->staff()->id]);
+
+        $this->actingAs($relief)->get('/approvals')->assertOk();
+
+        $this->actingAs($relief)
+            ->post("/approvals/leave/{$leave->id}", ['decision' => 'approved'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertTrue($leave->refresh()->load('approvals')->reliefAgreed());
+    }
+
+    /**
+     * The way out of the gate is only as wide as the reason for it. Filing a
+     * request for somebody else is using the app for yourself, so it waits
+     * for the profile like everything else does.
+     */
+    public function test_an_unfinished_profile_still_stops_an_approver_filing_for_someone(): void
+    {
+        $approver = User::factory()->approver()->withoutProfile()
+            ->create(['location_id' => $this->location->id]);
+
+        $this->actingAs($approver)
+            ->post('/approvals/on-behalf/leave', ['staff_id' => $this->staff()->id])
+            ->assertForbidden();
+    }
+
     public function test_a_relief_officer_who_declines_sends_the_request_back(): void
     {
         $relief = $this->staff();
