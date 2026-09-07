@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, watch } from 'vue';
+import { onBeforeUnmount, onMounted, watch } from 'vue';
 
 const props = withDefaults(
     defineProps<{
@@ -23,17 +23,24 @@ function onKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape') emit('close');
 }
 
-watch(
-    () => props.open,
-    (open) => {
-        document.body.style.overflow = open ? 'hidden' : '';
-        if (open) {
-            window.addEventListener('keydown', onKeydown);
-        } else {
-            window.removeEventListener('keydown', onKeydown);
-        }
-    },
-);
+function apply(open: boolean) {
+    document.body.style.overflow = open ? 'hidden' : '';
+
+    if (open) {
+        window.addEventListener('keydown', onKeydown);
+    } else {
+        window.removeEventListener('keydown', onKeydown);
+    }
+}
+
+// A modal can arrive already open — the release notes open themselves rather
+// than waiting for a click — and a watcher only fires on a change, so for
+// those this never ran at all: the page behind stayed scrollable and Escape
+// stayed unbound. The initial state is applied on mount, which is also the
+// first point at which touching `document` is safe.
+onMounted(() => apply(props.open));
+
+watch(() => props.open, apply);
 
 onBeforeUnmount(() => {
     document.body.style.overflow = '';
@@ -66,13 +73,20 @@ onBeforeUnmount(() => {
                     <div
                         v-if="open"
                         :class="[
-                            'mx-auto my-4 w-full overflow-hidden rounded-2xl border border-line bg-panel shadow-lift',
+                            'mx-auto flex w-full flex-col overflow-hidden rounded-2xl border border-line bg-panel shadow-lift',
+                            // Capped to the viewport so the header and footer
+                            // stay put and the body scrolls inside the panel.
+                            // `dvh` rather than `vh`: on a phone `vh` is the
+                            // height with the browser chrome retracted, so a
+                            // vh-capped panel hides its own footer under the
+                            // address bar.
+                            'max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-3rem)]',
                             widths[width],
                         ]"
                         @click.stop
                     >
                         <header
-                            class="flex items-start justify-between gap-4 border-b border-line-soft px-5 py-4"
+                            class="flex shrink-0 items-start justify-between gap-4 border-b border-line-soft px-5 py-4"
                         >
                             <div class="min-w-0">
                                 <h2
@@ -107,11 +121,21 @@ onBeforeUnmount(() => {
                             </button>
                         </header>
 
-                        <div class="px-5 py-5"><slot /></div>
+                        <!-- The scrolling element, and deliberately not the
+                             backdrop: the backdrop carries backdrop-blur, and
+                             a blurred scroll container is the combination
+                             mobile WebKit renders worst. `overscroll-contain`
+                             stops a swipe past the end handing the scroll to
+                             the page underneath. -->
+                        <div
+                            class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5"
+                        >
+                            <slot />
+                        </div>
 
                         <footer
                             v-if="$slots.footer"
-                            class="flex items-center justify-end gap-2 border-t border-line-soft bg-sunken/40 px-5 py-4"
+                            class="flex shrink-0 items-center justify-end gap-2 border-t border-line-soft bg-sunken/40 px-5 py-4"
                         >
                             <slot name="footer" />
                         </footer>

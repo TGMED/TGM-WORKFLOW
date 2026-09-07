@@ -1,9 +1,11 @@
 <?php
 
 use App\Http\Middleware\EnsureAccountIsActive;
+use App\Http\Middleware\EnsureImportIsPermitted;
 use App\Http\Middleware\EnsureProfileIsComplete;
 use App\Http\Middleware\EnsureUserCanApprove;
 use App\Http\Middleware\EnsureUserClocksIn;
+use App\Http\Middleware\EnsureUserHasPermission;
 use App\Http\Middleware\EnsureUserIsSuperAdmin;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Foundation\Application;
@@ -34,6 +36,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'active' => EnsureAccountIsActive::class,
             'clocks-in' => EnsureUserClocksIn::class,
             'approver' => EnsureUserCanApprove::class,
+            'permission' => EnsureUserHasPermission::class,
+            'import-permitted' => EnsureImportIsPermitted::class,
             'profile-complete' => EnsureProfileIsComplete::class,
         ]);
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\Permission;
 use App\Models\User;
 use App\Services\ApprovalService;
 use App\Support\WhatsNew;
@@ -41,7 +42,7 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         /** @var User|null $user */
-        $user = $request->user()?->loadMissing('location', 'role', 'profile');
+        $user = $request->user()?->loadMissing('location', 'role.rolePermissions', 'profile');
 
         return [
             ...parent::share($request),
@@ -59,6 +60,12 @@ class HandleInertiaRequests extends Middleware
                     'role' => $user->role->slug,
                     'role_label' => $user->role->name,
                     'is_super_admin' => $user->isSuperAdmin(),
+                    // Everything this person's role may do, so the nav and the
+                    // page buttons offer exactly the doors that will open.
+                    'permissions' => array_map(
+                        fn (Permission $permission): string => $permission->value,
+                        $user->role->permissions(),
+                    ),
                     'can_approve' => $user->canApprove(),
                     'can_use_approvals' => $user->usesApprovals(),
                     'clocks_in' => $user->clocksIn(),

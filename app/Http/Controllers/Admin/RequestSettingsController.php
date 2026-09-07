@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\LeaveAnchor;
+use App\Enums\Permission;
 use App\Enums\RequestModule;
 use App\Enums\RequestStatus;
 use App\Http\Controllers\Controller;
@@ -10,7 +12,6 @@ use App\Models\LatenessRequest;
 use App\Models\LeaveRequest;
 use App\Models\LeaveRestrictedPeriod;
 use App\Models\LeaveType;
-use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,7 +23,7 @@ class RequestSettingsController extends Controller
 {
     public function index(): Response
     {
-        $approvers = User::query()->active()->withRole(Role::APPROVER, Role::SUPER_ADMIN)->count();
+        $approvers = User::query()->active()->withPermission(Permission::ApproveRequests)->count();
 
         return Inertia::render('admin/RequestSettings', [
             'modules' => collect(RequestModule::cases())
@@ -41,6 +42,8 @@ class RequestSettingsController extends Controller
             // The pick-list the profile form writes from, so a period can
             // only ever exempt a status somebody could actually be recorded as.
             'marital_statuses' => config('profile.marital_statuses'),
+            // The dates an expiring entitlement can be counted from.
+            'leave_anchors' => LeaveAnchor::options(),
             // A threshold higher than the number of approvers on staff would
             // leave every request stuck, so the page warns about it.
             'approver_count' => $approvers,
@@ -132,6 +135,12 @@ class RequestSettingsController extends Controller
                 'name' => $type->name,
                 'description' => $type->description,
                 'days_per_year' => $type->days_per_year,
+                'days_per_year_manager' => $type->days_per_year_manager,
+                'min_service_months' => $type->min_service_months,
+                'requires_confirmed' => $type->requires_confirmed,
+                'requires_evidence' => $type->requires_evidence,
+                'anchor' => $type->anchor?->value,
+                'window_months' => $type->window_months,
                 'is_paid' => $type->is_paid,
                 'is_active' => $type->is_active,
                 'requests' => (int) ($inUse[$type->id] ?? 0),

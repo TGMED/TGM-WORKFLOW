@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
+use OwenIt\Auditing\Auditable;
+use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
 
 /**
  * A notice shown to everyone on the dashboard.
@@ -27,8 +29,10 @@ use Illuminate\Support\Str;
  * @property-read User|null $author
  */
 #[Fillable(['user_id', 'title', 'body', 'is_pinned', 'published_at', 'expires_at', 'notified_at'])]
-class Announcement extends Model
+class Announcement extends Model implements AuditableContract
 {
+    use Auditable;
+
     /** @use HasFactory<AnnouncementFactory> */
     use HasFactory;
 

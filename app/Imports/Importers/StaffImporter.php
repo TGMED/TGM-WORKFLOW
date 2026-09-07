@@ -1,0 +1,265 @@
+<?php
+
+namespace App\Imports\Importers;
+
+use App\Enums\EmploymentStatus;
+use App\Enums\ImportDuplicates;
+use App\Enums\Permission;
+use App\Imports\BaseImporter;
+use App\Imports\ImportColumn;
+use App\Imports\ImportResult;
+use App\Imports\ImportRow;
+use App\Models\Location;
+use App\Models\Role;
+use App\Models\User;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+
+/**
+ * The people. Everything after this in the running order hangs off a row
+ * loaded here.
+ *
+ * Passwords are the awkward part of a bulk load: a file of them is a file
+ * nobody should be emailing around, and a blank column cannot become a blank
+ * password. A row without one gets a long random password it is not told, so
+ * the account exists and is reached through the forgotten-password flow.
+ */
+class StaffImporter extends BaseImporter
+{
+    public function key(): string
+    {
+        return 'staff';
+    }
+
+    public function label(): string
+    {
+        return 'Staff';
+    }
+
+    public function description(): string
+    {
+        return 'The people on the books: who they are, what they do, which site they clock in at and which role they hold.';
+    }
+
+    public function permission(): Permission
+    {
+        return Permission::ManageStaff;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function dependsOn(): array
+    {
+        return ['locations', 'roles'];
+    }
+
+    public function matchedOn(): string
+    {
+        return 'the email address, case-insensitively';
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function notes(): array
+    {
+        return [
+            'Leave the password column out of the file. Anyone imported without one is given a long random password nobody is told, and reaches their account through the forgotten-password link on the sign-in page.',
+            'Everyone who works a shift belongs to a site. Only super admins may be imported without one, since they run the system rather than punch a clock.',
+            'Staff arrive on probation unless the file says otherwise. Set employment_status to confirmed for anyone already past it, and give the date they were confirmed.',
+            'Nobody is deactivated by leaving them out of the file. Set is_active to no on the row to deactivate somebody; the import never touches a record no row names.',
+            'This sheet does not carry the HR record — date of birth, bank details, next of kin. Those come in on the employee profiles, addresses and relations sheets.',
+        ];
+    }
+
+    /**
+     * @return array<int, ImportColumn>
+     */
+    public function columns(): array
+    {
+        return [
+            ImportColumn::required('email', 'Work email. This is what a row is matched on and what the person signs in with.', 'ada.eze@example.com', format: 'Email address'),
+            ImportColumn::required('name', 'Full name, as it should appear on screen.', 'Ada Eze'),
+            ImportColumn::make('employee_id', 'The staff ID the company issues. Must be unique, and is what the other sheets point at.', 'TGM-0148'),
+            ImportColumn::make('phone', 'Primary phone number.', '+2348012345678'),
+            ImportColumn::make('department', 'The department this person sits in.', 'Operations'),
+            ImportColumn::make('position', 'Their job title.', 'Warehouse Supervisor'),
+            ImportColumn::make(
+                'role',
+                'The role they hold, by slug. Left blank a new person is given staff.',
+                Role::STAFF,
+                format: 'Role slug',
+            ),
+            ImportColumn::make(
+                'location',
+                'The site they clock in at, by name or by ID. Required for everyone but super admins.',
+                'TGM Ikeja',
+                format: 'Site name or ID',
+            ),
+            ImportColumn::make('hired_at', 'The day they started. Service-based leave rules are counted from this.', '2024-03-01', format: 'Date'),
+            ImportColumn::make(
+                'employment_status',
+                'Whether probation has been passed. New staff arrive on probation unless this says otherwise.',
+                EmploymentStatus::Probation->value,
+                format: 'probation or confirmed',
+                accepts: array_column(EmploymentStatus::cases(), 'value'),
+            ),
+            ImportColumn::make('confirmed_at', 'The day probation was passed, which a confirmation letter quotes.', '2024-09-01', format: 'Date'),
+            ImportColumn::boolean('is_active', 'Whether they may sign in.'),
+        ];
+    }
+
+    public function import(ImportRow $row, ImportDuplicates $duplicates, ImportResult $result): void
+    {
+        $email = $row->string('email');
+
+        $existing = $email === null
+            ? null
+            : User::query()->whereRaw('LOWER(email) = ?', [mb_strtolower($email)])->first();
+
+        if ($existing !== null && $duplicates === ImportDuplicates::Skip) {
+            $result->skipped();
+
+            return;
+        }
+
+        if ($existing !== null && $duplicates === ImportDuplicates::Reject) {
+            $this->reject("{$email} is already on the staff list.");
+        }
+
+        $roleSlug = $row->string('role');
+        $role = $this->role($roleSlug, $existing);
+
+        $data = $this->validate(
+            [
+                'email' => $email,
+                'name' => $row->string('name'),
+                'employee_id' => $row->string('employee_id'),
+                'phone' => $row->string('phone'),
+                'department' => $row->string('department'),
+                'position' => $row->string('position'),
+                'hired_at' => $row->date('hired_at')?->toDateString(),
+                'employment_status' => $row->string('employment_status'),
+                'confirmed_at' => $row->date('confirmed_at')?->toDateString(),
+                'is_active' => $row->boolean('is_active'),
+            ],
+            [
+                'email' => ['required', 'string', 'email', 'max:190', Rule::unique('users', 'email')->ignore($existing?->id)],
+                'name' => [$existing === null ? 'required' : 'nullable', 'string', 'max:120'],
+                'employee_id' => ['nullable', 'string', 'max:40', Rule::unique('users', 'employee_id')->ignore($existing?->id)],
+                'phone' => ['nullable', 'string', 'max:30'],
+                'department' => ['nullable', 'string', 'max:80'],
+                'position' => ['nullable', 'string', 'max:80'],
+                'hired_at' => ['nullable', 'date', 'before_or_equal:today'],
+                'employment_status' => ['nullable', Rule::enum(EmploymentStatus::class)],
+                'confirmed_at' => ['nullable', 'date'],
+                'is_active' => ['nullable', 'boolean'],
+            ],
+            [
+                'email.unique' => 'Another member of staff already uses that email.',
+                'employee_id.unique' => 'That staff ID already belongs to someone else.',
+                'hired_at.before_or_equal' => 'A start date in the future is not something the leave rules can count service from.',
+            ],
+        );
+
+        $data['role_id'] = $role->id;
+        $data['location_id'] = $this->locationId($row, $role, $existing);
+
+        // Deactivating somebody has a second half: the app reads the date to
+        // say when they were let go, and a reactivation has to clear it.
+        if (array_key_exists('is_active', $data) && $data['is_active'] !== null) {
+            $data['deactivated_at'] = $data['is_active'] ? null : Carbon::now();
+        }
+
+        if ($existing !== null) {
+            $existing->update($this->presentKeepingNulls($data));
+            $result->updated();
+
+            return;
+        }
+
+        User::query()->create([
+            ...$this->presentKeepingNulls($data),
+            // Never a value from the file. A password column would put every
+            // new starter's credentials in a spreadsheet somebody emails.
+            'password' => Str::password(32),
+        ]);
+
+        $result->created();
+    }
+
+    /**
+     * The role a row names, or the one the person already holds. A new
+     * starter with nothing in the column is staff, which is what an import
+     * of a headcount file almost always means.
+     */
+    private function role(?string $slug, ?User $existing): Role
+    {
+        if ($slug === null) {
+            $slug = $existing?->role->slug ?? Role::STAFF;
+        }
+
+        $role = Role::query()->where('slug', $slug)->first();
+
+        if ($role === null) {
+            $this->reject("No role has the slug {$slug}. Import the roles sheet first, or use one of: ".implode(', ', Role::query()->orderBy('slug')->pluck('slug')->all()).'.');
+        }
+
+        return $role;
+    }
+
+    /**
+     * The site, by name or by ID. Everyone who works a shift needs one; a
+     * super admin runs the system rather than clocks in, so theirs is
+     * optional.
+     */
+    private function locationId(ImportRow $row, Role $role, ?User $existing): ?int
+    {
+        $given = $row->string('location');
+
+        if ($given === null) {
+            $current = $existing?->location_id;
+
+            if ($current === null && $role->slug !== Role::SUPER_ADMIN) {
+                $this->reject('Give the site this person clocks in at. Only super admins may be imported without one.');
+            }
+
+            return $current;
+        }
+
+        $location = Location::query()
+            ->when(
+                ctype_digit($given),
+                fn ($query) => $query->where('id', (int) $given),
+                fn ($query) => $query->whereRaw('LOWER(name) = ?', [mb_strtolower($given)]),
+            )
+            ->first();
+
+        if ($location === null) {
+            $this->reject("No site is called {$given}. Import the sites sheet first.");
+        }
+
+        return $location->id;
+    }
+
+    /**
+     * Like present(), but keeps a deliberate null: deactivated_at is set to
+     * null on purpose when somebody is reactivated, and dropping it would
+     * leave the old date on the record.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function presentKeepingNulls(array $data): array
+    {
+        $keep = ['deactivated_at', 'location_id', 'role_id'];
+
+        return array_filter(
+            $data,
+            fn (mixed $value, string $key): bool => $value !== null || in_array($key, $keep, true),
+            ARRAY_FILTER_USE_BOTH,
+        );
+    }
+}

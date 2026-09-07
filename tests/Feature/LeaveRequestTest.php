@@ -438,6 +438,37 @@ class LeaveRequestTest extends TestCase
         $this->assertSame(0, LeaveRequest::query()->coveredBy($relief->id)->count());
     }
 
+    /**
+     * Somebody who has agreed to hold the fort has to be there to do it, so
+     * their own leave cannot land on the days they promised to cover.
+     */
+    public function test_cover_already_agreed_blocks_the_relief_officer_booking_those_days(): void
+    {
+        $cover = $this->staff();
+        $monday = Carbon::now()->addWeek()->startOfWeek();
+        $covered = LeaveRequest::factory()
+            ->chained($cover, User::factory()->approver()->create())
+            ->create([
+                'user_id' => $this->staff()->id,
+                'leave_type_id' => $this->annual()->id,
+                'start_date' => $monday,
+                'end_date' => $monday->copy()->addDays(2),
+            ]);
+
+        app(ApprovalService::class)->decide($covered, $cover, ApprovalDecision::Approved);
+
+        $this->actingAs($cover)
+            ->post('/leave', [
+                ...$this->chain(),
+                'leave_type_id' => $this->annual()->id,
+                'start_date' => $monday->toDateString(),
+                'end_date' => $monday->copy()->addDays(2)->toDateString(),
+            ])
+            ->assertSessionHasErrors('start_date');
+
+        $this->assertSame(0, LeaveRequest::query()->where('user_id', $cover->id)->count());
+    }
+
     public function test_staff_cannot_change_someone_elses_request(): void
     {
         $leave = LeaveRequest::factory()

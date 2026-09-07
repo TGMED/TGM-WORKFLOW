@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\EmploymentStatus;
 use App\Models\EmployeeProfile;
 use App\Models\Role;
 use App\Models\User;
@@ -39,7 +40,12 @@ class UserFactory extends Factory
                 'Engineering', 'Operations', 'Finance', 'People', 'Sales', 'Support',
             ]),
             'position' => fake()->jobTitle(),
-            'hired_at' => fake()->dateTimeBetween('-4 years', '-1 month'),
+            // Far enough back to clear every service gate the policy sets, so
+            // a test that does not care about length of service is never
+            // turned away by one. Tests that do care set the date themselves.
+            'hired_at' => fake()->dateTimeBetween('-4 years', '-2 years'),
+            'employment_status' => EmploymentStatus::Confirmed,
+            'confirmed_at' => fake()->dateTimeBetween('-4 years', '-1 month'),
             'is_active' => true,
         ];
     }
@@ -109,5 +115,25 @@ class UserFactory extends Factory
             'is_active' => false,
             'deactivated_at' => now()->subDays(fake()->numberBetween(1, 60)),
         ]);
+    }
+
+    /**
+     * Somebody still inside their probation, which the policy closes a few
+     * leave types to.
+     */
+    public function onProbation(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'employment_status' => EmploymentStatus::Probation,
+            'confirmed_at' => null,
+        ]);
+    }
+
+    /**
+     * Somebody who started on the day given, for the service-length rules.
+     */
+    public function hiredOn(string $date): static
+    {
+        return $this->state(fn (array $attributes) => ['hired_at' => $date]);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\Permission;
 use App\Enums\RequestModule;
 use App\Enums\RequestStatus;
 use App\Http\Requests\StoreLeaveRequest;
@@ -9,10 +10,10 @@ use App\Http\Requests\UpdateLeaveRequest;
 use App\Models\ApprovalSetting;
 use App\Models\LeaveRequest;
 use App\Models\LeaveRestrictedPeriod;
-use App\Models\Role;
 use App\Models\User;
 use App\Services\ApprovalService;
 use App\Services\LeaveBalance;
+use App\Services\LeaveEvidence;
 use App\Services\RequestNotifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,6 +27,7 @@ class LeaveRequestController extends Controller
         protected LeaveBalance $balances,
         protected ApprovalService $approvals,
         protected RequestNotifier $notifier,
+        protected LeaveEvidence $evidence,
     ) {}
 
     public function index(Request $request): Response
@@ -82,6 +84,10 @@ class LeaveRequestController extends Controller
             'approvals_required' => ApprovalSetting::approversRequired(RequestModule::Leave),
         ]);
 
+        if ($request->hasFile('evidence')) {
+            $this->evidence->attach($leave, $request->file('evidence'));
+        }
+
         $leave->load('leaveType', 'reliefOfficer');
 
         $this->notifier->raised($leave);
@@ -131,6 +137,10 @@ class LeaveRequestController extends Controller
                 'decided_at' => null,
             ] : [],
         ]);
+
+        if ($request->hasFile('evidence')) {
+            $this->evidence->attach($leave, $request->file('evidence'));
+        }
 
         $leave->load('leaveType', 'reliefOfficer');
 
@@ -234,7 +244,7 @@ class LeaveRequestController extends Controller
     {
         return User::query()
             ->active()
-            ->withRole(Role::APPROVER, Role::SUPER_ADMIN)
+            ->withPermission(Permission::ApproveRequests)
             ->whereKeyNot($user->id)
             ->orderBy('name')
             ->get(['id', 'name', 'position'])
@@ -305,6 +315,11 @@ class LeaveRequestController extends Controller
             'range_label' => $leave->start_date->format('j M Y').' to '.$leave->end_date->format('j M Y'),
             'days' => $leave->days,
             'reason' => $leave->reason,
+            'has_evidence' => $leave->hasEvidence(),
+            'evidence_name' => $leave->evidence_name,
+            'evidence_url' => $leave->hasEvidence()
+                ? route('leave.evidence', $leave)
+                : null,
             'status' => $leave->status->value,
             'status_label' => $leave->status->label(),
             'status_tone' => $leave->status->tone(),

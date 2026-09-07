@@ -715,7 +715,7 @@ const statusPill = computed(() => {
                                     <span class="text-text">
                                         {{ leave.next.range_label }}
                                     </span>
-                                    ({{ leave.next.days }} day{{
+                                    ({{ leave.next.days }} working day{{
                                         leave.next.days === 1 ? '' : 's'
                                     }})
                                 </template>

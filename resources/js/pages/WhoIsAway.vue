@@ -251,7 +251,7 @@ function backLabel(person: Person): string {
                                 class="tabular mt-0.5 font-mono text-[11.5px] text-faint"
                             >
                                 {{ person.days_left }} of
-                                {{ person.days }} day{{
+                                {{ person.days }} working day{{
                                     person.days === 1 ? '' : 's'
                                 }}
                                 left
@@ -314,7 +314,8 @@ function backLabel(person: Person): string {
                                 <span
                                     class="block truncate text-[11.5px] text-faint"
                                 >
-                                    {{ person.type }} · {{ person.days }} day{{
+                                    {{ person.type }} ·
+                                    {{ person.days }} working day{{
                                         person.days === 1 ? '' : 's'
                                     }}
                                 </span>

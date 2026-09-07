@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
+use OwenIt\Auditing\Auditable;
+use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
 
 /**
  * A place staff clock in at. Each site owns its own geofence and working day,
@@ -51,8 +53,10 @@ use Illuminate\Support\Carbon;
     'is_active',
     'accepts_signups',
 ])]
-class Location extends Model
+class Location extends Model implements AuditableContract
 {
+    use Auditable;
+
     /** @use HasFactory<LocationFactory> */
     use HasFactory;
 

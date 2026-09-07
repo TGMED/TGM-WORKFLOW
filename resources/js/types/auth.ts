@@ -4,6 +4,23 @@ import type { WhatsNewNotes } from './notifications';
 // while leaving room for any added later.
 export type Role = 'super_admin' | 'approver' | 'staff' | (string & {});
 
+// Mirrors App\Enums\Permission. The catalogue is code on both sides, since
+// each entry guards a route that only exists in code.
+export type Permission =
+    | 'admin.dashboard'
+    | 'staff.manage'
+    | 'locations.manage'
+    | 'attendance.report'
+    | 'clock-attempts.view'
+    | 'announcements.manage'
+    | 'request-settings.manage'
+    | 'requests.approve'
+    | 'payroll.manage'
+    | 'reports.handle'
+    | 'data.import'
+    | 'roles.manage'
+    | 'audit.view';
+
 export type UserLocation = {
     id: number;
     name: string;
@@ -22,6 +39,8 @@ export type AuthUser = {
     role: Role;
     role_label: string;
     is_super_admin: boolean;
+    /** Everything this person's role may do. */
+    permissions: Permission[];
     can_approve: boolean;
     can_use_approvals: boolean;
     clocks_in: boolean;

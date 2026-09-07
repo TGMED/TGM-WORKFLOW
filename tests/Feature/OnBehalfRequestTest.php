@@ -2,11 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Enums\ApprovalDecision;
 use App\Models\LatenessRequest;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\Location;
 use App\Models\User;
+use App\Services\ApprovalService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -59,6 +61,37 @@ class OnBehalfRequestTest extends TestCase
             'end_date' => $monday->copy()->addDays(2)->toDateString(),
             'reason' => 'Signed off by the clinic for three days.',
         ];
+    }
+
+    /**
+     * Cover already agreed stops the relief officer booking those days
+     * themselves. An approver filing for them is the way through it: the
+     * request is raised precisely because they will not be at their desk.
+     */
+    public function test_an_approver_can_file_leave_for_someone_who_owes_cover(): void
+    {
+        $cover = $this->staff();
+        $approver = $this->approver();
+        $monday = Carbon::now()->addWeek()->startOfWeek();
+
+        $covered = LeaveRequest::factory()
+            ->chained($cover, $this->approver())
+            ->create([
+                'user_id' => $this->staff()->id,
+                'leave_type_id' => $this->annual()->id,
+                'start_date' => $monday,
+                'end_date' => $monday->copy()->addDays(2),
+            ]);
+
+        app(ApprovalService::class)->decide($covered, $cover, ApprovalDecision::Approved);
+
+        $this->assertSame(1, LeaveRequest::query()->coveredBy($cover->id)->count());
+
+        $this->actingAs($approver)
+            ->post('/approvals/on-behalf/leave', $this->leavePayload($cover, $approver))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(1, LeaveRequest::query()->where('user_id', $cover->id)->count());
     }
 
     public function test_an_approver_can_raise_leave_for_a_member_of_staff(): void

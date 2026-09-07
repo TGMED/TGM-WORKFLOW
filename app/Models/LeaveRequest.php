@@ -16,6 +16,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
+use OwenIt\Auditing\Auditable;
+use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
 
 /**
  * Time off asked for by a member of staff.
@@ -30,6 +32,8 @@ use Illuminate\Support\Carbon;
  * @property Carbon $end_date
  * @property int $days
  * @property string|null $reason
+ * @property string|null $evidence_path
+ * @property string|null $evidence_name
  * @property RequestStatus $status
  * @property int $approvals_required
  * @property int $round
@@ -52,13 +56,16 @@ use Illuminate\Support\Carbon;
     'end_date',
     'days',
     'reason',
+    'evidence_path',
+    'evidence_name',
     'status',
     'approvals_required',
     'round',
     'decided_at',
 ])]
-class LeaveRequest extends Model implements Approvable
+class LeaveRequest extends Model implements Approvable, AuditableContract
 {
+    use Auditable;
     use HasApprovals;
 
     /** @use HasFactory<LeaveRequestFactory> */
@@ -256,6 +263,27 @@ class LeaveRequest extends Model implements Approvable
         return 'Awaiting a further approval';
     }
 
+    /**
+     * Whether the supporting document the policy asks for is on file.
+     */
+    public function hasEvidence(): bool
+    {
+        return $this->evidence_path !== null;
+    }
+
+    /**
+     * Who may open the attachment: the person it is about, whoever filed it
+     * for them, and anyone the request is waiting on or has already been
+     * ruled on by. Medical and bereavement paperwork goes no wider than that.
+     */
+    public function evidenceVisibleTo(User $user): bool
+    {
+        return $this->user_id === $user->id
+            || $this->raised_by_id === $user->id
+            || $this->awaitsDecisionFrom($user)
+            || $this->wasDecidedBy($user);
+    }
+
     public function module(): RequestModule
     {
         return RequestModule::Leave;
@@ -268,7 +296,7 @@ class LeaveRequest extends Model implements Approvable
 
     public function summary(): string
     {
-        return "{$this->days} day".($this->days === 1 ? '' : 's').
+        return "{$this->days} working day".($this->days === 1 ? '' : 's').
             " of {$this->leaveType->name} from ".$this->start_date->format('j M Y');
     }
 

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\EmploymentStatus;
+use App\Enums\Permission;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -13,6 +15,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
+use OwenIt\Auditing\Auditable;
+use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
 
 /**
  * @property int $id
@@ -24,6 +28,8 @@ use Illuminate\Support\Carbon;
  * @property string|null $department
  * @property string|null $position
  * @property Carbon|null $hired_at
+ * @property EmploymentStatus $employment_status
+ * @property Carbon|null $confirmed_at
  * @property bool $is_active
  * @property Carbon|null $deactivated_at
  * @property int|null $location_id
@@ -36,6 +42,7 @@ use Illuminate\Support\Carbon;
  * @property-read Location|null $location
  * @property-read Role $role
  * @property-read EmployeeProfile|null $profile
+ * @property-read SalaryProfile|null $salaryProfile
  */
 #[Fillable([
     'employee_id',
@@ -47,14 +54,18 @@ use Illuminate\Support\Carbon;
     'department',
     'position',
     'hired_at',
+    'employment_status',
+    'confirmed_at',
     'is_active',
     'deactivated_at',
     'location_id',
     'whats_new_seen',
 ])]
 #[Hidden(['password', 'remember_token'])]
-class User extends Authenticatable
+class User extends Authenticatable implements AuditableContract
 {
+    use Auditable;
+
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
@@ -75,6 +86,8 @@ class User extends Authenticatable
             'password' => 'hashed',
             'role_id' => 'integer',
             'hired_at' => 'date',
+            'employment_status' => EmploymentStatus::class,
+            'confirmed_at' => 'date',
             'is_active' => 'boolean',
             'deactivated_at' => 'datetime',
             'location_id' => 'integer',
@@ -164,6 +177,25 @@ class User extends Authenticatable
     }
 
     /**
+     * What this person is paid. Separate from the HR profile because the HR
+     * profile is theirs to edit and this is not.
+     *
+     * @return HasOne<SalaryProfile, $this>
+     */
+    public function salaryProfile(): HasOne
+    {
+        return $this->hasOne(SalaryProfile::class);
+    }
+
+    /**
+     * @return HasMany<Payslip, $this>
+     */
+    public function payslips(): HasMany
+    {
+        return $this->hasMany(Payslip::class);
+    }
+
+    /**
      * @return HasMany<LeaveRequest, $this>
      */
     public function leaveRequests(): HasMany
@@ -195,12 +227,69 @@ class User extends Authenticatable
     }
 
     /**
-     * Approvers decide on requests. Super admins can step in when an approver
-     * is away, so they carry the same right.
+     * Whether this person's role has been granted something. Super admins hold
+     * the whole catalogue implicitly, so the system cannot be locked out of
+     * itself by an unlucky edit on the roles page.
+     */
+    public function hasPermission(Permission $permission): bool
+    {
+        $this->loadMissing('role.rolePermissions');
+
+        return $this->role->hasPermission($permission);
+    }
+
+    /**
+     * Anyone whose role may decide on requests. Which roles those are is set
+     * on the roles page rather than fixed here, so a new role can be given the
+     * approvals inbox without a deploy.
      */
     public function canApprove(): bool
     {
-        return $this->hasRole(Role::APPROVER, Role::SUPER_ADMIN);
+        return $this->hasPermission(Permission::ApproveRequests);
+    }
+
+    /**
+     * Whether this person may read the reports desk. Kept beside canApprove()
+     * as a named check rather than a permission test scattered through the
+     * code, because it guards the one thing in the app that identifies a
+     * reporter to somebody other than themselves.
+     */
+    public function canHandleReports(): bool
+    {
+        return $this->hasPermission(Permission::HandleReports);
+    }
+
+    /**
+     * Whether this person sits at manager level or above, which the policy
+     * uses to set the larger leave entitlement. The app has no separate grade
+     * to read: holding approval rights is what being a manager here means.
+     */
+    public function isManagerOrAbove(): bool
+    {
+        return $this->canApprove();
+    }
+
+    /**
+     * Whether probation has been passed. Somebody with no start date on file
+     * is taken at their recorded status rather than guessed at.
+     */
+    public function isConfirmed(): bool
+    {
+        return $this->employment_status === EmploymentStatus::Confirmed;
+    }
+
+    /**
+     * Whole months served, counted from the start date. Null when no start
+     * date is on file, which leaves a service rule unenforceable rather than
+     * shutting somebody out on a blank field.
+     */
+    public function serviceMonths(?Carbon $on = null): ?int
+    {
+        if ($this->hired_at === null) {
+            return null;
+        }
+
+        return (int) $this->hired_at->diffInMonths($on ?? Carbon::now());
     }
 
     /**
@@ -309,6 +398,18 @@ class User extends Authenticatable
     public function scopeWithRole(Builder $query, string ...$slugs): void
     {
         $query->whereHas('role', fn (Builder $q) => $q->whereIn('slug', $slugs));
+    }
+
+    /**
+     * Everyone whose role holds a permission, super admins included. Used
+     * wherever a list of possible approvers is needed, so the list follows the
+     * roles page rather than a hard-coded pair of slugs.
+     *
+     * @param  Builder<User>  $query
+     */
+    public function scopeWithPermission(Builder $query, Permission $permission): void
+    {
+        $query->whereIn('role_id', Role::idsWithPermission($permission));
     }
 
     /**

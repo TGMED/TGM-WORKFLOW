@@ -14,13 +14,41 @@ return [
     |
     */
 
-    'version' => '2026.08',
+    'version' => '2026.09.1',
 
     'title' => "What's new",
 
     'lede' => 'A few things have landed since you were last here.',
 
     'features' => [
+        [
+            'title' => 'A sidebar you can find things in',
+            'description' => 'The administration pages now sit in groups — People, Attendance, Finance and System — rather than one long run. A group opens on the page you are on, and stays shut if you would rather it were.',
+        ],
+        [
+            'title' => 'Cover reaches whoever you named',
+            'description' => 'Anyone can be asked to hold your desk while you are away. Being named now reaches them even where they have not finished their own profile, so your leave is no longer held up by somebody else\'s paperwork.',
+        ],
+        [
+            'title' => 'Leave for somebody who owes cover',
+            'description' => 'Agreeing to cover a colleague still stops you booking those same days off yourself. An approver filing on your behalf is now the way through that, as it already was for a closed period.',
+        ],
+        [
+            'title' => 'Import from a spreadsheet',
+            'description' => 'Administrators can now load sites, staff, HR records, salaries and past attendance in bulk from a CSV. Every sheet comes with a template and a reference, and a file is checked and reported on before anything is written.',
+        ],
+        [
+            'title' => 'Payslips',
+            'description' => 'Your pay, month by month, with every line of it shown: what you earned, what came off, and what reached your account. Each one prints on its own if you need a copy.',
+        ],
+        [
+            'title' => 'Report an incident',
+            'description' => 'Raise something that happened to you, something you saw, or the conduct of a colleague, with a file attached if you have one. It is read only by the people team, and your name is never shown to the person you report or to anyone else in the company.',
+        ],
+        [
+            'title' => 'Leave is counted in working days',
+            'description' => 'It always was, but the pages now say so. Your allowance and everything booked against it are working days at your site: weekends and non-working days are never deducted.',
+        ],
         [
             'title' => 'Requests raised for you',
             'description' => 'An approver can now file leave or lateness on behalf of someone who cannot get to the app. It still runs the usual approval chain, and it still belongs to the person it is for.',

@@ -13,12 +13,21 @@ class EnsureProfileIsComplete
      * would leave them stuck otherwise: the profile pages themselves, changing
      * a password, and getting back out.
      *
+     * Deciding on a request is here for somebody else's sake. A person named
+     * as cover, or as the approver, holds a colleague's leave up for as long
+     * as they cannot answer it, and the colleague has no way to hand it to
+     * anybody else. Answering what was asked of you is not the same as using
+     * the app on a half-filled record, so it goes through. Filing a request
+     * for somebody else is, and stays behind the gate.
+     *
      * @var list<string>
      */
     protected const ALLOWED = [
         'profile.*',
         'password.*',
         'logout',
+        'approvals.index',
+        'approvals.store',
     ];
 
     /**

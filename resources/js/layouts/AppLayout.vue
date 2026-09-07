@@ -7,7 +7,7 @@ import ToastHost from '@/components/ui/ToastHost.vue';
 import WhatsNewModal from '@/components/WhatsNewModal.vue';
 import { useAppearance } from '@/composables/useAppearance';
 import { useToasts } from '@/composables/useToasts';
-import type { SharedProps } from '@/types';
+import type { Permission, SharedProps } from '@/types';
 
 defineProps<{ heading?: string; lede?: string }>();
 
@@ -21,9 +21,11 @@ const userMenuOpen = ref(false);
 
 type NavItem = {
     label: string;
-    href: string;
+    /** Absent on a group, which heads pages rather than being one. */
+    href?: string;
     icon: string;
-    adminOnly?: boolean;
+    /** Hidden unless the person's role holds this. */
+    permission?: Permission;
     staffOnly?: boolean;
     approverOnly?: boolean;
     badge?: () => number;
@@ -68,6 +70,16 @@ const nav: NavItem[] = [
         icon: 'M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20M9 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM16.5 8.5h5',
     },
     {
+        label: 'Payslips',
+        href: '/payslips',
+        icon: 'M6 3.5h12A1.5 1.5 0 0 1 19.5 5v15.5l-2.5-1.5-2.5 1.5-2.5-1.5-2.5 1.5-2.5-1.5V5A1.5 1.5 0 0 1 6 3.5ZM9 8h6M9 11.5h6M9 15h3',
+    },
+    {
+        label: 'Report an incident',
+        href: '/reports',
+        icon: 'M12 8.5v4m0 3h.01M10.6 3.9 2.5 18a1.5 1.5 0 0 0 1.3 2.3h16.4a1.5 1.5 0 0 0 1.3-2.3L13.4 3.9a1.6 1.6 0 0 0-2.8 0Z',
+    },
+    {
         label: 'Approvals',
         href: '/approvals',
         approverOnly: true,
@@ -75,80 +87,212 @@ const nav: NavItem[] = [
         icon: 'M9 12.5 11 14.5 15.5 10M6 3.5h12A1.5 1.5 0 0 1 19.5 5v15.5l-3.5-2-4 2-4-2-3.5 2V5A1.5 1.5 0 0 1 6 3.5Z',
     },
     {
-        label: 'Staff',
-        href: '/admin/staff',
-        adminOnly: true,
-        icon: 'M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20M9 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM22 20v-1.5a4 4 0 0 0-3-3.87M16 3.63a4 4 0 0 1 0 7.75',
+        label: 'Admin console',
+        href: '/admin',
+        permission: 'admin.dashboard',
+        icon: 'M3.5 5A1.5 1.5 0 0 1 5 3.5h14A1.5 1.5 0 0 1 20.5 5v14a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 19V5Zm3.5 10.5 3-3.5 2.5 2.5 4-5',
     },
     {
-        label: 'Locations',
-        href: '/admin/locations',
-        adminOnly: true,
-        icon: 'M12 21s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11Zm0-8.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
+        label: 'People',
+        icon: 'M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20M9 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM22 20v-1.5a4 4 0 0 0-3-3.87M16 3.63a4 4 0 0 1 0 7.75',
+        children: [
+            {
+                label: 'Staff',
+                href: '/admin/staff',
+                permission: 'staff.manage',
+                icon: 'M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20M9 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM22 20v-1.5a4 4 0 0 0-3-3.87M16 3.63a4 4 0 0 1 0 7.75',
+            },
+            {
+                label: 'Announcements',
+                href: '/admin/announcements',
+                permission: 'announcements.manage',
+                icon: 'M3.5 10.5v3a1.5 1.5 0 0 0 1.5 1.5h2l5 4V5l-5 4H5a1.5 1.5 0 0 0-1.5 1.5Zm13-1.5a5 5 0 0 1 0 6',
+            },
+            {
+                label: 'Reports desk',
+                href: '/admin/reports',
+                permission: 'reports.handle',
+                icon: 'M12 8.5v4m0 3h.01M10.6 3.9 2.5 18a1.5 1.5 0 0 0 1.3 2.3h16.4a1.5 1.5 0 0 0 1.3-2.3L13.4 3.9a1.6 1.6 0 0 0-2.8 0Z',
+            },
+        ],
     },
     {
         label: 'Attendance',
-        href: '/admin/attendance',
-        adminOnly: true,
         icon: 'M8 3v3m8-3v3M3.5 9.5h17M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v12A1.5 1.5 0 0 1 19 20.5H5A1.5 1.5 0 0 1 3.5 19V7A1.5 1.5 0 0 1 5 5.5Zm3.5 7.5 2 2 4.5-4.5',
+        children: [
+            {
+                label: 'Timesheets',
+                href: '/admin/attendance',
+                permission: 'attendance.report',
+                icon: 'M8 3v3m8-3v3M3.5 9.5h17M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v12A1.5 1.5 0 0 1 19 20.5H5A1.5 1.5 0 0 1 3.5 19V7A1.5 1.5 0 0 1 5 5.5Zm3.5 7.5 2 2 4.5-4.5',
+            },
+            {
+                label: 'Clock attempts',
+                href: '/admin/clock-attempts',
+                permission: 'clock-attempts.view',
+                icon: 'M12 8v4l2.5 2.5M3.5 12a8.5 8.5 0 1 0 17 0 8.5 8.5 0 0 0-17 0Z',
+            },
+            {
+                label: 'Locations',
+                href: '/admin/locations',
+                permission: 'locations.manage',
+                icon: 'M12 21s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11Zm0-8.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
+            },
+            {
+                label: 'Request settings',
+                href: '/admin/request-settings',
+                permission: 'request-settings.manage',
+                icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm7.4-3a7.4 7.4 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7.4 7.4 0 0 0-2-1.2L14.5 3h-4l-.4 2.6a7.4 7.4 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.5a7.4 7.4 0 0 0 0 2.5l-2 1.5 2 3.4 2.4-1a7.4 7.4 0 0 0 2 1.2l.4 2.6h4l.4-2.6a7.4 7.4 0 0 0 2-1.2l2.4 1 2-3.4-2-1.5c.05-.4.1-.8.1-1.2Z',
+            },
+        ],
     },
     {
-        label: 'Clock attempts',
-        href: '/admin/clock-attempts',
-        adminOnly: true,
-        icon: 'M12 8v4l2.5 2.5M3.5 12a8.5 8.5 0 1 0 17 0 8.5 8.5 0 0 0-17 0Z',
+        label: 'Finance',
+        icon: 'M12 6.5v11M9.5 9.2a2.5 2.5 0 0 1 2.5-1.7c1.4 0 2.5.9 2.5 2s-1.1 2-2.5 2-2.5.9-2.5 2 1.1 2 2.5 2a2.5 2.5 0 0 0 2.5-1.7M3.5 12a8.5 8.5 0 1 0 17 0 8.5 8.5 0 0 0-17 0Z',
+        children: [
+            {
+                label: 'Payroll',
+                href: '/admin/payroll',
+                permission: 'payroll.manage',
+                icon: 'M12 6.5v11M9.5 9.2a2.5 2.5 0 0 1 2.5-1.7c1.4 0 2.5.9 2.5 2s-1.1 2-2.5 2-2.5.9-2.5 2 1.1 2 2.5 2a2.5 2.5 0 0 0 2.5-1.7M3.5 12a8.5 8.5 0 1 0 17 0 8.5 8.5 0 0 0-17 0Z',
+            },
+        ],
     },
     {
-        label: 'Announcements',
-        href: '/admin/announcements',
-        adminOnly: true,
-        icon: 'M3.5 10.5v3a1.5 1.5 0 0 0 1.5 1.5h2l5 4V5l-5 4H5a1.5 1.5 0 0 0-1.5 1.5Zm13-1.5a5 5 0 0 1 0 6',
-    },
-    {
-        label: 'Request settings',
-        href: '/admin/request-settings',
-        adminOnly: true,
-        icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm7.4-3a7.4 7.4 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7.4 7.4 0 0 0-2-1.2L14.5 3h-4l-.4 2.6a7.4 7.4 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.5a7.4 7.4 0 0 0 0 2.5l-2 1.5 2 3.4 2.4-1a7.4 7.4 0 0 0 2 1.2l.4 2.6h4l.4-2.6a7.4 7.4 0 0 0 2-1.2l2.4 1 2-3.4-2-1.5c.05-.4.1-.8.1-1.2Z',
+        label: 'System',
+        icon: 'M12 3.5 4.5 6.5v5c0 4.3 3.1 7.9 7.5 9 4.4-1.1 7.5-4.7 7.5-9v-5L12 3.5Z',
+        children: [
+            {
+                label: 'Roles',
+                href: '/admin/roles',
+                permission: 'roles.manage',
+                icon: 'M12 3.5 4.5 6.5v5c0 4.3 3.1 7.9 7.5 9 4.4-1.1 7.5-4.7 7.5-9v-5L12 3.5Zm0 5.5a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm-3.5 8a3.5 3.5 0 0 1 7 0',
+            },
+            {
+                label: 'Import',
+                href: '/admin/imports',
+                permission: 'data.import',
+                icon: 'M12 3.5v11m0 0-3.5-3.5M12 14.5l3.5-3.5M4.5 16.5v2a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-2',
+            },
+            {
+                label: 'Audit trail',
+                href: '/admin/audit',
+                permission: 'audit.view',
+                icon: 'M8 3.5h5.5L18.5 8v11a1.5 1.5 0 0 1-1.5 1.5H8A1.5 1.5 0 0 1 6.5 19V5A1.5 1.5 0 0 1 8 3.5Zm5 0V8h4.5M9.5 13h6m-6 3h4',
+            },
+        ],
     },
 ];
+
+function may(permission: Permission | undefined): boolean {
+    return (
+        permission === undefined ||
+        user.value?.permissions.includes(permission) === true
+    );
+}
+
+function permits(item: NavItem): boolean {
+    return (
+        may(item.permission) &&
+        (!item.staffOnly || Boolean(user.value?.clocks_in)) &&
+        (!item.approverOnly || Boolean(user.value?.can_use_approvals))
+    );
+}
 
 // Admins run the clock rather than punch it, so the personal attendance
 // view is not theirs to see. And until a profile is finished every one of
 // these bounces straight back to it, so the rail stays empty rather than
 // offering doors that do not open.
-const visibleNav = computed(() =>
-    user.value?.profile_complete === false
-        ? []
-        : nav.filter(
-              (item) =>
-                  (!item.adminOnly || user.value?.is_super_admin) &&
-                  (!item.staffOnly || user.value?.clocks_in) &&
-                  (!item.approverOnly || user.value?.can_use_approvals),
-          ),
-);
+const visibleNav = computed<NavItem[]>(() => {
+    if (user.value?.profile_complete === false) {
+        return [];
+    }
+
+    return nav.flatMap((item) => {
+        if (!permits(item)) {
+            return [];
+        }
+
+        if (!item.children) {
+            return [item];
+        }
+
+        // A group is only a way in to its pages: with none of them left to
+        // show, the heading has nothing behind it and goes too.
+        const children = item.children.filter(permits);
+
+        return children.length ? [{ ...item, children }] : [];
+    });
+});
 
 const currentUrl = computed(() => page.url.split('?')[0]);
 
-function isCurrent(href: string): boolean {
-    return currentUrl.value === href || currentUrl.value.startsWith(`${href}/`);
+// A group has no href of its own, so it is never the current page.
+function isCurrent(href: string | undefined): boolean {
+    return (
+        href !== undefined &&
+        (currentUrl.value === href || currentUrl.value.startsWith(`${href}/`))
+    );
 }
 
 function holdsCurrent(item: NavItem): boolean {
     return (item.children ?? []).some((child) => isCurrent(child.href));
 }
 
-// Groups the visitor has opened by hand. A group holding the current page is
-// open regardless, so you can always see where you are.
-const openGroups = ref<string[]>([]);
+// Groups the visitor has opened or shut by hand. Anything they have not
+// touched follows the page they are on, so the rail opens where they are
+// without arguing with somebody who would rather it did not.
+const groupState = ref<Record<string, boolean>>({});
 
 function isExpanded(item: NavItem): boolean {
-    return holdsCurrent(item) || openGroups.value.includes(item.label);
+    return groupState.value[item.label] ?? holdsCurrent(item);
 }
 
 function toggleGroup(item: NavItem) {
-    openGroups.value = openGroups.value.includes(item.label)
-        ? openGroups.value.filter((label) => label !== item.label)
-        : [...openGroups.value, item.label];
+    groupState.value = {
+        ...groupState.value,
+        [item.label]: !isExpanded(item),
+    };
+}
+
+function groupPanelId(item: NavItem): string {
+    return `nav-${item.label.toLowerCase().replace(/[^a-z]+/g, '-')}`;
+}
+
+/**
+ * A group opens and closes on its own height, measured as it moves so the run
+ * can be any length. The height is handed back once it is open, leaving the
+ * panel free to grow should its contents ever change underneath it.
+ */
+function beforeEnter(el: Element): void {
+    (el as HTMLElement).style.height = '0px';
+}
+
+function enter(el: Element): void {
+    const panel = el as HTMLElement;
+
+    // Read the shut height back, so the browser has it to open from. Vue does
+    // this itself on the way out but not on the way in, and without it the
+    // panel is simply there rather than having arrived.
+    void panel.offsetHeight;
+
+    panel.style.height = `${panel.scrollHeight}px`;
+}
+
+function afterEnter(el: Element): void {
+    (el as HTMLElement).style.height = '';
+}
+
+function beforeLeave(el: Element): void {
+    const panel = el as HTMLElement;
+
+    panel.style.height = `${panel.scrollHeight}px`;
+}
+
+function leave(el: Element): void {
+    // The open height is already committed: Vue forces the read between this
+    // and the hook above, so the panel has something to close from.
+    (el as HTMLElement).style.height = '0px';
 }
 
 function signOut() {
@@ -169,6 +313,15 @@ watch(
 watch(currentUrl, () => {
     mobileNavOpen.value = false;
     userMenuOpen.value = false;
+
+    // Landing on a page inside a group that was shut hands that group back to
+    // the rail, which opens it. Being unable to see where you are is not a
+    // preference worth keeping.
+    for (const item of nav) {
+        if (item.children && holdsCurrent(item)) {
+            delete groupState.value[item.label];
+        }
+    }
 });
 </script>
 
@@ -201,15 +354,16 @@ watch(currentUrl, () => {
             </div>
 
             <nav class="flex-1 space-y-0.5 overflow-y-auto p-3">
-                <template v-for="item in visibleNav" :key="item.href">
+                <template v-for="item in visibleNav" :key="item.label">
                     <!-- A group of related pages, opened in place. -->
                     <div v-if="item.children">
                         <button
                             type="button"
                             :aria-expanded="isExpanded(item)"
+                            :aria-controls="groupPanelId(item)"
                             :class="[
                                 'relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13.5px] font-medium',
-                                'transition-all duration-200 ease-out',
+                                'transition-all duration-200 ease-out hover:translate-x-0.5',
                                 holdsCurrent(item)
                                     ? 'text-text'
                                     : 'text-muted hover:bg-line-soft/60 hover:text-text',
@@ -228,47 +382,76 @@ watch(currentUrl, () => {
                                 <path :d="item.icon" />
                             </svg>
                             <span class="truncate">{{ item.label }}</span>
-                            <svg
-                                class="ml-auto size-4 shrink-0 text-faint transition-transform duration-200"
-                                :class="isExpanded(item) && 'rotate-180'"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                            >
-                                <path d="m6 9 6 6 6-6" />
-                            </svg>
+                            <span class="ml-auto flex items-center gap-1.5">
+                                <!-- Shut, but you are somewhere inside it. -->
+                                <span
+                                    v-if="
+                                        holdsCurrent(item) && !isExpanded(item)
+                                    "
+                                    class="size-1.5 shrink-0 rounded-full bg-brand"
+                                    aria-hidden="true"
+                                />
+                                <svg
+                                    class="size-4 shrink-0 text-faint transition-transform duration-300 ease-out"
+                                    :class="isExpanded(item) && 'rotate-180'"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                >
+                                    <path d="m6 9 6 6 6-6" />
+                                </svg>
+                            </span>
                         </button>
 
-                        <div
-                            v-if="isExpanded(item)"
-                            class="mt-0.5 ml-[26px] space-y-0.5 border-l border-line-soft pl-2"
+                        <Transition
+                            enter-active-class="transition-all duration-300 ease-out"
+                            enter-from-class="opacity-0"
+                            leave-active-class="transition-all duration-200 ease-in"
+                            leave-to-class="opacity-0"
+                            @before-enter="beforeEnter"
+                            @enter="enter"
+                            @after-enter="afterEnter"
+                            @before-leave="beforeLeave"
+                            @leave="leave"
                         >
-                            <Link
-                                v-for="child in item.children"
-                                :key="child.href"
-                                :href="child.href"
-                                :class="[
-                                    'relative flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium',
-                                    'transition-all duration-200 ease-out',
-                                    isCurrent(child.href)
-                                        ? 'bg-line-soft text-text'
-                                        : 'text-muted hover:bg-line-soft/60 hover:text-text',
-                                ]"
+                            <div
+                                v-if="isExpanded(item)"
+                                :id="groupPanelId(item)"
+                                class="overflow-hidden"
                             >
-                                <span
-                                    :class="[
-                                        'absolute top-1/2 -left-[9px] h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-brand',
-                                        'transition-all duration-300 ease-out',
-                                        isCurrent(child.href)
-                                            ? 'opacity-100'
-                                            : 'scale-y-0 opacity-0',
-                                    ]"
-                                />
-                                <span class="truncate">{{ child.label }}</span>
-                            </Link>
-                        </div>
+                                <div
+                                    class="mt-0.5 ml-[26px] space-y-0.5 border-l border-line-soft pl-2"
+                                >
+                                    <Link
+                                        v-for="child in item.children"
+                                        :key="child.href"
+                                        :href="child.href"
+                                        :class="[
+                                            'relative flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium',
+                                            'transition-all duration-200 ease-out hover:translate-x-0.5',
+                                            isCurrent(child.href)
+                                                ? 'bg-line-soft text-text'
+                                                : 'text-muted hover:bg-line-soft/60 hover:text-text',
+                                        ]"
+                                    >
+                                        <span
+                                            :class="[
+                                                'absolute top-1/2 -left-[9px] h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-brand',
+                                                'transition-all duration-300 ease-out',
+                                                isCurrent(child.href)
+                                                    ? 'opacity-100'
+                                                    : 'scale-y-0 opacity-0',
+                                            ]"
+                                        />
+                                        <span class="truncate">{{
+                                            child.label
+                                        }}</span>
+                                    </Link>
+                                </div>
+                            </div>
+                        </Transition>
                     </div>
 
                     <Link
@@ -276,7 +459,7 @@ watch(currentUrl, () => {
                         :href="item.href"
                         :class="[
                             'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13.5px] font-medium',
-                            'transition-all duration-200 ease-out',
+                            'transition-all duration-200 ease-out hover:translate-x-0.5',
                             isCurrent(item.href)
                                 ? 'bg-line-soft text-text'
                                 : 'text-muted hover:bg-line-soft/60 hover:text-text',

@@ -2,12 +2,14 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\Permission;
 use App\Models\LeaveRequest;
 use App\Models\LeaveRestrictedPeriod;
 use App\Models\LeaveType;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\LeaveBalance;
+use App\Services\LeaveEligibility;
 use App\Support\Workdays;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
@@ -16,6 +18,9 @@ use Illuminate\Validation\Rule;
 
 class StoreLeaveRequest extends FormRequest
 {
+    /** Memo for the several rules that read it; named so it cannot be mistaken for request input. */
+    protected ?LeaveType $resolvedType = null;
+
     public function authorize(): bool
     {
         return $this->user() !== null;
@@ -41,7 +46,7 @@ class StoreLeaveRequest extends FormRequest
                 Rule::notIn($this->ineligibleApprovers()),
                 Rule::exists('users', 'id')->where('is_active', true)->whereIn(
                     'role_id',
-                    Role::query()->whereIn('slug', [Role::APPROVER, Role::SUPER_ADMIN])->pluck('id')->all(),
+                    Role::idsWithPermission(Permission::ApproveRequests),
                 ),
             ],
             'relief_officer_id' => [
@@ -53,6 +58,15 @@ class StoreLeaveRequest extends FormRequest
             'start_date' => ['required', 'date', 'after_or_equal:'.Carbon::now()->subYear()->toDateString()],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'reason' => ['nullable', 'string', 'max:1000'],
+            // The sick paper or letter behind a type the policy will not take
+            // on somebody's word. Only asked for where the type says so, and
+            // not asked for twice when one is already on file.
+            'evidence' => [
+                Rule::requiredIf(fn (): bool => $this->needsEvidence()),
+                'file',
+                'mimes:pdf,jpg,jpeg,png,webp',
+                'max:8192',
+            ],
         ];
     }
 
@@ -69,6 +83,9 @@ class StoreLeaveRequest extends FormRequest
             'relief_officer_id.exists' => 'Pick a colleague who is still with the company.',
             'relief_officer_id.not_in' => 'Someone else has to cover your desk.',
             'end_date.after_or_equal' => 'The last day cannot fall before the first day.',
+            'evidence.required' => 'That type of leave has to come with supporting evidence.',
+            'evidence.mimes' => 'Attach a PDF or an image of the document.',
+            'evidence.max' => 'Keep the attachment under 8 MB.',
         ];
     }
 
@@ -82,6 +99,10 @@ class StoreLeaveRequest extends FormRequest
             $this->guardAgainstOverlap($validator);
             $this->guardAgainstRestrictedPeriod($validator);
             $this->guardAgainstNoWorkdays($validator);
+            // Eligibility comes before the allowance: being told how many days
+            // are left on a type you cannot take at all helps nobody.
+            $this->guardAgainstIneligibility($validator);
+            $this->guardAgainstAnExpiredEntitlement($validator);
             $this->guardAgainstAllowance($validator);
             $this->guardAgainstCoverAlreadyOwed($validator);
             $this->guardAgainstAnAbsentReliefOfficer($validator);
@@ -158,6 +179,16 @@ class StoreLeaveRequest extends FormRequest
     }
 
     /**
+     * Whether cover this person has already agreed to stands in the way of
+     * the request. It does when they are booking their own time off, for the
+     * same reason a closed period does.
+     */
+    protected function enforcesCoverOwed(): bool
+    {
+        return true;
+    }
+
+    /**
      * Leave cannot be booked over a period the business has closed, unless
      * the period lets this type of leave through, or lets this person through
      * on the marital status their profile carries.
@@ -168,7 +199,7 @@ class StoreLeaveRequest extends FormRequest
             return;
         }
 
-        $type = LeaveType::query()->find($this->integer('leave_type_id'));
+        $type = $this->leaveType();
 
         $period = LeaveRestrictedPeriod::query()
             ->with('leaveTypes:id')
@@ -261,6 +292,10 @@ class StoreLeaveRequest extends FormRequest
      */
     protected function guardAgainstCoverAlreadyOwed(Validator $validator): void
     {
+        if (! $this->enforcesCoverOwed()) {
+            return;
+        }
+
         $clash = LeaveRequest::query()
             ->with('user:id,name')
             ->coveredBy($this->staff()->id)
@@ -299,9 +334,9 @@ class StoreLeaveRequest extends FormRequest
 
     protected function guardAgainstAllowance(Validator $validator): void
     {
-        $type = LeaveType::query()->find($this->integer('leave_type_id'));
+        $type = $this->leaveType();
 
-        if ($type === null || ! $type->isCapped()) {
+        if ($type === null || ! $type->isCappedFor($this->staff())) {
             return;
         }
 
@@ -314,11 +349,83 @@ class StoreLeaveRequest extends FormRequest
 
         if ($this->days() > $balance['remaining']) {
             $validator->errors()->add('leave_type_id', sprintf(
-                'That is %d day(s) of %s but you have %d left this year.',
+                'That is %d working day(s) of %s but you have %d left this year.',
                 $this->days(),
                 $type->name,
                 $balance['remaining'],
             ));
         }
+    }
+
+    /**
+     * The policy gates on the type: length of service, and confirmation in
+     * post. Both are read from the same place the leave page reads them, so
+     * nobody is offered a type here that the form had already greyed out.
+     */
+    protected function guardAgainstIneligibility(Validator $validator): void
+    {
+        $type = $this->leaveType();
+
+        if ($type === null) {
+            return;
+        }
+
+        $eligibility = app(LeaveEligibility::class)->check(
+            $this->staff(),
+            $type,
+            $this->startDate(),
+        );
+
+        if (! $eligibility['eligible']) {
+            $validator->errors()->add('leave_type_id', $eligibility['reason']);
+        }
+    }
+
+    /**
+     * Entitlement that lapses. Birthday leave is the policy's one case: it is
+     * claimable for six months from the birthday, and both ends of the request
+     * have to land inside that window.
+     */
+    protected function guardAgainstAnExpiredEntitlement(Validator $validator): void
+    {
+        $type = $this->leaveType();
+        $window = $type?->windowFor($this->staff(), $this->startDate());
+
+        if ($window === null) {
+            return;
+        }
+
+        if ($this->startDate()->betweenIncluded($window['start'], $window['end'])
+            && $this->endDate()->betweenIncluded($window['start'], $window['end'])) {
+            return;
+        }
+
+        $validator->errors()->add('start_date', sprintf(
+            '%s has to be taken within %d months of %s. Yours runs from %s to %s.',
+            $type->name,
+            $type->window_months,
+            $type->anchor->label(),
+            $window['start']->format('j M Y'),
+            $window['end']->format('j M Y'),
+        ));
+    }
+
+    /**
+     * Whether an attachment has to come with this request. An edit that
+     * already has one on file is not asked for it again.
+     */
+    protected function needsEvidence(): bool
+    {
+        return $this->leaveType()?->requires_evidence === true
+            && $this->editing()?->evidence_path === null;
+    }
+
+    /**
+     * The type being requested, looked up once for the several rules that
+     * need it.
+     */
+    protected function leaveType(): ?LeaveType
+    {
+        return $this->resolvedType ??= LeaveType::query()->find($this->integer('leave_type_id'));
     }
 }

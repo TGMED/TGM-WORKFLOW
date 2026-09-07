@@ -2,12 +2,15 @@
 
 namespace App\Providers;
 
+use App\Enums\Permission;
+use App\Models\User;
 use App\Notifications\Channels\FcmChannel;
 use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\RateLimiter;
@@ -32,9 +35,30 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+        $this->registerPermissions();
         $this->registerBrevoMailer();
         $this->registerRateLimiters();
         $this->registerPushChannel();
+    }
+
+    /**
+     * Publish every permission as a gate ability, so `can:` middleware,
+     * `$user->can()` and policies all read the same roles page as the
+     * `permission:` middleware does.
+     */
+    protected function registerPermissions(): void
+    {
+        // Super admins run the system and answer to no grant, so they clear
+        // every gate before it is asked. Returning null rather than false lets
+        // everyone else fall through to the ability itself.
+        Gate::before(fn (User $user): ?bool => $user->isSuperAdmin() ? true : null);
+
+        foreach (Permission::cases() as $permission) {
+            Gate::define(
+                $permission->value,
+                fn (User $user) => $user->hasPermission($permission),
+            );
+        }
     }
 
     /**

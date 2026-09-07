@@ -50,9 +50,14 @@ class LeaveRestrictedPeriodTest extends TestCase
         return LeaveType::query()->where('slug', 'annual')->firstOrFail();
     }
 
-    private function sick(): LeaveType
+    /**
+     * A type to let through a closed period. Personal leave, because these
+     * tests are about the period and not about the paperwork some other types
+     * ask for.
+     */
+    private function exempted(): LeaveType
     {
-        return LeaveType::query()->where('slug', 'sick')->firstOrFail();
+        return LeaveType::query()->where('slug', 'personal')->firstOrFail();
     }
 
     /**
@@ -183,10 +188,10 @@ class LeaveRestrictedPeriodTest extends TestCase
     public function test_an_exempt_leave_type_goes_through_the_period(): void
     {
         $period = $this->period();
-        $period->leaveTypes()->sync([$this->sick()->id]);
+        $period->leaveTypes()->sync([$this->exempted()->id]);
 
         $this->actingAs($this->staff('Single'))
-            ->post('/leave', $this->payload($this->sick()->id))
+            ->post('/leave', $this->payload($this->exempted()->id))
             ->assertSessionHasNoErrors();
 
         // The same days on a type the period does cover are refused.
@@ -240,14 +245,14 @@ class LeaveRestrictedPeriodTest extends TestCase
                 'start_date' => $this->monday()->toDateString(),
                 'end_date' => $this->monday()->addWeek()->toDateString(),
                 'exempt_marital_statuses' => ['Married'],
-                'exempt_leave_type_ids' => [$this->sick()->id],
+                'exempt_leave_type_ids' => [$this->exempted()->id],
             ])
             ->assertSessionHasNoErrors();
 
         $period = LeaveRestrictedPeriod::query()->firstOrFail();
 
         $this->assertSame(['Married'], $period->exempt_marital_statuses);
-        $this->assertTrue($period->leaveTypes->contains('id', $this->sick()->id));
+        $this->assertTrue($period->leaveTypes->contains('id', $this->exempted()->id));
     }
 
     public function test_a_period_cannot_end_before_it_starts(): void
@@ -276,7 +281,7 @@ class LeaveRestrictedPeriodTest extends TestCase
     public function test_an_administrator_can_change_and_lift_a_period(): void
     {
         $period = $this->period();
-        $period->leaveTypes()->sync([$this->sick()->id]);
+        $period->leaveTypes()->sync([$this->exempted()->id]);
 
         $this->actingAs($this->admin())
             ->put("/admin/restricted-periods/{$period->id}", [
