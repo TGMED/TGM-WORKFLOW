@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use OwenIt\Auditing\Auditable;
 use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
@@ -33,6 +34,7 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  * @property bool $is_active
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
  */
 #[Fillable([
     'slug',
@@ -54,6 +56,8 @@ class LeaveType extends Model implements AuditableContract
 
     /** @use HasFactory<LeaveTypeFactory> */
     use HasFactory;
+
+    use SoftDeletes;
 
     /**
      * @var array<string, mixed>

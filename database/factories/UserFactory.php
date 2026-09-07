@@ -67,7 +67,9 @@ class UserFactory extends Factory
      */
     public function withoutProfile(): static
     {
-        return $this->afterCreating(fn (User $user) => $user->profile()->delete());
+        // Forced: these users never had a profile at all, and a soft-deleted
+        // one would keep its slot in the unique index on user_id.
+        return $this->afterCreating(fn (User $user) => $user->profile()->forceDelete());
     }
 
     /**
@@ -76,7 +78,7 @@ class UserFactory extends Factory
     public function incompleteProfile(): static
     {
         return $this->afterCreating(function (User $user): void {
-            $user->profile()->delete();
+            $user->profile()->forceDelete();
             $user->profile()->save(
                 EmployeeProfile::factory()->incomplete()->make(['user_id' => null]),
             );

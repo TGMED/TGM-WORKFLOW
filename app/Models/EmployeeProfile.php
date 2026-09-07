@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 
@@ -54,6 +55,7 @@ use Illuminate\Support\Facades\Storage;
  * @property Carbon|null $completed_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
  * @property-read User $user
  */
 #[Fillable([
@@ -99,6 +101,8 @@ class EmployeeProfile extends Model
 {
     /** @use HasFactory<EmployeeProfileFactory> */
     use HasFactory;
+
+    use SoftDeletes;
 
     /**
      * The fields someone has to fill in before the app will let them past the

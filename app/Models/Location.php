@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use OwenIt\Auditing\Auditable;
 use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
@@ -35,6 +36,7 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  * @property bool $accepts_signups
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
  */
 #[Fillable([
     'name',
@@ -59,6 +61,8 @@ class Location extends Model implements AuditableContract
 
     /** @use HasFactory<LocationFactory> */
     use HasFactory;
+
+    use SoftDeletes;
 
     /**
      * Mirrors the column defaults so a new location is fully populated in

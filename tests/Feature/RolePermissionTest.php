@@ -217,8 +217,8 @@ class RolePermissionTest extends TestCase
             ->delete("/admin/roles/{$role->id}")
             ->assertRedirect();
 
-        $this->assertDatabaseMissing('roles', ['id' => $role->id]);
-        $this->assertDatabaseMissing('role_permissions', ['role_id' => $role->id]);
+        $this->assertSoftDeleted('roles', ['id' => $role->id]);
+        $this->assertSoftDeleted('role_permissions', ['role_id' => $role->id]);
     }
 
     // The approvals inbox, which is not a permission alone.

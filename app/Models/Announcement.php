@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use OwenIt\Auditing\Auditable;
@@ -26,6 +27,7 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  * @property Carbon|null $notified_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
  * @property-read User|null $author
  */
 #[Fillable(['user_id', 'title', 'body', 'is_pinned', 'published_at', 'expires_at', 'notified_at'])]
@@ -35,6 +37,8 @@ class Announcement extends Model implements AuditableContract
 
     /** @use HasFactory<AnnouncementFactory> */
     use HasFactory;
+
+    use SoftDeletes;
 
     /**
      * @var array<string, mixed>

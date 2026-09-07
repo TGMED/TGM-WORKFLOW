@@ -6,6 +6,7 @@ use App\Support\Countries;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 
 /**
@@ -21,6 +22,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $postal_code
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
  * @property-read User $user
  */
 #[Fillable([
@@ -33,6 +35,8 @@ use Illuminate\Support\Carbon;
 ])]
 class EmployeeAddress extends Model
 {
+    use SoftDeletes;
+
     /**
      * @return BelongsTo<User, $this>
      */

@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
@@ -39,6 +40,7 @@ use Illuminate\Support\Str;
  * @property string|null $resolution_note
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
  * @property-read User|null $reporter
  * @property-read User|null $subjectUser
  * @property-read User|null $handledBy
@@ -63,6 +65,8 @@ class Report extends Model
 {
     /** @use HasFactory<ReportFactory> */
     use HasFactory;
+
+    use SoftDeletes;
 
     /**
      * @return array<string, string>

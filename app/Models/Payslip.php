@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 
 /**
@@ -27,6 +28,7 @@ use Illuminate\Support\Carbon;
  * @property float $employer_pension
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
  * @property-read PayrollRun $run
  * @property-read User $user
  */
@@ -46,6 +48,8 @@ use Illuminate\Support\Carbon;
 ])]
 class Payslip extends Model
 {
+    use SoftDeletes;
+
     /**
      * @return array<string, string>
      */

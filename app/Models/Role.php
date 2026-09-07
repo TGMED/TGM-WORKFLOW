@@ -6,6 +6,7 @@ use App\Enums\Permission;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use OwenIt\Auditing\Auditable;
@@ -24,11 +25,13 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  * @property-read Collection<int, RolePermission> $rolePermissions
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
  */
 #[Fillable(['slug', 'name', 'description', 'is_system'])]
 class Role extends Model implements AuditableContract
 {
     use Auditable;
+    use SoftDeletes;
 
     public const SUPER_ADMIN = 'super_admin';
 
@@ -95,6 +98,22 @@ class Role extends Model implements AuditableContract
     }
 
     /**
+     * The database used to clear a role's grants for us, on the cascade behind
+     * the foreign key. A soft-deleted role never reaches that cascade, so the
+     * grants are taken down and brought back with it here instead.
+     */
+    protected static function booted(): void
+    {
+        static::deleted(function (self $role): void {
+            $role->rolePermissions()->delete();
+        });
+
+        static::restored(function (self $role): void {
+            $role->rolePermissions()->onlyTrashed()->restore();
+        });
+    }
+
+    /**
      * Replace this role's grants with exactly the list given. Super admins are
      * left alone: their permissions are not stored, so there is nothing here
      * to set, and writing rows would imply they could be removed.
@@ -115,8 +134,10 @@ class Role extends Model implements AuditableContract
             ->values();
 
         // A grant carries nothing but the pair, so replacing the set wholesale
-        // is both simpler and cheaper than working out the difference.
-        $this->rolePermissions()->delete();
+        // is both simpler and cheaper than working out the difference. Forced,
+        // because a soft-deleted grant keeps its slot in the unique index on
+        // (role_id, permission) and re-granting it would collide.
+        $this->rolePermissions()->forceDelete();
 
         $this->rolePermissions()->insert(
             $wanted->map(fn (string $permission): array => [

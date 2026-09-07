@@ -302,7 +302,7 @@ class LeaveRestrictedPeriodTest extends TestCase
             ->delete("/admin/restricted-periods/{$period->id}")
             ->assertSessionHasNoErrors();
 
-        $this->assertDatabaseMissing('leave_restricted_periods', ['id' => $period->id]);
+        $this->assertSoftDeleted('leave_restricted_periods', ['id' => $period->id]);
         $this->assertDatabaseCount('leave_restricted_period_leave_type', 0);
     }
 

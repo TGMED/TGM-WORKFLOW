@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use OwenIt\Auditing\Auditable;
 use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
@@ -32,6 +33,7 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  * @property array<int, string> $exempt_marital_statuses
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
  * @property-read User|null $author
  * @property-read Collection<int, LeaveType> $leaveTypes
  */
@@ -42,6 +44,8 @@ class LeaveRestrictedPeriod extends Model implements AuditableContract
 
     /** @use HasFactory<LeaveRestrictedPeriodFactory> */
     use HasFactory;
+
+    use SoftDeletes;
 
     /**
      * @var array<string, mixed>

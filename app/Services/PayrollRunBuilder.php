@@ -39,8 +39,11 @@ class PayrollRunBuilder
 
         return DB::transaction(function () use ($run, $settings, $profiles): int {
             // Emptied first: somebody taken off the payroll since the last
-            // build must not be left behind with a stale payslip.
-            $run->payslips()->delete();
+            // build must not be left behind with a stale payslip. Forced,
+            // because a soft-deleted payslip keeps its slot in the unique
+            // index on (payroll_run_id, user_id) and the rebuild below
+            // would collide with it.
+            $run->payslips()->forceDelete();
 
             $written = 0;
 

@@ -6,6 +6,8 @@ use App\Enums\Permission;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 use OwenIt\Auditing\Auditable;
 use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
 
@@ -17,12 +19,14 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  * @property int $id
  * @property int $role_id
  * @property Permission $permission
+ * @property Carbon|null $deleted_at
  * @property-read Role $role
  */
 #[Fillable(['role_id', 'permission'])]
 class RolePermission extends Model implements AuditableContract
 {
     use Auditable;
+    use SoftDeletes;
 
     public $timestamps = false;
 

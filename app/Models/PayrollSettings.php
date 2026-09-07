@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use OwenIt\Auditing\Auditable;
 use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
@@ -26,6 +27,7 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  * @property array<int, array<string, mixed>> $tax_bands
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
  */
 #[Fillable([
     'currency',
@@ -42,6 +44,7 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
 class PayrollSettings extends Model implements AuditableContract
 {
     use Auditable;
+    use SoftDeletes;
 
     protected $table = 'payroll_settings';
 

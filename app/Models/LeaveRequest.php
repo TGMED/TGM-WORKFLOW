@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use OwenIt\Auditing\Auditable;
 use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
@@ -40,6 +41,7 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  * @property Carbon|null $decided_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
  * @property-read User $user
  * @property-read User|null $raisedBy
  * @property-read LeaveType $leaveType
@@ -70,6 +72,8 @@ class LeaveRequest extends Model implements Approvable, AuditableContract
 
     /** @use HasFactory<LeaveRequestFactory> */
     use HasFactory;
+
+    use SoftDeletes;
 
     /**
      * @return array<string, string>

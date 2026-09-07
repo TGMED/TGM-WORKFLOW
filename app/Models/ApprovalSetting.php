@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\RequestModule;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use OwenIt\Auditing\Auditable;
 use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
@@ -17,11 +18,13 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  * @property int $approvers_required
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
  */
 #[Fillable(['module', 'approvers_required'])]
 class ApprovalSetting extends Model implements AuditableContract
 {
     use Auditable;
+    use SoftDeletes;
 
     /**
      * @return array<string, string>

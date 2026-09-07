@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use OwenIt\Auditing\Models\Audit as BaseAudit;
 
@@ -27,10 +28,13 @@ use OwenIt\Auditing\Models\Audit as BaseAudit;
  * @property string|null $tags
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
  * @property-read User|null $user
  */
 class Audit extends BaseAudit
 {
+    use SoftDeletes;
+
     /**
      * The person who made the change, or null when it was a console command
      * or a scheduled job. Declared here with a return type: the package builds

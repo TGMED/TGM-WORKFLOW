@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 
 /**
@@ -26,6 +27,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon $decided_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
  * @property-read User $approver
  */
 #[Fillable([
@@ -41,6 +43,8 @@ use Illuminate\Support\Carbon;
 ])]
 class Approval extends Model
 {
+    use SoftDeletes;
+
     /**
      * @var array<string, mixed>
      */

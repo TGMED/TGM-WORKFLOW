@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -39,6 +40,7 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  * @property string|null $whats_new_seen
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
  * @property-read Location|null $location
  * @property-read Role $role
  * @property-read EmployeeProfile|null $profile
@@ -68,6 +70,8 @@ class User extends Authenticatable implements AuditableContract
 
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
+
+    use SoftDeletes;
 
     /**
      * @var list<string>
