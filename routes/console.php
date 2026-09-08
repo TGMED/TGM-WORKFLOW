@@ -29,3 +29,7 @@ Schedule::command(SendDueAnnouncements::class)
 Schedule::command(SendWorkAnniversaryGreetings::class)
     ->dailyAt('07:05')
     ->withoutOverlapping();
+
+// Horizon's metrics graphs are built from snapshots rather than kept live, so
+// without this run the dashboard's throughput and wait times stay empty.
+Schedule::command('horizon:snapshot')->everyFiveMinutes();

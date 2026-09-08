@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\EmploymentStatus;
 use App\Enums\ExitReason;
 use App\Enums\Permission;
+use App\Notifications\ResetPassword;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -461,5 +462,14 @@ class User extends Authenticatable implements AuditableContract
     public function lastWorkingDay(): ?Carbon
     {
         return $this->exit_date ?? $this->deactivated_at?->copy()->startOfDay();
+    }
+
+    /**
+     * Send the reset link through our own notification rather than the
+     * framework's, so it goes out on the queue like everything else.
+     */
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new ResetPassword($token));
     }
 }
