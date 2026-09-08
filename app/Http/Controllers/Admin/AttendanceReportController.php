@@ -14,6 +14,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AttendanceReportController extends Controller
 {
@@ -24,22 +25,41 @@ class AttendanceReportController extends Controller
     private const MAX_DAYS = 366;
 
     /**
+     * The download's header row. Minutes are only kept where minutes are what
+     * the figure means; everything else is given in the units a person would
+     * write into a monthly return.
+     */
+    private const COLUMNS = [
+        'Employee ID',
+        'Name',
+        'Department',
+        'Position',
+        'Site',
+        'Employment',
+        'Days expected',
+        'Days present',
+        'Days absent',
+        'Days late',
+        'Days excused',
+        'Days within grace',
+        'Late minutes',
+        'Hours worked',
+        'Break hours',
+        'Days not clocked out',
+        'Punctuality %',
+        'Last seen',
+    ];
+
+    /**
      * Attendance for every member of staff over a chosen date range.
      */
     public function index(Request $request): Response
     {
         [$from, $to] = $this->range($request);
 
-        $search = $request->string('search')->toString();
-        $department = $request->string('department')->toString();
-        $locationId = $request->string('location')->toString();
+        $filters = $this->filters($request);
 
-        // Leavers are off the report unless they are asked for by name. A
-        // report read as "how are we doing" should answer for the people who
-        // are still here.
-        $status = $request->string('status')->toString() ?: 'active';
-
-        $paginator = $this->staff($search, $department, $locationId, $status)
+        $paginator = $this->staff($filters)
             ->with('location:id,name,city,timezone,workdays')
             ->orderBy('name')
             ->paginate(15)
@@ -51,53 +71,20 @@ class AttendanceReportController extends Controller
         $totals = $this->totalsFor($ids, $from, $to);
         $expected = $this->expectedDays($from, $to);
 
-        $rows = $paginator->through(function (User $user) use ($totals, $expected): array {
-            $row = $totals[$user->id] ?? [];
-            $present = $row['days_present'] ?? 0;
-            $late = $row['days_late'] ?? 0;
-            $grace = $row['days_grace'] ?? 0;
-            $excused = $row['days_excused'] ?? 0;
-            $due = $user->location_id === null ? null : ($expected[$user->location_id] ?? null);
-
-            return [
-                'id' => $user->id,
-                'employee_id' => $user->employee_id,
-                'name' => $user->name,
-                'initials' => $user->initials,
-                'department' => $user->department,
-                'position' => $user->position,
-                'is_active' => $user->is_active,
-                'location' => $user->location?->name,
-                'days_present' => $present,
-                'days_late' => $late,
-                'days_excused' => $excused,
-                'days_grace' => $grace,
-                'days_expected' => $due,
-                'days_absent' => $due === null ? null : max(0, $due - $present),
-                'late_minutes' => $row['late_minutes'] ?? 0,
-                'worked_minutes' => $row['worked_minutes'] ?? 0,
-                'break_minutes' => $row['break_minutes'] ?? 0,
-                'open_days' => $row['open_days'] ?? 0,
-                'last_seen' => ($row['last_seen'] ?? null)?->format('j M Y'),
-                'punctuality' => $present > 0
-                    ? (int) round((($present - $late) / $present) * 100)
-                    : null,
-            ];
-        });
+        $rows = $paginator->through(
+            fn (User $user): array => $this->rowFor($user, $totals, $expected),
+        );
 
         return Inertia::render('admin/AttendanceReport', [
             'rows' => $rows,
             'filters' => [
                 'from' => $from->toDateString(),
                 'to' => $to->toDateString(),
-                'search' => $search,
-                'department' => $department,
-                'location' => $locationId,
-                'status' => $status,
+                ...$filters,
             ],
             'range_label' => $this->rangeLabel($from, $to),
             'range_days' => (int) $from->diffInDays($to) + 1,
-            'summary' => $this->summary($search, $department, $locationId, $status, $from, $to),
+            'summary' => $this->summary($filters, $from, $to),
             'departments' => User::query()
                 ->whereNotNull('department')
                 ->distinct()
@@ -112,6 +99,160 @@ class AttendanceReportController extends Controller
                 ])
                 ->all(),
         ]);
+    }
+
+    /**
+     * The same report as a spreadsheet, over the same window and filters, and
+     * over everyone they match rather than the page being looked at. Rows are
+     * streamed a chunk at a time so a year across the whole company does not
+     * have to be held in memory to be sent.
+     */
+    public function export(Request $request): StreamedResponse
+    {
+        [$from, $to] = $this->range($request);
+
+        $filters = $this->filters($request);
+        $expected = $this->expectedDays($from, $to);
+
+        $filename = "attendance-{$from->toDateString()}-to-{$to->toDateString()}.csv";
+
+        return response()->streamDownload(
+            function () use ($filters, $from, $to, $expected): void {
+                $handle = fopen('php://output', 'w');
+
+                if ($handle === false) {
+                    return;
+                }
+
+                // Excel opens a UTF-8 CSV as the local codepage unless the
+                // file leads with a byte order mark, which mangles any name
+                // with an accent in it.
+                fwrite($handle, "\xEF\xBB\xBF");
+
+                fputcsv($handle, self::COLUMNS);
+
+                $this->staff($filters)
+                    ->with('location:id,name,city,timezone,workdays')
+                    ->orderBy('name')
+                    ->orderBy('id')
+                    ->chunk(200, function (Collection $users) use ($handle, $from, $to, $expected): void {
+                        $totals = $this->totalsFor($users->pluck('id')->all(), $from, $to);
+
+                        foreach ($users as $user) {
+                            fputcsv($handle, $this->csvRow(
+                                $this->rowFor($user, $totals, $expected, 'Y-m-d'),
+                            ));
+                        }
+                    });
+
+                fclose($handle);
+            },
+            $filename,
+            ['Content-Type' => 'text/csv; charset=UTF-8'],
+        );
+    }
+
+    /**
+     * The filters the report reads off the query string. The page and the
+     * download share them so a spreadsheet can never cover a different set of
+     * people from the screen it was asked for.
+     *
+     * Leavers are off the report unless they are asked for: a report read as
+     * "how are we doing" should answer for the people who are still here.
+     *
+     * @return array{search: string, department: string, location: string, status: string}
+     */
+    private function filters(Request $request): array
+    {
+        return [
+            'search' => $request->string('search')->toString(),
+            'department' => $request->string('department')->toString(),
+            'location' => $request->string('location')->toString(),
+            'status' => $request->string('status')->toString() ?: 'active',
+        ];
+    }
+
+    /**
+     * One person's line of the report, from the totals already fetched for
+     * the batch they came in.
+     *
+     * @param  array<int, array<string, mixed>>  $totals
+     * @param  array<int, int>  $expected
+     * @return array<string, mixed>
+     */
+    private function rowFor(User $user, array $totals, array $expected, string $dateFormat = 'j M Y'): array
+    {
+        $row = $totals[$user->id] ?? [];
+        $present = $row['days_present'] ?? 0;
+        $late = $row['days_late'] ?? 0;
+        $due = $user->location_id === null ? null : ($expected[$user->location_id] ?? null);
+
+        return [
+            'id' => $user->id,
+            'employee_id' => $user->employee_id,
+            'name' => $user->name,
+            'initials' => $user->initials,
+            'department' => $user->department,
+            'position' => $user->position,
+            'is_active' => $user->is_active,
+            'location' => $user->location?->name,
+            'days_present' => $present,
+            'days_late' => $late,
+            'days_excused' => $row['days_excused'] ?? 0,
+            'days_grace' => $row['days_grace'] ?? 0,
+            'days_expected' => $due,
+            'days_absent' => $due === null ? null : max(0, $due - $present),
+            'late_minutes' => $row['late_minutes'] ?? 0,
+            'worked_minutes' => $row['worked_minutes'] ?? 0,
+            'break_minutes' => $row['break_minutes'] ?? 0,
+            'open_days' => $row['open_days'] ?? 0,
+            'last_seen' => ($row['last_seen'] ?? null)?->format($dateFormat),
+            'punctuality' => $present > 0
+                ? (int) round((($present - $late) / $present) * 100)
+                : null,
+        ];
+    }
+
+    /**
+     * A report row as the spreadsheet wants it, in the order the header
+     * promises. A figure nobody can know — days expected for somebody with no
+     * site — is left blank rather than written as a nought, which would read
+     * as a fact.
+     *
+     * @param  array<string, mixed>  $row
+     * @return array<int, string>
+     */
+    private function csvRow(array $row): array
+    {
+        return [
+            (string) ($row['employee_id'] ?? ''),
+            (string) $row['name'],
+            (string) ($row['department'] ?? ''),
+            (string) ($row['position'] ?? ''),
+            (string) ($row['location'] ?? ''),
+            $row['is_active'] ? 'Active' : 'Left',
+            $row['days_expected'] === null ? '' : (string) $row['days_expected'],
+            (string) $row['days_present'],
+            $row['days_absent'] === null ? '' : (string) $row['days_absent'],
+            (string) $row['days_late'],
+            (string) $row['days_excused'],
+            (string) $row['days_grace'],
+            (string) $row['late_minutes'],
+            $this->hours($row['worked_minutes']),
+            $this->hours($row['break_minutes']),
+            (string) $row['open_days'],
+            $row['punctuality'] === null ? '' : (string) $row['punctuality'],
+            (string) ($row['last_seen'] ?? ''),
+        ];
+    }
+
+    /**
+     * Minutes as hours to one decimal, written plainly: a thousands separator
+     * turns the cell into text in most spreadsheets.
+     */
+    private function hours(int $minutes): string
+    {
+        return number_format($minutes / 60, 1, '.', '');
     }
 
     /**
@@ -166,10 +307,13 @@ class AttendanceReportController extends Controller
      * Staff the report covers: everyone who punches a clock, admins aside,
      * and by default only those still with the company.
      *
+     * @param  array{search: string, department: string, location: string, status: string}  $filters
      * @return Builder<User>
      */
-    private function staff(string $search, string $department, string $locationId, string $status): Builder
+    private function staff(array $filters): Builder
     {
+        ['search' => $search, 'department' => $department, 'location' => $locationId, 'status' => $status] = $filters;
+
         return User::query()
             ->whereRelation('role', 'slug', '!=', Role::SUPER_ADMIN)
             ->when($status === 'active', fn (Builder $q) => $q->where('is_active', true))
@@ -250,17 +394,12 @@ class AttendanceReportController extends Controller
     /**
      * Headline figures across everyone the filters match, not just this page.
      *
+     * @param  array{search: string, department: string, location: string, status: string}  $filters
      * @return array<string, int|float>
      */
-    private function summary(
-        string $search,
-        string $department,
-        string $locationId,
-        string $status,
-        Carbon $from,
-        Carbon $to,
-    ): array {
-        $matching = $this->staff($search, $department, $locationId, $status);
+    private function summary(array $filters, Carbon $from, Carbon $to): array
+    {
+        $matching = $this->staff($filters);
 
         $records = Attendance::query()
             ->whereIn('user_id', $matching->clone()->select('users.id'))

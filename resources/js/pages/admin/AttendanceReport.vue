@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
+import AppButton from '@/components/ui/AppButton.vue';
 import Avatar from '@/components/ui/Avatar.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import Pagination from '@/components/ui/Pagination.vue';
@@ -166,6 +167,26 @@ const departmentOptions = computed(() =>
     props.departments.map((name) => ({ value: name, label: name })),
 );
 
+/**
+ * Built from the filters the server echoed back rather than the live inputs,
+ * so the spreadsheet always covers the table being looked at, not a search
+ * that has been typed but not yet applied.
+ */
+const exportUrl = computed(() => {
+    const params = new URLSearchParams({
+        from: props.filters.from,
+        to: props.filters.to,
+    });
+
+    for (const key of ['search', 'department', 'location', 'status'] as const) {
+        if (props.filters[key]) {
+            params.set(key, props.filters[key]);
+        }
+    }
+
+    return `/admin/attendance/export?${params.toString()}`;
+});
+
 const today = iso(new Date());
 
 const hoursOf = (minutes: number) => Math.round((minutes / 60) * 10) / 10;
@@ -305,6 +326,21 @@ const hoursOf = (minutes: number) => Math.round((minutes / 60) * 10) / 10;
                             v-model="status"
                             :options="statusOptions"
                         />
+                    </div>
+
+                    <div
+                        class="flex flex-wrap items-center justify-between gap-3 border-t border-line-soft pt-4"
+                    >
+                        <p class="text-[13px] text-muted">
+                            {{ rows.total }}
+                            {{ rows.total === 1 ? 'person' : 'people' }} match
+                            these filters
+                        </p>
+                        <a :href="exportUrl" download>
+                            <AppButton variant="secondary" size="sm">
+                                Download CSV
+                            </AppButton>
+                        </a>
                     </div>
                 </div>
             </Panel>

@@ -228,9 +228,12 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
 
         // Attendance across the whole company for a chosen window, as
         // opposed to the personal month view staff see.
-        Route::get('attendance', [AttendanceReportController::class, 'index'])
-            ->middleware('permission:attendance.report')
-            ->name('attendance.index');
+        Route::middleware('permission:attendance.report')->group(function (): void {
+            Route::get('attendance', [AttendanceReportController::class, 'index'])
+                ->name('attendance.index');
+            Route::get('attendance/export', [AttendanceReportController::class, 'export'])
+                ->name('attendance.export');
+        });
 
         Route::get('clock-attempts', [ClockAttemptController::class, 'index'])
             ->middleware('permission:clock-attempts.view')
