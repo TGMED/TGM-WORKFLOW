@@ -375,6 +375,7 @@ class DashboardController extends Controller
             $today = Carbon::now()->setTimezone($location->timezone)->toDateString();
 
             $records = Attendance::query()
+                ->ofActiveStaff()
                 ->where('location_id', $location->id)
                 ->where('work_date', $today)
                 ->get(['id', 'status', 'excused_at', 'clocked_in_at']);
@@ -391,6 +392,7 @@ class DashboardController extends Controller
             )->count();
 
             $rejected = ClockAttempt::query()
+                ->ofActiveStaff()
                 ->rejected()
                 ->where('location_id', $location->id)
                 ->whereDate('created_at', $today)

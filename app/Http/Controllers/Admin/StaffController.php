@@ -2,8 +2,9 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Enums\AttendanceStatus;
+use App\Enums\ExitReason;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StaffExitRequest;
 use App\Http\Requests\StoreStaffRequest;
 use App\Http\Requests\UpdateStaffRequest;
 use App\Models\Attendance;
@@ -11,15 +12,19 @@ use App\Models\ClockAttempt;
 use App\Models\Location;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\StaffExit;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class StaffController extends Controller
 {
+    public function __construct(protected StaffExit $exits) {}
+
     public function index(Request $request): Response
     {
         $search = $request->string('search')->toString();
@@ -148,6 +153,13 @@ class StaffController extends Controller
                 'hired_at' => $staff->hired_at?->toDateString(),
                 'is_active' => $staff->is_active,
                 'deactivated_at' => $staff->deactivated_at?->toIso8601String(),
+                'has_exited' => $staff->hasExited(),
+                'exit_reason' => $staff->exit_reason?->value,
+                'exit_reason_label' => $staff->exit_reason?->label(),
+                'exit_reason_tone' => $staff->exit_reason?->tone(),
+                'exit_date' => $staff->exit_date?->toDateString(),
+                'exit_date_label' => $staff->exit_date?->format('j M Y'),
+                'exit_note' => $staff->exit_note,
                 'created_at' => $staff->created_at?->toIso8601String(),
                 'location_id' => $staff->location_id,
                 'clocks_in' => $staff->clocksIn(),
@@ -162,15 +174,7 @@ class StaffController extends Controller
                     'radius_meters' => $staff->location->radius_meters,
                 ],
             ],
-            'stats' => [
-                'days_present' => $thisMonth->count(),
-                'days_late' => $thisMonth->where('status', AttendanceStatus::Late)->count(),
-                'total_hours' => round((int) $thisMonth->sum('worked_minutes') / 60, 1),
-                'late_minutes' => (int) $thisMonth->sum('late_minutes'),
-                'punctuality' => $thisMonth->count() > 0
-                    ? (int) round((($thisMonth->count() - $thisMonth->where('status', AttendanceStatus::Late)->count()) / $thisMonth->count()) * 100)
-                    : 100,
-            ],
+            'stats' => $this->monthStats($thisMonth),
             'attendances' => $attendances->map(fn (Attendance $a): array => [
                 'id' => $a->id,
                 'work_date' => $a->work_date->toDateString(),
@@ -180,6 +184,7 @@ class StaffController extends Controller
                 'clocked_out_at' => $a->clocked_out_at?->copy()->setTimezone($timezone)->toIso8601String(),
                 'status' => $a->status->value,
                 'status_label' => $a->status->label(),
+                'excused' => $a->isExcused(),
                 'late_minutes' => $a->late_minutes,
                 'worked_minutes' => $a->worked_minutes,
                 'break_minutes' => $a->break_minutes,
@@ -205,6 +210,7 @@ class StaffController extends Controller
                 ])->values(),
             'roles' => Role::options(),
             'locations' => $this->locationOptions(),
+            'exit_reasons' => ExitReason::options(),
         ]);
     }
 
@@ -225,29 +231,64 @@ class StaffController extends Controller
     }
 
     /**
-     * Flip a staff member between active and deactivated.
+     * Walk somebody out: record why they went, and clear up behind them.
+     *
+     * @throws \Throwable
      */
-    public function toggle(Request $request, User $staff): RedirectResponse
+    public function exit(StaffExitRequest $request, User $staff): RedirectResponse
     {
         if ($staff->id === $request->user()->id) {
             return back()->with('toast', [
                 'type' => 'error',
-                'message' => 'You cannot deactivate your own account.',
+                'message' => 'You cannot record your own exit.',
             ]);
         }
 
-        $activating = ! $staff->is_active;
+        if (! $staff->is_active) {
+            return back()->with('toast', [
+                'type' => 'error',
+                'message' => "{$staff->name} has already left.",
+            ]);
+        }
 
-        $staff->update([
-            'is_active' => $activating,
-            'deactivated_at' => $activating ? null : Carbon::now(),
-        ]);
+        $outcome = $this->exits->record(
+            $staff,
+            $request->reason(),
+            $request->lastWorkingDay(),
+            $request->note(),
+        );
+
+        $message = "{$staff->name} has been marked as having left. ".
+            'They can no longer sign in, and stop counting towards company figures.';
+
+        if (($cleanup = $outcome->summary()) !== null) {
+            $message .= ' '.$cleanup;
+        }
 
         return back()->with('toast', [
             'type' => 'success',
-            'message' => $activating
-                ? "{$staff->name} has been reactivated."
-                : "{$staff->name} has been deactivated and can no longer sign in.",
+            'message' => $message,
+        ]);
+    }
+
+    /**
+     * Put somebody back on the books, for the rehire and for the exit that
+     * should never have been recorded.
+     */
+    public function reinstate(Request $request, User $staff): RedirectResponse
+    {
+        if ($staff->is_active) {
+            return back()->with('toast', [
+                'type' => 'error',
+                'message' => "{$staff->name} is already active.",
+            ]);
+        }
+
+        $this->exits->reinstate($staff);
+
+        return back()->with('toast', [
+            'type' => 'success',
+            'message' => "{$staff->name} has been reinstated and can sign in again.",
         ]);
     }
 
@@ -270,6 +311,30 @@ class StaffController extends Controller
     }
 
     /**
+     * This month at a glance, with days an approved explanation has settled
+     * left out of everything that counts against the person.
+     *
+     * @param  Collection<int, Attendance>  $month
+     * @return array<string, mixed>
+     */
+    protected function monthStats(Collection $month): array
+    {
+        $present = $month->count();
+        $late = $month->filter(fn (Attendance $a): bool => $a->countsAsLate());
+
+        return [
+            'days_present' => $present,
+            'days_late' => $late->count(),
+            'days_excused' => $month->filter(fn (Attendance $a): bool => $a->isExcused())->count(),
+            'total_hours' => round((int) $month->sum('worked_minutes') / 60, 1),
+            'late_minutes' => (int) $late->sum('late_minutes'),
+            'punctuality' => $present > 0
+                ? (int) round((($present - $late->count()) / $present) * 100)
+                : 100,
+        ];
+    }
+
+    /**
      * Present and late day counts for the listed staff, in one grouped query.
      *
      * @param  array<int, int>  $ids
@@ -284,11 +349,11 @@ class StaffController extends Controller
         return Attendance::query()
             ->whereIn('user_id', $ids)
             ->where('work_date', '>=', $monthStart)
-            ->get(['id', 'user_id', 'status'])
+            ->get(['id', 'user_id', 'status', 'excused_at'])
             ->groupBy('user_id')
             ->map(fn ($rows): array => [
                 'present' => $rows->count(),
-                'late' => $rows->where('status', AttendanceStatus::Late)->count(),
+                'late' => $rows->filter(fn (Attendance $a): bool => $a->countsAsLate())->count(),
             ])
             ->all();
     }

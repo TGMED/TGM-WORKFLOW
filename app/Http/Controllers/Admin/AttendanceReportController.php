@@ -34,7 +34,12 @@ class AttendanceReportController extends Controller
         $department = $request->string('department')->toString();
         $locationId = $request->string('location')->toString();
 
-        $paginator = $this->staff($search, $department, $locationId)
+        // Leavers are off the report unless they are asked for by name. A
+        // report read as "how are we doing" should answer for the people who
+        // are still here.
+        $status = $request->string('status')->toString() ?: 'active';
+
+        $paginator = $this->staff($search, $department, $locationId, $status)
             ->with('location:id,name,city,timezone,workdays')
             ->orderBy('name')
             ->paginate(15)
@@ -51,6 +56,7 @@ class AttendanceReportController extends Controller
             $present = $row['days_present'] ?? 0;
             $late = $row['days_late'] ?? 0;
             $grace = $row['days_grace'] ?? 0;
+            $excused = $row['days_excused'] ?? 0;
             $due = $user->location_id === null ? null : ($expected[$user->location_id] ?? null);
 
             return [
@@ -64,6 +70,7 @@ class AttendanceReportController extends Controller
                 'location' => $user->location?->name,
                 'days_present' => $present,
                 'days_late' => $late,
+                'days_excused' => $excused,
                 'days_grace' => $grace,
                 'days_expected' => $due,
                 'days_absent' => $due === null ? null : max(0, $due - $present),
@@ -86,10 +93,11 @@ class AttendanceReportController extends Controller
                 'search' => $search,
                 'department' => $department,
                 'location' => $locationId,
+                'status' => $status,
             ],
             'range_label' => $this->rangeLabel($from, $to),
             'range_days' => (int) $from->diffInDays($to) + 1,
-            'summary' => $this->summary($search, $department, $locationId, $from, $to),
+            'summary' => $this->summary($search, $department, $locationId, $status, $from, $to),
             'departments' => User::query()
                 ->whereNotNull('department')
                 ->distinct()
@@ -155,14 +163,17 @@ class AttendanceReportController extends Controller
     }
 
     /**
-     * Staff the report covers: everyone who punches a clock, admins aside.
+     * Staff the report covers: everyone who punches a clock, admins aside,
+     * and by default only those still with the company.
      *
      * @return Builder<User>
      */
-    private function staff(string $search, string $department, string $locationId): Builder
+    private function staff(string $search, string $department, string $locationId, string $status): Builder
     {
         return User::query()
             ->whereRelation('role', 'slug', '!=', Role::SUPER_ADMIN)
+            ->when($status === 'active', fn (Builder $q) => $q->where('is_active', true))
+            ->when($status === 'inactive', fn (Builder $q) => $q->where('is_active', false))
             ->when($search !== '', fn (Builder $q) => $q->where(function (Builder $q) use ($search): void {
                 $q->where('name', 'like', "%{$search}%")
                     ->orWhere('email', 'like', "%{$search}%")
@@ -180,7 +191,7 @@ class AttendanceReportController extends Controller
      * Per-person totals over the range, in one grouped query.
      *
      * @param  array<int, int>  $ids
-     * @return array<int, array{days_present: int, days_late: int, days_grace: int, late_minutes: int, worked_minutes: int, break_minutes: int, open_days: int, last_seen: Carbon|null}>
+     * @return array<int, array{days_present: int, days_late: int, days_excused: int, days_grace: int, late_minutes: int, worked_minutes: int, break_minutes: int, open_days: int, last_seen: Carbon|null}>
      */
     private function totalsFor(array $ids, Carbon $from, Carbon $to): array
     {
@@ -191,18 +202,23 @@ class AttendanceReportController extends Controller
         return Attendance::query()
             ->whereIn('user_id', $ids)
             ->between($from, $to)
-            ->get(['user_id', 'work_date', 'status', 'late_minutes', 'worked_minutes', 'break_minutes', 'clocked_out_at'])
+            ->get(['user_id', 'work_date', 'status', 'excused_at', 'late_minutes', 'worked_minutes', 'break_minutes', 'clocked_out_at'])
             ->groupBy('user_id')
-            ->map(fn (Collection $rows): array => [
-                'days_present' => $rows->count(),
-                'days_late' => $rows->where('status', AttendanceStatus::Late)->count(),
-                'days_grace' => $rows->where('status', AttendanceStatus::Grace)->count(),
-                'late_minutes' => (int) $rows->sum('late_minutes'),
-                'worked_minutes' => (int) $rows->sum('worked_minutes'),
-                'break_minutes' => (int) $rows->sum('break_minutes'),
-                'open_days' => $rows->whereNull('clocked_out_at')->count(),
-                'last_seen' => $rows->max('work_date'),
-            ])
+            ->map(function (Collection $rows): array {
+                $late = $rows->filter(fn (Attendance $row): bool => $row->countsAsLate());
+
+                return [
+                    'days_present' => $rows->count(),
+                    'days_late' => $late->count(),
+                    'days_excused' => $rows->filter(fn (Attendance $row): bool => $row->isExcused())->count(),
+                    'days_grace' => $rows->where('status', AttendanceStatus::Grace)->count(),
+                    'late_minutes' => (int) $late->sum('late_minutes'),
+                    'worked_minutes' => (int) $rows->sum('worked_minutes'),
+                    'break_minutes' => (int) $rows->sum('break_minutes'),
+                    'open_days' => $rows->whereNull('clocked_out_at')->count(),
+                    'last_seen' => $rows->max('work_date'),
+                ];
+            })
             ->all();
     }
 
@@ -236,24 +252,32 @@ class AttendanceReportController extends Controller
      *
      * @return array<string, int|float>
      */
-    private function summary(string $search, string $department, string $locationId, Carbon $from, Carbon $to): array
-    {
-        $matching = $this->staff($search, $department, $locationId);
+    private function summary(
+        string $search,
+        string $department,
+        string $locationId,
+        string $status,
+        Carbon $from,
+        Carbon $to,
+    ): array {
+        $matching = $this->staff($search, $department, $locationId, $status);
 
         $records = Attendance::query()
             ->whereIn('user_id', $matching->clone()->select('users.id'))
             ->between($from, $to)
-            ->get(['user_id', 'status', 'late_minutes', 'worked_minutes']);
+            ->get(['user_id', 'status', 'excused_at', 'late_minutes', 'worked_minutes']);
 
         $present = $records->count();
-        $late = $records->where('status', AttendanceStatus::Late)->count();
+        $countedLate = $records->filter(fn (Attendance $row): bool => $row->countsAsLate());
+        $late = $countedLate->count();
 
         return [
             'staff' => $matching->clone()->count(),
             'days_present' => $present,
             'days_late' => $late,
+            'days_excused' => $records->filter(fn (Attendance $row): bool => $row->isExcused())->count(),
             'days_grace' => $records->where('status', AttendanceStatus::Grace)->count(),
-            'late_minutes' => (int) $records->sum('late_minutes'),
+            'late_minutes' => (int) $countedLate->sum('late_minutes'),
             'total_hours' => round((int) $records->sum('worked_minutes') / 60, 1),
             'punctuality' => $present > 0 ? (int) round((($present - $late) / $present) * 100) : 100,
         ];

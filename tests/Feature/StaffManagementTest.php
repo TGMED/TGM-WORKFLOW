@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Enums\ExitReason;
 use App\Models\Location;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class StaffManagementTest extends TestCase
@@ -130,30 +132,54 @@ class StaffManagementTest extends TestCase
         $this->assertSame($hash, $staff->refresh()->password);
     }
 
-    public function test_super_admins_can_deactivate_and_reactivate_staff(): void
+    public function test_super_admins_can_walk_staff_out_and_reinstate_them(): void
     {
         $staff = User::factory()->create(['location_id' => $this->location->id]);
 
         $this->actingAs($this->admin())
-            ->patch("/admin/staff/{$staff->id}/toggle")
+            ->post("/admin/staff/{$staff->id}/exit", [
+                'exit_reason' => ExitReason::Resignation->value,
+                'exit_date' => Carbon::now()->toDateString(),
+                'exit_note' => 'Moving to another company.',
+            ])
             ->assertSessionHasNoErrors();
 
         $staff->refresh();
         $this->assertFalse($staff->is_active);
         $this->assertNotNull($staff->deactivated_at);
+        $this->assertSame(ExitReason::Resignation, $staff->exit_reason);
+        $this->assertSame('Moving to another company.', $staff->exit_note);
+        $this->assertTrue($staff->hasExited());
 
-        $this->actingAs($this->admin())->patch("/admin/staff/{$staff->id}/toggle");
+        $this->actingAs($this->admin())->patch("/admin/staff/{$staff->id}/reinstate");
 
         $staff->refresh();
         $this->assertTrue($staff->is_active);
         $this->assertNull($staff->deactivated_at);
+        $this->assertNull($staff->exit_reason);
+        $this->assertNull($staff->exit_date);
+        $this->assertFalse($staff->hasExited());
     }
 
-    public function test_admins_cannot_deactivate_themselves(): void
+    public function test_an_exit_needs_a_reason_and_a_last_day(): void
+    {
+        $staff = User::factory()->create(['location_id' => $this->location->id]);
+
+        $this->actingAs($this->admin())
+            ->post("/admin/staff/{$staff->id}/exit", [])
+            ->assertSessionHasErrors(['exit_reason', 'exit_date']);
+
+        $this->assertTrue($staff->refresh()->is_active);
+    }
+
+    public function test_admins_cannot_walk_themselves_out(): void
     {
         $admin = $this->admin();
 
-        $this->actingAs($admin)->patch("/admin/staff/{$admin->id}/toggle");
+        $this->actingAs($admin)->post("/admin/staff/{$admin->id}/exit", [
+            'exit_reason' => ExitReason::Resignation->value,
+            'exit_date' => Carbon::now()->toDateString(),
+        ]);
 
         $this->assertTrue($admin->refresh()->is_active);
     }

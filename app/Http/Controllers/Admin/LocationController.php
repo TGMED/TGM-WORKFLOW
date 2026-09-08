@@ -140,6 +140,7 @@ class LocationController extends Controller
         $today = Carbon::now()->setTimezone($location->timezone)->toDateString();
 
         $records = Attendance::query()
+            ->ofActiveStaff()
             ->where('location_id', $location->id)
             ->where('work_date', $today)
             ->get(['id', 'status', 'excused_at', 'clocked_in_at']);

@@ -7,6 +7,7 @@ use App\Enums\ApprovalDecision;
 use App\Enums\ApprovalStage;
 use App\Enums\RequestModule;
 use App\Enums\RequestStatus;
+use App\Models\Concerns\BelongsToStaff;
 use App\Models\Concerns\HasApprovals;
 use Database\Factories\LeaveRequestFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -68,6 +69,7 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
 class LeaveRequest extends Model implements Approvable, AuditableContract
 {
     use Auditable;
+    use BelongsToStaff;
     use HasApprovals;
 
     /** @use HasFactory<LeaveRequestFactory> */

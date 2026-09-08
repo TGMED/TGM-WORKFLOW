@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Contracts\Approvable;
 use App\Enums\RequestModule;
 use App\Enums\RequestStatus;
+use App\Models\Concerns\BelongsToStaff;
 use App\Models\Concerns\HasApprovals;
 use Database\Factories\LatenessRequestFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -49,6 +50,7 @@ use Illuminate\Support\Carbon;
 ])]
 class LatenessRequest extends Model implements Approvable
 {
+    use BelongsToStaff;
     use HasApprovals;
 
     /** @use HasFactory<LatenessRequestFactory> */

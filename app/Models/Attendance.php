@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\AttendanceStatus;
+use App\Models\Concerns\BelongsToStaff;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -65,6 +66,7 @@ use Illuminate\Support\Carbon;
 ])]
 class Attendance extends Model
 {
+    use BelongsToStaff;
     use SoftDeletes;
 
     /**

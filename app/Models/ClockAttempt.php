@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\AttemptResult;
 use App\Enums\ClockType;
+use App\Models\Concerns\BelongsToStaff;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -47,6 +48,7 @@ use Illuminate\Support\Carbon;
 ])]
 class ClockAttempt extends Model
 {
+    use BelongsToStaff;
     use SoftDeletes;
 
     /**

@@ -47,6 +47,7 @@ const props = defineProps<{
         search: string;
         department: string;
         location: string;
+        status: string;
     };
     range_label: string;
     range_days: number;
@@ -54,6 +55,7 @@ const props = defineProps<{
         staff: number;
         days_present: number;
         days_late: number;
+        days_excused: number;
         days_grace: number;
         late_minutes: number;
         total_hours: number;
@@ -68,6 +70,7 @@ const to = ref(props.filters.to);
 const search = ref(props.filters.search);
 const department = ref(props.filters.department);
 const site = ref(props.filters.location);
+const status = ref(props.filters.status);
 
 let debounce: number | undefined;
 
@@ -83,6 +86,7 @@ function applyFilters(immediate = false) {
                 search: search.value || undefined,
                 department: department.value || undefined,
                 location: site.value || undefined,
+                status: status.value === 'active' ? undefined : status.value,
             },
             { preserveState: true, replace: true, preserveScroll: true },
         );
@@ -95,7 +99,18 @@ function applyFilters(immediate = false) {
 }
 
 watch(search, () => applyFilters());
-watch([from, to, department, site], () => applyFilters(true));
+watch([from, to, department, site, status], () => applyFilters(true));
+
+/*
+ * Leavers are off the report by default: it is read as a measure of how the
+ * company is doing, and somebody who has gone cannot be part of that answer.
+ * They stay reachable for the times when the question really is about them.
+ */
+const statusOptions = [
+    { value: 'active', label: 'Current staff' },
+    { value: 'all', label: 'Including leavers' },
+    { value: 'inactive', label: 'Leavers only' },
+];
 
 const iso = (date: Date) =>
     `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -285,6 +300,11 @@ const hoursOf = (minutes: number) => Math.round((minutes / 60) * 10) / 10;
                             <option value="">All locations</option>
                             <option value="none">No location</option>
                         </SelectField>
+
+                        <SelectField
+                            v-model="status"
+                            :options="statusOptions"
+                        />
                     </div>
                 </div>
             </Panel>

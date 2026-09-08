@@ -60,6 +60,7 @@ class AdminDashboardController extends Controller
         $staff = User::query()->active()->clocksIn();
 
         $clockedIn = Attendance::query()
+            ->ofActiveStaff()
             ->where('work_date', $today->toDateString())
             ->whereNotNull('clocked_in_at')
             ->count();
@@ -73,17 +74,20 @@ class AdminDashboardController extends Controller
             'sites' => Location::query()->active()->count(),
             'clocked_in_today' => $clockedIn,
             'late_today' => Attendance::query()
+                ->ofActiveStaff()
                 ->where('work_date', $today->toDateString())
                 ->late()
                 ->count(),
             'on_leave_today' => LeaveRequest::query()
+                ->ofActiveStaff()
                 ->approved()
                 ->overlapping($today, $today)
                 ->distinct()
                 ->count('user_id'),
-            'pending_requests' => LeaveRequest::query()->where('status', RequestStatus::Pending->value)->count()
-                + LatenessRequest::query()->where('status', RequestStatus::Pending->value)->count(),
+            'pending_requests' => LeaveRequest::query()->ofActiveStaff()->where('status', RequestStatus::Pending->value)->count()
+                + LatenessRequest::query()->ofActiveStaff()->where('status', RequestStatus::Pending->value)->count(),
             'rejected_attempts_today' => ClockAttempt::query()
+                ->ofActiveStaff()
                 ->rejected()
                 ->whereDate('created_at', $today->toDateString())
                 ->count(),
@@ -112,6 +116,7 @@ class AdminDashboardController extends Controller
                     ->count();
 
                 $records = Attendance::query()
+                    ->ofActiveStaff()
                     ->where('location_id', $location->id)
                     ->where('work_date', $localDate)
                     ->get(['status', 'excused_at', 'clocked_in_at']);
@@ -144,6 +149,7 @@ class AdminDashboardController extends Controller
         $start = $today->copy()->subDays(13);
 
         $rows = Attendance::query()
+            ->ofActiveStaff()
             ->whereBetween('work_date', [$start->toDateString(), $today->toDateString()])
             ->selectRaw(
                 'work_date, count(*) as total, '.
@@ -191,6 +197,7 @@ class AdminDashboardController extends Controller
         $others = User::query()->active()->clocksIn()->whereNotIn('role_id', $managerRoles)->count();
 
         $committed = LeaveRequest::query()
+            ->ofActiveStaff()
             ->committed()
             ->inYear($year)
             ->selectRaw('leave_type_id, sum(days) as days_used')
@@ -232,8 +239,12 @@ class AdminDashboardController extends Controller
         $monthStart = $today->copy()->startOfMonth();
 
         return [
-            'leave' => $this->moduleCounts(LeaveRequest::query()->where('created_at', '>=', $monthStart)),
-            'lateness' => $this->moduleCounts(LatenessRequest::query()->where('created_at', '>=', $monthStart)),
+            'leave' => $this->moduleCounts(
+                LeaveRequest::query()->ofActiveStaff()->where('created_at', '>=', $monthStart),
+            ),
+            'lateness' => $this->moduleCounts(
+                LatenessRequest::query()->ofActiveStaff()->where('created_at', '>=', $monthStart),
+            ),
             'month_label' => $today->format('F Y'),
         ];
     }
@@ -290,6 +301,7 @@ class AdminDashboardController extends Controller
     protected function oldestPending(): array
     {
         return LeaveRequest::query()
+            ->ofActiveStaff()
             ->with(['user:id,name', 'leaveType:id,name', 'supervisor:id,name'])
             ->where('status', RequestStatus::Pending->value)
             ->orderBy('created_at')
