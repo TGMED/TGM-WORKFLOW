@@ -2,6 +2,7 @@
 
 use App\Console\Commands\SendBirthdayGreetings;
 use App\Console\Commands\SendDueAnnouncements;
+use App\Console\Commands\SendWorkAnniversaryGreetings;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -20,4 +21,11 @@ Schedule::command(SendBirthdayGreetings::class)
 // the ones dated to go up later.
 Schedule::command(SendDueAnnouncements::class)
     ->everyTenMinutes()
+    ->withoutOverlapping();
+
+// Alongside the birthday run, and for the same reasons. Kept a few minutes
+// apart so a person marking both on one day gets two separate notes rather
+// than two sends racing each other.
+Schedule::command(SendWorkAnniversaryGreetings::class)
+    ->dailyAt('07:05')
     ->withoutOverlapping();

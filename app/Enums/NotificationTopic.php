@@ -21,6 +21,9 @@ enum NotificationTopic: string
 
     case Birthday = 'birthday';
 
+    /** Our note to you on the anniversary of the day you joined. */
+    case Anniversary = 'anniversary';
+
     public function label(): string
     {
         return match ($this) {
@@ -29,6 +32,7 @@ enum NotificationTopic: string
             self::RequestDecided => 'Decisions on my requests',
             self::Announcement => 'Company announcements',
             self::Birthday => 'Birthday greetings',
+            self::Anniversary => 'Work anniversaries',
         };
     }
 
@@ -40,6 +44,7 @@ enum NotificationTopic: string
             self::RequestDecided => 'Your request was approved, declined or sent back.',
             self::Announcement => 'Notices published to the whole company.',
             self::Birthday => 'Our note to you on your birthday.',
+            self::Anniversary => 'Our note to you on the anniversary of your first day.',
         };
     }
 
