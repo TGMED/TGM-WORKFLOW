@@ -210,6 +210,57 @@ class LeavePolicyRulesTest extends TestCase
         $this->assertSame(0, LeaveRequest::query()->count());
     }
 
+    /**
+     * PHP drops a file over `upload_max_filesize` before Laravel sees it, and
+     * what is left looks exactly like no file at all. Somebody who attached a
+     * document has to be told the server refused it, not that they forgot one.
+     */
+    public function test_a_document_the_server_threw_away_is_not_reported_as_a_missing_one(): void
+    {
+        $type = LeaveType::factory()->needsEvidence()->create();
+
+        $dropped = new UploadedFile(
+            UploadedFile::fake()->create('sick-note.pdf', 40, 'application/pdf')->getPathname(),
+            'sick-note.pdf',
+            'application/pdf',
+            UPLOAD_ERR_INI_SIZE,
+            test: true,
+        );
+
+        $this->actingAs($this->staff())
+            ->post('/leave', [...$this->payload($type->id), 'evidence' => $dropped])
+            ->assertSessionHasErrors([
+                'evidence' => 'That file is bigger than this server takes, which is '
+                    .ini_get('upload_max_filesize').'. Attach a smaller one.',
+            ]);
+
+        $this->assertSame(0, LeaveRequest::query()->count());
+    }
+
+    /**
+     * The same on a type that never asked for paperwork. The request would
+     * otherwise save as though nothing had been attached, and the person who
+     * attached something would never hear that it did not arrive.
+     */
+    public function test_a_document_the_server_threw_away_stops_a_type_that_does_not_need_one(): void
+    {
+        $type = LeaveType::factory()->create(['requires_evidence' => false]);
+
+        $dropped = new UploadedFile(
+            UploadedFile::fake()->create('note.pdf', 40, 'application/pdf')->getPathname(),
+            'note.pdf',
+            'application/pdf',
+            UPLOAD_ERR_INI_SIZE,
+            test: true,
+        );
+
+        $this->actingAs($this->staff())
+            ->post('/leave', [...$this->payload($type->id), 'evidence' => $dropped])
+            ->assertSessionHasErrors('evidence');
+
+        $this->assertSame(0, LeaveRequest::query()->count());
+    }
+
     public function test_evidence_is_stored_off_the_public_disk(): void
     {
         Storage::fake(LeaveEvidence::DISK);
