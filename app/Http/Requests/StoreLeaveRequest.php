@@ -62,6 +62,13 @@ class StoreLeaveRequest extends FormRequest
             // on somebody's word. Only asked for where the type says so, and
             // not asked for twice when one is already on file.
             'evidence' => [
+                // The form posts the field on every request, empty when there
+                // is nothing to attach, so the type rules below have to be
+                // told to sit out a null. Without this every booking of a type
+                // that needs no paperwork is turned away for not being a file.
+                // `required_if` is implicit and still fires, so a type that
+                // does ask for evidence is no easier to get past.
+                'nullable',
                 Rule::requiredIf(fn (): bool => $this->needsEvidence()),
                 'file',
                 'mimes:pdf,jpg,jpeg,png,webp',

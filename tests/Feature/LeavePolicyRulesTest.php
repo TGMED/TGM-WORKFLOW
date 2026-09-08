@@ -169,6 +169,36 @@ class LeavePolicyRulesTest extends TestCase
 
     // Evidence.
 
+    /**
+     * The form posts the attachment field on every request, empty when there
+     * is nothing to send. A type that asks for no paperwork has to take that
+     * rather than turn the booking away for not being a file.
+     */
+    public function test_a_type_needing_no_paperwork_takes_an_empty_attachment_field(): void
+    {
+        $type = LeaveType::factory()->create(['requires_evidence' => false]);
+
+        $this->actingAs($this->staff())
+            ->post('/leave', [...$this->payload($type->id), 'evidence' => null])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(1, LeaveRequest::query()->count());
+    }
+
+    /**
+     * And the empty field is no way around a type that does ask for one.
+     */
+    public function test_an_empty_attachment_field_still_fails_a_type_that_needs_one(): void
+    {
+        $type = LeaveType::factory()->needsEvidence()->create();
+
+        $this->actingAs($this->staff())
+            ->post('/leave', [...$this->payload($type->id), 'evidence' => null])
+            ->assertSessionHasErrors('evidence');
+
+        $this->assertSame(0, LeaveRequest::query()->count());
+    }
+
     public function test_a_type_that_requires_evidence_is_turned_away_without_it(): void
     {
         $type = LeaveType::factory()->needsEvidence()->create();
