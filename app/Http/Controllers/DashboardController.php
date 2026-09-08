@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\AttendanceStatus;
 use App\Enums\RequestStatus;
 use App\Models\Announcement;
 use App\Models\Attendance;
@@ -186,9 +185,15 @@ class DashboardController extends Controller
     protected function personalStats(Collection $month, string $timezone): array
     {
         $present = $month->count();
-        $late = $month->where('status', AttendanceStatus::Late)->count();
+
+        // An approved explanation takes the day out of the tally entirely,
+        // minutes included: a day the company has accepted is not a day
+        // somebody should still be shown as owing time for.
+        $countedLate = $month->filter(fn (Attendance $record): bool => $record->countsAsLate());
+
+        $late = $countedLate->count();
         $totalMinutes = (int) $month->sum('worked_minutes');
-        $lateMinutes = (int) $month->sum('late_minutes');
+        $lateMinutes = (int) $countedLate->sum('late_minutes');
 
         $averageArrival = null;
         $withClockIn = $month->filter(fn (Attendance $a) => $a->clocked_in_at !== null);
@@ -372,7 +377,7 @@ class DashboardController extends Controller
             $records = Attendance::query()
                 ->where('location_id', $location->id)
                 ->where('work_date', $today)
-                ->get(['id', 'status', 'clocked_in_at']);
+                ->get(['id', 'status', 'excused_at', 'clocked_in_at']);
 
             $headcount = User::query()
                 ->active()
@@ -381,7 +386,9 @@ class DashboardController extends Controller
                 ->count();
 
             $in = $records->whereNotNull('clocked_in_at')->count();
-            $late = $records->where('status', AttendanceStatus::Late)->count();
+            $late = $records->filter(
+                fn (Attendance $record): bool => $record->countsAsLate(),
+            )->count();
 
             $rejected = ClockAttempt::query()
                 ->rejected()

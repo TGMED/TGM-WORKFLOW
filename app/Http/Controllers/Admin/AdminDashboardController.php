@@ -74,7 +74,7 @@ class AdminDashboardController extends Controller
             'clocked_in_today' => $clockedIn,
             'late_today' => Attendance::query()
                 ->where('work_date', $today->toDateString())
-                ->where('status', AttendanceStatus::Late->value)
+                ->late()
                 ->count(),
             'on_leave_today' => LeaveRequest::query()
                 ->approved()
@@ -114,7 +114,7 @@ class AdminDashboardController extends Controller
                 $records = Attendance::query()
                     ->where('location_id', $location->id)
                     ->where('work_date', $localDate)
-                    ->get(['status', 'clocked_in_at']);
+                    ->get(['status', 'excused_at', 'clocked_in_at']);
 
                 $in = $records->whereNotNull('clocked_in_at')->count();
 
@@ -124,7 +124,9 @@ class AdminDashboardController extends Controller
                     'city' => $location->city,
                     'headcount' => $headcount,
                     'clocked_in' => $in,
-                    'late' => $records->where('status', AttendanceStatus::Late)->count(),
+                    'late' => $records->filter(
+                        fn (Attendance $record): bool => $record->countsAsLate(),
+                    )->count(),
                     'turnout' => $headcount > 0 ? (int) round(($in / $headcount) * 100) : 0,
                 ];
             })
@@ -143,9 +145,11 @@ class AdminDashboardController extends Controller
 
         $rows = Attendance::query()
             ->whereBetween('work_date', [$start->toDateString(), $today->toDateString()])
-            ->selectRaw('work_date, count(*) as total, sum(case when status = ? then 1 else 0 end) as late', [
-                AttendanceStatus::Late->value,
-            ])
+            ->selectRaw(
+                'work_date, count(*) as total, '.
+                'sum(case when status = ? and excused_at is null then 1 else 0 end) as late',
+                [AttendanceStatus::Late->value],
+            )
             ->groupBy('work_date')
             ->get()
             ->keyBy(fn (Attendance $row): string => Carbon::parse($row->work_date)->toDateString());

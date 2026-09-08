@@ -27,6 +27,7 @@ const props = defineProps<{
         clocked_out_at: string | null;
         status: string;
         status_label: string;
+        excused: boolean;
         late_minutes: number;
         worked_minutes: number | null;
         break_minutes: number | null;
@@ -46,6 +47,7 @@ const props = defineProps<{
     summary: {
         days_present: number;
         days_late: number;
+        days_excused: number;
         total_hours: number;
         late_minutes: number;
     };
@@ -155,7 +157,11 @@ const resultTone = (result: string) =>
                     label="Late arrivals"
                     :value="summary.days_late"
                     :tone="summary.days_late > 0 ? 'brass' : 'default'"
-                    :caption="duration(summary.late_minutes) + ' total'"
+                    :caption="
+                        summary.days_excused > 0
+                            ? `${duration(summary.late_minutes)} total, ${summary.days_excused} excused`
+                            : duration(summary.late_minutes) + ' total'
+                    "
                 />
                 <StatTile
                     label="Hours worked"
@@ -273,10 +279,22 @@ const resultTone = (result: string) =>
                                 </td>
                                 <td class="px-5 py-3 text-right">
                                     <StatusPill
-                                        :tone="attendanceTone(record.status)"
+                                        :tone="
+                                            record.excused
+                                                ? 'neutral'
+                                                : attendanceTone(record.status)
+                                        "
+                                        :title="
+                                            record.excused
+                                                ? 'Your explanation was approved, so this day does not count as lateness'
+                                                : undefined
+                                        "
                                     >
+                                        <template v-if="record.excused">
+                                            Excused
+                                        </template>
                                         <template
-                                            v-if="record.status === 'late'"
+                                            v-else-if="record.status === 'late'"
                                         >
                                             +{{ duration(record.late_minutes) }}
                                             late
