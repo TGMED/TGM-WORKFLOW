@@ -70,7 +70,12 @@ return [
             'queue' => env('REDIS_QUEUE', 'default'),
             'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 90),
             'block_for' => null,
-            'after_commit' => false,
+            // A job pushed to Redis is visible to a worker at once, so one
+            // dispatched inside a transaction can be picked up before the
+            // rows it reads are committed. Holding dispatches until the
+            // transaction commits is what the database driver gave us for
+            // free, and what the notifiers already do by hand.
+            'after_commit' => true,
         ],
 
         'deferred' => [
