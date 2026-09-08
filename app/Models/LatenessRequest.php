@@ -123,4 +123,44 @@ class LatenessRequest extends Model implements Approvable
     {
         return "{$this->minutes_late} minutes late on ".$this->work_date->format('j M Y');
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public function details(?User $viewer = null): array
+    {
+        $shared = $this->sharedDetails();
+
+        return [
+            'Requester' => $shared['Requester'],
+            'Date' => $this->work_date->format('j M Y'),
+            'Minutes late' => (string) $this->minutes_late,
+            'Reason' => blank($this->reason) ? 'Not given' : $this->reason,
+            'Status' => $shared['Status'],
+            'Filed' => $shared['Filed'],
+        ];
+    }
+
+    public function standing(?User $viewer = null): string
+    {
+        return $this->settledStanding()
+            ?? 'Waiting on '.$this->decider($viewer, null, 'an approver').' for a decision.';
+    }
+
+    public function nextStep(?User $viewer = null): ?string
+    {
+        if (! $this->requestStatus()->isOpen()) {
+            return null;
+        }
+
+        $outstanding = $this->approvalsOutstanding();
+
+        if ($outstanding < 1) {
+            return null;
+        }
+
+        return $outstanding === 1
+            ? 'One approval and the lateness is excused.'
+            : "It needs {$outstanding} more approvals before the lateness is excused.";
+    }
 }

@@ -307,6 +307,88 @@ class LeaveRequest extends Model implements Approvable, AuditableContract
     }
 
     /**
+     * @return array<string, string>
+     */
+    public function details(?User $viewer = null): array
+    {
+        $shared = $this->sharedDetails();
+
+        return [
+            'Requester' => $shared['Requester'],
+            'Leave type' => $this->leaveType->name,
+            'Dates' => $this->dateRange(),
+            'Working days' => (string) $this->days,
+            'Reason' => blank($this->reason) ? 'Not given' : $this->reason,
+            'Relief officer' => $this->name($this->reliefOfficer, $viewer, 'None named'),
+            'Approver' => $this->name($this->supervisor, $viewer, 'Any approver'),
+            'Status' => $shared['Status'],
+            'Filed' => $shared['Filed'],
+        ];
+    }
+
+    public function standing(?User $viewer = null): string
+    {
+        if (($settled = $this->settledStanding()) !== null) {
+            return $settled;
+        }
+
+        if (! $this->reliefAgreed()) {
+            return 'Waiting on '.$this->decider($viewer, $this->reliefOfficer, 'a relief officer').' to agree cover.';
+        }
+
+        return 'Waiting on '.$this->decider($viewer, $this->supervisor, 'an approver').' for a decision.';
+    }
+
+    public function nextStep(?User $viewer = null): ?string
+    {
+        if (! $this->requestStatus()->isOpen()) {
+            return null;
+        }
+
+        if (! $this->reliefAgreed()) {
+            return 'After that it goes to '.$this->upNext($viewer, $this->supervisor, 'an approver').' for approval.';
+        }
+
+        $outstanding = $this->approvalsOutstanding();
+
+        if ($outstanding < 1) {
+            return null;
+        }
+
+        return $outstanding === 1
+            ? 'One approval and the leave is granted.'
+            : "It needs {$outstanding} more approvals before the leave is granted.";
+    }
+
+    /**
+     * Leave of a single day reads as that day rather than as a range.
+     */
+    protected function dateRange(): string
+    {
+        $start = $this->start_date->format('j M Y');
+
+        return $this->start_date->isSameDay($this->end_date)
+            ? $start
+            : $start.' - '.$this->end_date->format('j M Y');
+    }
+
+    /**
+     * Name a person on the request, pointing out to the reader where they are
+     * the one named. This is the part they hold, which is not the same
+     * question as whose turn it is now.
+     */
+    protected function name(?User $person, ?User $viewer, string $fallback): string
+    {
+        if ($person === null) {
+            return $fallback;
+        }
+
+        return $viewer !== null && $viewer->id === $person->id
+            ? $person->name.' (you)'
+            : $person->name;
+    }
+
+    /**
      * Requests that count against an allowance: granted, or still in play.
      *
      * @param  Builder<LeaveRequest>  $query

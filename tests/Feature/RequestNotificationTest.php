@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\ApprovalDecision;
+use App\Enums\NotificationChannel;
 use App\Enums\NotificationTopic;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
@@ -10,7 +11,9 @@ use App\Models\Location;
 use App\Models\NotificationSetting;
 use App\Models\User;
 use App\Notifications\ApprovalRequested;
+use App\Notifications\ApprovalUpcoming;
 use App\Notifications\RequestDecided;
+use App\Notifications\RequestRaised;
 use App\Services\ApprovalService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -75,8 +78,129 @@ class RequestNotificationTest extends TestCase
         Notification::assertSentTo($relief, ApprovalRequested::class);
 
         // The approver's turn comes only once cover is agreed, so they are not
-        // written to yet.
+        // asked to decide yet, only told it is coming.
         Notification::assertNotSentTo($supervisor, ApprovalRequested::class);
+        Notification::assertSentTo($supervisor, ApprovalUpcoming::class);
+    }
+
+    public function test_the_requester_is_sent_a_receipt_when_they_raise_leave(): void
+    {
+        Notification::fake();
+
+        $staff = $this->staff();
+        $relief = $this->staff();
+        $supervisor = User::factory()->approver()->create();
+
+        $this->actingAs($staff)
+            ->post('/leave', $this->payload($supervisor, $relief))
+            ->assertSessionHasNoErrors();
+
+        Notification::assertSentTo($staff, RequestRaised::class);
+
+        // The receipt is for the requester side; the people it is waiting on
+        // get the message that asks something of them instead.
+        Notification::assertNotSentTo($relief, RequestRaised::class);
+    }
+
+    public function test_leave_filed_on_behalf_tells_the_staff_member_and_the_filer(): void
+    {
+        Notification::fake();
+
+        $staff = $this->staff();
+        $relief = $this->staff();
+        $supervisor = User::factory()->approver()->create();
+        $filer = User::factory()->approver()->create();
+
+        $this->actingAs($filer)
+            ->post('/approvals/on-behalf/leave', [
+                'staff_id' => $staff->id,
+                ...$this->payload($supervisor, $relief),
+            ])
+            ->assertSessionHasNoErrors();
+
+        Notification::assertSentTo($staff, RequestRaised::class);
+        Notification::assertSentTo($filer, RequestRaised::class);
+        Notification::assertSentTo($relief, ApprovalRequested::class);
+        Notification::assertSentTo($supervisor, ApprovalUpcoming::class);
+    }
+
+    public function test_nobody_is_written_to_twice_when_they_play_two_parts(): void
+    {
+        Notification::fake();
+
+        $staff = $this->staff();
+        $supervisor = User::factory()->approver()->create();
+
+        // The approver who files it is also the one covering the desk, so the
+        // message asking them for cover is the only one they should get.
+        $filer = User::factory()->approver()->create();
+
+        $this->actingAs($filer)
+            ->post('/approvals/on-behalf/leave', [
+                'staff_id' => $staff->id,
+                ...$this->payload($supervisor, $filer),
+            ])
+            ->assertSessionHasNoErrors();
+
+        Notification::assertSentToTimes($filer, ApprovalRequested::class, 1);
+        Notification::assertNotSentTo($filer, RequestRaised::class);
+    }
+
+    public function test_the_raised_mails_render_for_everyone_they_go_to(): void
+    {
+        $staff = $this->staff();
+        $relief = $this->staff();
+        $supervisor = User::factory()->approver()->create();
+        $filer = User::factory()->approver()->create();
+
+        $this->actingAs($filer)
+            ->post('/approvals/on-behalf/leave', [
+                'staff_id' => $staff->id,
+                ...$this->payload($supervisor, $relief),
+            ])
+            ->assertSessionHasNoErrors();
+
+        $leave = LeaveRequest::query()->firstOrFail()
+            ->load('user', 'raisedBy', 'leaveType', 'reliefOfficer', 'supervisor', 'approvals');
+
+        $receipt = (new RequestRaised($leave))->toMail($staff);
+        $this->assertStringContainsString($filer->name, implode(' ', $receipt->introLines));
+
+        $copy = (new RequestRaised($leave))->toMail($filer);
+        $this->assertStringContainsString($staff->name, implode(' ', $copy->introLines));
+
+        $headsUp = (new ApprovalUpcoming($leave))->toMail($supervisor);
+        $this->assertStringContainsString($relief->name, implode(' ', $headsUp->introLines));
+    }
+
+    public function test_the_named_approver_can_switch_off_the_heads_up(): void
+    {
+        Notification::fake();
+
+        $staff = $this->staff();
+        $relief = $this->staff();
+        $supervisor = User::factory()->approver()->create();
+
+        NotificationSetting::query()->create([
+            'user_id' => $supervisor->id,
+            'topic' => NotificationTopic::RequestRaised,
+            'email' => false,
+            'push' => false,
+        ]);
+
+        $this->actingAs($staff)
+            ->post('/leave', $this->payload($supervisor, $relief))
+            ->assertSessionHasNoErrors();
+
+        Notification::assertNotSentTo($supervisor, ApprovalUpcoming::class);
+
+        // Their own approvals still reach them: that topic cannot be switched
+        // off, and this only silenced the heads-up.
+        $this->assertTrue(NotificationSetting::allows(
+            $supervisor->fresh(),
+            NotificationTopic::ApprovalRequested,
+            NotificationChannel::Email,
+        ));
     }
 
     public function test_the_approver_is_told_once_cover_is_agreed(): void

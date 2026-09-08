@@ -117,6 +117,63 @@ trait HasApprovals
         return max(0, $this->approvalsRequired() - $this->approvalsGiven());
     }
 
+    /**
+     * Name whoever a turn belongs to, in the second person when the person
+     * reading is the one it is waiting on. `awaitsDecisionFrom` is the test
+     * rather than a name match, so a relief officer and an approver are each
+     * addressed at the point the request is actually theirs.
+     */
+    protected function decider(?User $viewer, ?User $named, string $fallback): string
+    {
+        if ($viewer !== null && $this->awaitsDecisionFrom($viewer)) {
+            return 'you';
+        }
+
+        return $named->name ?? $fallback;
+    }
+
+    /**
+     * Name whoever a turn is coming to. Unlike `decider` this is about a turn
+     * that has not arrived, so it goes on who is named rather than on who the
+     * request would take a decision from now.
+     */
+    protected function upNext(?User $viewer, ?User $named, string $fallback): string
+    {
+        if ($named === null) {
+            return $fallback;
+        }
+
+        return $viewer !== null && $viewer->id === $named->id ? 'you' : $named->name;
+    }
+
+    /**
+     * A closed request has nothing to wait on, and says so instead. Null while
+     * it is still open, leaving the caller to describe whose turn it is.
+     */
+    protected function settledStanding(): ?string
+    {
+        if ($this->requestStatus()->isOpen()) {
+            return null;
+        }
+
+        return 'This request is '.strtolower($this->requestStatus()->label()).'.';
+    }
+
+    /**
+     * How the request reads on a details block, for the fields every module
+     * shares.
+     *
+     * @return array<string, string>
+     */
+    protected function sharedDetails(): array
+    {
+        return [
+            'Requester' => $this->requester()->name,
+            'Status' => $this->requestStatus()->label(),
+            'Filed' => $this->raisedAt()?->format('j M Y') ?? 'Not recorded',
+        ];
+    }
+
     public function raisedAt(): ?CarbonInterface
     {
         return $this->created_at;

@@ -6,6 +6,7 @@ use App\Contracts\Approvable;
 use App\Enums\ApprovalStage;
 use App\Enums\NotificationTopic;
 use App\Models\User;
+use App\Notifications\Concerns\DescribesRequest;
 use App\Services\Push\PushMessage;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -16,6 +17,8 @@ use Illuminate\Notifications\Messages\MailMessage;
  */
 class ApprovalRequested extends TopicNotification
 {
+    use DescribesRequest;
+
     /**
      * @param  Approvable&Model  $request
      */
@@ -46,8 +49,7 @@ class ApprovalRequested extends TopicNotification
             $mail->line("It was filed on their behalf by {$raisedBy->name}.");
         }
 
-        return $mail
-            ->line($this->request->summary())
+        return $this->describe($mail, $this->request, $notifiable)
             ->action('Open approvals', $this->link('/approvals'))
             ->line('If this is not yours to decide, you can leave it: it will still show for anyone else it is with.');
     }

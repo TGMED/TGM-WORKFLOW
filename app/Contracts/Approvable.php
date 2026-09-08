@@ -37,6 +37,27 @@ interface Approvable
     public function summary(): string;
 
     /**
+     * The facts of the request, as ordered label => value pairs, for places
+     * with room to lay them out rather than a single line. A viewer is named
+     * where one is reading it, so their own part can be pointed out to them.
+     *
+     * @return array<string, string>
+     */
+    public function details(?User $viewer = null): array;
+
+    /**
+     * Where the request has got to, in a sentence. Addressed to the viewer
+     * when it is their turn, so nobody has to work out whether that is them.
+     */
+    public function standing(?User $viewer = null): string;
+
+    /**
+     * What happens after the current turn, where there is anything left to
+     * say. Null once the request has nowhere further to go.
+     */
+    public function nextStep(?User $viewer = null): ?string;
+
+    /**
      * Decisions recorded so far, oldest first, across every round.
      *
      * @return Collection<int, Approval>
