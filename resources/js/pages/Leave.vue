@@ -330,19 +330,61 @@ const exhausted = computed(
 const overAllowance = computed(
     () => remaining.value !== null && workingDays.value > remaining.value,
 );
-const canSubmit = computed(
-    () =>
-        !exhausted.value &&
-        !overAllowance.value &&
-        ineligibleReason.value === null &&
-        !outsideWindow.value &&
-        (!needsEvidence.value || form.evidence !== null) &&
-        workingDays.value > 0 &&
-        clashingDuty.value === null &&
-        closedPeriod.value === null &&
-        form.supervisor_id !== null &&
-        form.relief_officer_id !== null,
-);
+// Why the request cannot be sent yet, or null when it can. The send button
+// reads this rather than a condition list of its own, so the two cannot drift
+// apart and leave a dead button with nothing on screen to explain it.
+//
+// Three of these say nothing anywhere else on the form: dates with no working
+// day in them, no approver, and no relief officer. The last is the one that
+// bites, since the watcher above drops a relief officer who turns out to be
+// away, and the person who picked them never sees it happen.
+const blockedReason = computed<string | null>(() => {
+    if (ineligibleReason.value !== null) {
+        return ineligibleReason.value;
+    }
+
+    if (exhausted.value) {
+        return `You have no ${selectedBalance.value?.name?.toLowerCase()} left for ${props.year}.`;
+    }
+
+    if (workingDays.value === 0) {
+        return 'Those dates contain no working days for your site.';
+    }
+
+    if (overAllowance.value) {
+        return `That is ${workingDays.value} working days but you only have ${remaining.value} left.`;
+    }
+
+    if (outsideWindow.value && claimWindow.value) {
+        return `${selectedBalance.value?.name} has to be taken ${claimWindow.value.label}.`;
+    }
+
+    if (closedPeriod.value !== null) {
+        return `Leave is closed over these dates for ${closedPeriod.value.name}.`;
+    }
+
+    if (clashingDuty.value !== null) {
+        return `You are covering for ${clashingDuty.value.colleague} over these dates.`;
+    }
+
+    if (form.supervisor_id === null) {
+        return 'Pick an approver to sign this off.';
+    }
+
+    if (form.relief_officer_id === null) {
+        return reliefOptions.value.length === 0
+            ? 'Nobody on the relief list is free to cover your desk over these dates.'
+            : 'Pick a relief officer to cover your desk.';
+    }
+
+    if (needsEvidence.value && form.evidence === null) {
+        return 'Attach the supporting document this type of leave needs.';
+    }
+
+    return null;
+});
+
+const canSubmit = computed(() => blockedReason.value === null);
 
 // Changing the type or the first day can leave the last day out of range, so
 // it is pulled back rather than left showing something that cannot be sent.
@@ -872,6 +914,12 @@ function toggleTrail(row: LeaveRow) {
             </form>
 
             <template #footer>
+                <p
+                    v-if="blockedReason"
+                    class="mr-auto min-w-0 text-[12.5px] text-muted"
+                >
+                    {{ blockedReason }}
+                </p>
                 <AppButton variant="ghost" @click="modalOpen = false">
                     Cancel
                 </AppButton>
