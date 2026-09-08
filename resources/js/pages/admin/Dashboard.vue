@@ -183,7 +183,7 @@ const turnout = computed(() =>
                                     :title="`${day.late} late`"
                                 />
                                 <div
-                                    class="w-full bg-brand/70"
+                                    class="w-full bg-signal/70"
                                     :class="day.late === 0 && 'rounded-t'"
                                     :style="{
                                         height: `${(day.on_time / peak) * 100}%`,
@@ -203,7 +203,7 @@ const turnout = computed(() =>
                         class="mt-4 flex items-center gap-4 text-[12px] text-muted"
                     >
                         <span class="flex items-center gap-1.5">
-                            <span class="size-2.5 rounded-sm bg-brand/70" />
+                            <span class="size-2.5 rounded-sm bg-signal/70" />
                             On time
                         </span>
                         <span class="flex items-center gap-1.5">
