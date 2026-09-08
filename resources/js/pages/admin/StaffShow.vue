@@ -9,6 +9,7 @@ import Panel from '@/components/ui/Panel.vue';
 import SelectField from '@/components/ui/SelectField.vue';
 import StatTile from '@/components/ui/StatTile.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
+import TextareaField from '@/components/ui/TextareaField.vue';
 import TextField from '@/components/ui/TextField.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import {
@@ -35,6 +36,13 @@ const props = defineProps<{
         hired_at: string | null;
         is_active: boolean;
         deactivated_at: string | null;
+        has_exited: boolean;
+        exit_reason: string | null;
+        exit_reason_label: string | null;
+        exit_reason_tone: string | null;
+        exit_date: string | null;
+        exit_date_label: string | null;
+        exit_note: string | null;
         created_at: string | null;
         location_id: number | null;
         clocks_in: boolean;
@@ -52,6 +60,7 @@ const props = defineProps<{
     stats: {
         days_present: number;
         days_late: number;
+        days_excused: number;
         total_hours: number;
         late_minutes: number;
         punctuality: number;
@@ -65,6 +74,7 @@ const props = defineProps<{
         clocked_out_at: string | null;
         status: string;
         status_label: string;
+        excused: boolean;
         late_minutes: number;
         worked_minutes: number | null;
         break_minutes: number | null;
@@ -85,12 +95,14 @@ const props = defineProps<{
     }>;
     roles: Array<{ value: string; label: string }>;
     locations: Array<{ value: number; label: string }>;
+    exit_reasons: Array<{ value: string; label: string }>;
 }>();
 
 const tab = ref<'days' | 'attempts'>('days');
 const editOpen = ref(false);
-const confirmOpen = ref(false);
-const toggling = ref(false);
+const exitOpen = ref(false);
+const reinstateOpen = ref(false);
+const reinstating = ref(false);
 
 const form = useForm({
     name: props.staff.name,
@@ -116,17 +128,34 @@ function submitEdit() {
     });
 }
 
-function confirmToggle() {
-    toggling.value = true;
+/* ---- Exit ------------------------------------------------------------- */
+const exitForm = useForm({
+    exit_reason: '',
+    exit_date: new Date().toISOString().slice(0, 10),
+    exit_note: '',
+});
+
+function submitExit() {
+    exitForm.post(`/admin/staff/${props.staff.id}/exit`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            exitForm.reset();
+            exitOpen.value = false;
+        },
+    });
+}
+
+function confirmReinstate() {
+    reinstating.value = true;
 
     router.patch(
-        `/admin/staff/${props.staff.id}/toggle`,
+        `/admin/staff/${props.staff.id}/reinstate`,
         {},
         {
             preserveScroll: true,
             onFinish: () => {
-                toggling.value = false;
-                confirmOpen.value = false;
+                reinstating.value = false;
+                reinstateOpen.value = false;
             },
         },
     );
@@ -170,11 +199,20 @@ const resultTone = (result: string) =>
                 Edit details
             </AppButton>
             <AppButton
+                v-if="staff.is_active"
                 size="sm"
-                :variant="staff.is_active ? 'ghost' : 'primary'"
-                @click="confirmOpen = true"
+                variant="ghost"
+                @click="exitOpen = true"
             >
-                {{ staff.is_active ? 'Deactivate' : 'Reactivate' }}
+                Record exit
+            </AppButton>
+            <AppButton
+                v-else
+                size="sm"
+                variant="primary"
+                @click="reinstateOpen = true"
+            >
+                Reinstate
             </AppButton>
         </template>
 
@@ -240,8 +278,30 @@ const resultTone = (result: string) =>
                                 </StatusPill>
                             </div>
 
+                            <div
+                                v-if="staff.has_exited"
+                                class="mt-3 space-y-1 rounded-lg border border-line-soft bg-sunken px-3 py-2.5 text-left"
+                            >
+                                <p class="eyebrow">Exit</p>
+                                <p class="text-[13px] font-medium text-text">
+                                    {{ staff.exit_reason_label }}
+                                </p>
+                                <p class="text-[12px] text-muted">
+                                    Last worked
+                                    {{ staff.exit_date_label }}
+                                </p>
+                                <p
+                                    v-if="staff.exit_note"
+                                    class="text-[12px] leading-relaxed text-faint"
+                                >
+                                    {{ staff.exit_note }}
+                                </p>
+                            </div>
+
                             <p
-                                v-if="!staff.is_active && staff.deactivated_at"
+                                v-else-if="
+                                    !staff.is_active && staff.deactivated_at
+                                "
                                 class="mt-3 text-[12px] text-faint"
                             >
                                 Deactivated {{ dateTime(staff.deactivated_at) }}
@@ -300,7 +360,11 @@ const resultTone = (result: string) =>
                             label="Late arrivals"
                             :value="stats.days_late"
                             :tone="stats.days_late > 0 ? 'brass' : 'default'"
-                            :caption="duration(stats.late_minutes) + ' total'"
+                            :caption="
+                                stats.days_excused > 0
+                                    ? `${duration(stats.late_minutes)} total, ${stats.days_excused} excused`
+                                    : duration(stats.late_minutes) + ' total'
+                            "
                         />
                         <StatTile
                             label="Hours worked"
@@ -412,13 +476,23 @@ const resultTone = (result: string) =>
                                         <td class="px-5 py-3 text-right">
                                             <StatusPill
                                                 :tone="
-                                                    attendanceTone(
-                                                        record.status,
-                                                    )
+                                                    record.excused
+                                                        ? 'neutral'
+                                                        : attendanceTone(
+                                                              record.status,
+                                                          )
+                                                "
+                                                :title="
+                                                    record.excused
+                                                        ? 'Explained and approved, so it does not count as lateness'
+                                                        : undefined
                                                 "
                                             >
+                                                <template v-if="record.excused">
+                                                    Excused
+                                                </template>
                                                 <template
-                                                    v-if="
+                                                    v-else-if="
                                                         record.status === 'late'
                                                     "
                                                 >
@@ -636,39 +710,87 @@ const resultTone = (result: string) =>
             </template>
         </ModalShell>
 
-        <!-- Deactivate -->
+        <!-- Record an exit -->
         <ModalShell
-            :open="confirmOpen"
+            :open="exitOpen"
             width="md"
-            :title="
-                staff.is_active
-                    ? 'Deactivate this account?'
-                    : 'Reactivate this account?'
-            "
-            @close="confirmOpen = false"
+            title="Record this exit"
+            @close="exitOpen = false"
         >
-            <p class="text-[13.5px] leading-relaxed text-muted">
-                <template v-if="staff.is_active">
+            <form
+                id="staff-exit"
+                class="space-y-4"
+                @submit.prevent="submitExit"
+            >
+                <p class="text-[13.5px] leading-relaxed text-muted">
                     <span class="font-medium text-text">{{ staff.name }}</span>
-                    will be signed out and blocked from signing in or clocking.
-                    Their attendance history is kept.
-                </template>
-                <template v-else>
-                    <span class="font-medium text-text">{{ staff.name }}</span>
-                    will be able to sign in and clock again straight away.
-                </template>
-            </p>
+                    will be signed out and blocked from signing in or clocking,
+                    and will stop counting towards company figures. Their
+                    attendance and leave history is kept in full, and anything
+                    of theirs still awaiting a decision is withdrawn.
+                </p>
+
+                <SelectField
+                    v-model="exitForm.exit_reason"
+                    label="Reason for leaving"
+                    :options="exit_reasons"
+                    required
+                    :error="exitForm.errors.exit_reason"
+                >
+                    <option value="" disabled>Choose a reason</option>
+                </SelectField>
+
+                <TextField
+                    v-model="exitForm.exit_date"
+                    label="Last working day"
+                    type="date"
+                    required
+                    :error="exitForm.errors.exit_date"
+                />
+
+                <TextareaField
+                    v-model="exitForm.exit_note"
+                    label="Note"
+                    hint="Optional. Kept on the HR record."
+                    :error="exitForm.errors.exit_note"
+                />
+            </form>
 
             <template #footer>
-                <AppButton variant="ghost" @click="confirmOpen = false">
+                <AppButton variant="ghost" @click="exitOpen = false">
                     Cancel
                 </AppButton>
                 <AppButton
-                    :variant="staff.is_active ? 'danger' : 'primary'"
-                    :loading="toggling"
-                    @click="confirmToggle"
+                    type="submit"
+                    form="staff-exit"
+                    variant="danger"
+                    :loading="exitForm.processing"
                 >
-                    {{ staff.is_active ? 'Deactivate' : 'Reactivate' }}
+                    Record exit
+                </AppButton>
+            </template>
+        </ModalShell>
+
+        <!-- Reinstate -->
+        <ModalShell
+            :open="reinstateOpen"
+            width="md"
+            title="Reinstate this account?"
+            @close="reinstateOpen = false"
+        >
+            <p class="text-[13.5px] leading-relaxed text-muted">
+                <span class="font-medium text-text">{{ staff.name }}</span>
+                will be able to sign in and clock again straight away, and will
+                count towards company figures once more. The recorded exit is
+                cleared.
+            </p>
+
+            <template #footer>
+                <AppButton variant="ghost" @click="reinstateOpen = false">
+                    Cancel
+                </AppButton>
+                <AppButton :loading="reinstating" @click="confirmReinstate">
+                    Reinstate
                 </AppButton>
             </template>
         </ModalShell>

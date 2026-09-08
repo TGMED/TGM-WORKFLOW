@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
+import AppButton from '@/components/ui/AppButton.vue';
 import Avatar from '@/components/ui/Avatar.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import Pagination from '@/components/ui/Pagination.vue';
@@ -47,6 +48,7 @@ const props = defineProps<{
         search: string;
         department: string;
         location: string;
+        status: string;
     };
     range_label: string;
     range_days: number;
@@ -54,6 +56,7 @@ const props = defineProps<{
         staff: number;
         days_present: number;
         days_late: number;
+        days_excused: number;
         days_grace: number;
         late_minutes: number;
         total_hours: number;
@@ -68,6 +71,7 @@ const to = ref(props.filters.to);
 const search = ref(props.filters.search);
 const department = ref(props.filters.department);
 const site = ref(props.filters.location);
+const status = ref(props.filters.status);
 
 let debounce: number | undefined;
 
@@ -83,6 +87,7 @@ function applyFilters(immediate = false) {
                 search: search.value || undefined,
                 department: department.value || undefined,
                 location: site.value || undefined,
+                status: status.value === 'active' ? undefined : status.value,
             },
             { preserveState: true, replace: true, preserveScroll: true },
         );
@@ -95,7 +100,18 @@ function applyFilters(immediate = false) {
 }
 
 watch(search, () => applyFilters());
-watch([from, to, department, site], () => applyFilters(true));
+watch([from, to, department, site, status], () => applyFilters(true));
+
+/*
+ * Leavers are off the report by default: it is read as a measure of how the
+ * company is doing, and somebody who has gone cannot be part of that answer.
+ * They stay reachable for the times when the question really is about them.
+ */
+const statusOptions = [
+    { value: 'active', label: 'Current staff' },
+    { value: 'all', label: 'Including leavers' },
+    { value: 'inactive', label: 'Leavers only' },
+];
 
 const iso = (date: Date) =>
     `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -150,6 +166,26 @@ function applyPreset(preset: { from: string; to: string }) {
 const departmentOptions = computed(() =>
     props.departments.map((name) => ({ value: name, label: name })),
 );
+
+/**
+ * Built from the filters the server echoed back rather than the live inputs,
+ * so the spreadsheet always covers the table being looked at, not a search
+ * that has been typed but not yet applied.
+ */
+const exportUrl = computed(() => {
+    const params = new URLSearchParams({
+        from: props.filters.from,
+        to: props.filters.to,
+    });
+
+    for (const key of ['search', 'department', 'location', 'status'] as const) {
+        if (props.filters[key]) {
+            params.set(key, props.filters[key]);
+        }
+    }
+
+    return `/admin/attendance/export?${params.toString()}`;
+});
 
 const today = iso(new Date());
 
@@ -285,6 +321,26 @@ const hoursOf = (minutes: number) => Math.round((minutes / 60) * 10) / 10;
                             <option value="">All locations</option>
                             <option value="none">No location</option>
                         </SelectField>
+
+                        <SelectField
+                            v-model="status"
+                            :options="statusOptions"
+                        />
+                    </div>
+
+                    <div
+                        class="flex flex-wrap items-center justify-between gap-3 border-t border-line-soft pt-4"
+                    >
+                        <p class="text-[13px] text-muted">
+                            {{ rows.total }}
+                            {{ rows.total === 1 ? 'person' : 'people' }} match
+                            these filters
+                        </p>
+                        <a :href="exportUrl" download>
+                            <AppButton variant="secondary" size="sm">
+                                Download CSV
+                            </AppButton>
+                        </a>
                     </div>
                 </div>
             </Panel>

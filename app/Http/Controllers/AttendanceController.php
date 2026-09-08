@@ -23,12 +23,14 @@ class AttendanceController extends Controller
             ? Carbon::createFromFormat('Y-m-d', $requested.'-01')->startOfMonth()
             : Carbon::now()->setTimezone($timezone)->startOfMonth();
 
-        $records = Attendance::query()
+        $days = Attendance::query()
             ->with('location:id,name')
             ->where('user_id', $user->id)
             ->between($month, $month->copy()->endOfMonth())
             ->orderByDesc('work_date')
-            ->get()
+            ->get();
+
+        $records = $days
             ->map(fn (Attendance $a): array => [
                 'id' => $a->id,
                 'work_date' => $a->work_date->toDateString(),
@@ -38,11 +40,16 @@ class AttendanceController extends Controller
                 'clocked_out_at' => $a->clocked_out_at?->copy()->setTimezone($timezone)->toIso8601String(),
                 'status' => $a->status->value,
                 'status_label' => $a->status->label(),
+                'excused' => $a->isExcused(),
                 'late_minutes' => $a->late_minutes,
                 'worked_minutes' => $a->worked_minutes,
                 'break_minutes' => $a->break_minutes,
                 'clock_in_distance' => $a->clock_in_distance,
             ]);
+
+        // A day an approved explanation has settled still shows in the list,
+        // marked as excused, but stops counting in the summary above it.
+        $countedLate = $days->filter(fn (Attendance $a): bool => $a->countsAsLate());
 
         $attempts = ClockAttempt::query()
             ->where('user_id', $user->id)
@@ -68,10 +75,11 @@ class AttendanceController extends Controller
             'records' => $records,
             'attempts' => $attempts,
             'summary' => [
-                'days_present' => $records->count(),
-                'days_late' => $records->where('status', 'late')->count(),
-                'total_hours' => round((int) $records->sum('worked_minutes') / 60, 1),
-                'late_minutes' => (int) $records->sum('late_minutes'),
+                'days_present' => $days->count(),
+                'days_late' => $countedLate->count(),
+                'days_excused' => $days->filter(fn (Attendance $a): bool => $a->isExcused())->count(),
+                'total_hours' => round((int) $days->sum('worked_minutes') / 60, 1),
+                'late_minutes' => (int) $countedLate->sum('late_minutes'),
             ],
             'location' => $location === null ? null : [
                 'name' => $location->name,

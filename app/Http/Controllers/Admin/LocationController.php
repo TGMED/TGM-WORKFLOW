@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Enums\AttendanceStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LocationRequest;
 use App\Models\Attendance;
@@ -141,13 +140,16 @@ class LocationController extends Controller
         $today = Carbon::now()->setTimezone($location->timezone)->toDateString();
 
         $records = Attendance::query()
+            ->ofActiveStaff()
             ->where('location_id', $location->id)
             ->where('work_date', $today)
-            ->get(['id', 'status', 'clocked_in_at']);
+            ->get(['id', 'status', 'excused_at', 'clocked_in_at']);
 
         return [
             'clocked_in' => $records->whereNotNull('clocked_in_at')->count(),
-            'late' => $records->where('status', AttendanceStatus::Late)->count(),
+            'late' => $records->filter(
+                fn (Attendance $record): bool => $record->countsAsLate(),
+            )->count(),
         ];
     }
 }

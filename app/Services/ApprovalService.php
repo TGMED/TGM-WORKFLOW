@@ -6,6 +6,7 @@ use App\Contracts\Approvable;
 use App\Enums\ApprovalDecision;
 use App\Enums\RequestStatus;
 use App\Models\Approval;
+use App\Models\Attendance;
 use App\Models\LatenessRequest;
 use App\Models\LeaveRequest;
 use App\Models\User;
@@ -76,6 +77,8 @@ class ApprovalService
                     'status' => RequestStatus::Approved,
                     'decided_at' => $now,
                 ])->save();
+
+                $this->excuseLateness($request, $now);
             }
 
             return $approval;
@@ -90,6 +93,32 @@ class ApprovalService
         $this->notifier->decided($request, $recorded);
 
         return true;
+    }
+
+    /**
+     * An approved explanation settles the day it was about.
+     *
+     * The attendance row keeps its status and its minutes: that is what the
+     * clock recorded, and rewriting it would lose the fact that the person
+     * did arrive late. The stamp says the company accepted the reason, and
+     * every tally of lateness skips a stamped day.
+     *
+     * @param  Approvable&Model  $request
+     */
+    protected function excuseLateness(Approvable $request, Carbon $now): void
+    {
+        if (! $request instanceof LatenessRequest) {
+            return;
+        }
+
+        // The row is found by the day rather than the foreign key alone: an
+        // explanation can be filed before the clock record exists, and one
+        // filed on somebody's behalf may never have been given a key at all.
+        Attendance::query()
+            ->where('user_id', $request->user_id)
+            ->where('work_date', $request->work_date->toDateString())
+            ->whereNull('excused_at')
+            ->update(['excused_at' => $now]);
     }
 
     /**

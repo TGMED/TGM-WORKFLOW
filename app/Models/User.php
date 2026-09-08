@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\EmploymentStatus;
+use App\Enums\ExitReason;
 use App\Enums\Permission;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -33,6 +34,9 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  * @property Carbon|null $confirmed_at
  * @property bool $is_active
  * @property Carbon|null $deactivated_at
+ * @property ExitReason|null $exit_reason
+ * @property Carbon|null $exit_date
+ * @property string|null $exit_note
  * @property int|null $location_id
  * @property Carbon|null $email_verified_at
  * @property string $password
@@ -60,6 +64,9 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
     'confirmed_at',
     'is_active',
     'deactivated_at',
+    'exit_reason',
+    'exit_date',
+    'exit_note',
     'location_id',
     'whats_new_seen',
 ])]
@@ -94,6 +101,8 @@ class User extends Authenticatable implements AuditableContract
             'confirmed_at' => 'date',
             'is_active' => 'boolean',
             'deactivated_at' => 'datetime',
+            'exit_reason' => ExitReason::class,
+            'exit_date' => 'date',
             'location_id' => 'integer',
         ];
     }
@@ -422,5 +431,35 @@ class User extends Authenticatable implements AuditableContract
     public function scopeActive(Builder $query): void
     {
         $query->where('is_active', true);
+    }
+
+    /**
+     * Staff who have left. The counterpart to `active`, named for what it
+     * means rather than for the flag being false.
+     *
+     * @param  Builder<User>  $query
+     */
+    public function scopeDeparted(Builder $query): void
+    {
+        $query->where('is_active', false);
+    }
+
+    /**
+     * Whether this person has been taken through the exit flow, as opposed
+     * to simply switched off. Accounts deactivated before exits were
+     * recorded carry no reason, and are left alone rather than invented for.
+     */
+    public function hasExited(): bool
+    {
+        return ! $this->is_active && $this->exit_reason !== null;
+    }
+
+    /**
+     * Their last working day, which is the exit date when one was recorded
+     * and otherwise the day the account was switched off.
+     */
+    public function lastWorkingDay(): ?Carbon
+    {
+        return $this->exit_date ?? $this->deactivated_at?->copy()->startOfDay();
     }
 }

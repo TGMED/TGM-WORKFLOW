@@ -80,7 +80,10 @@ class AuditTrailTest extends TestCase
     {
         $this->actingAs($this->admin());
 
-        $staff = User::factory()->create();
+        // Pinned, so the update below is always a real change: the factory
+        // picks a department at random, and setting one to what it already
+        // says would leave nothing for the trail to record.
+        $staff = User::factory()->create(['department' => 'Operations']);
 
         $staff->update(['password' => 'a-brand-new-secret', 'department' => 'Finance']);
 

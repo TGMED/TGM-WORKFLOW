@@ -211,7 +211,11 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
             Route::post('staff', [StaffController::class, 'store'])->name('staff.store');
             Route::get('staff/{staff}', [StaffController::class, 'show'])->name('staff.show');
             Route::put('staff/{staff}', [StaffController::class, 'update'])->name('staff.update');
-            Route::patch('staff/{staff}/toggle', [StaffController::class, 'toggle'])->name('staff.toggle');
+            // Leaving is an event with a reason and a date, not a flag being
+            // flipped, so it gets its own endpoint. Coming back is the flip.
+            Route::post('staff/{staff}/exit', [StaffController::class, 'exit'])->name('staff.exit');
+            Route::patch('staff/{staff}/reinstate', [StaffController::class, 'reinstate'])
+                ->name('staff.reinstate');
         });
 
         Route::middleware('permission:locations.manage')->group(function (): void {
@@ -224,9 +228,12 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
 
         // Attendance across the whole company for a chosen window, as
         // opposed to the personal month view staff see.
-        Route::get('attendance', [AttendanceReportController::class, 'index'])
-            ->middleware('permission:attendance.report')
-            ->name('attendance.index');
+        Route::middleware('permission:attendance.report')->group(function (): void {
+            Route::get('attendance', [AttendanceReportController::class, 'index'])
+                ->name('attendance.index');
+            Route::get('attendance/export', [AttendanceReportController::class, 'export'])
+                ->name('attendance.export');
+        });
 
         Route::get('clock-attempts', [ClockAttemptController::class, 'index'])
             ->middleware('permission:clock-attempts.view')

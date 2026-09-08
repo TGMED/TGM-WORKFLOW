@@ -121,24 +121,29 @@ function submitAdd() {
     });
 }
 
-/* ---- Deactivation ----------------------------------------------------- */
+/* ---- Reinstatement ----------------------------------------------------- */
+/*
+ * Recording an exit asks for a reason, a last day and often a note, so it
+ * lives on the person's own record rather than in a list row. Putting
+ * somebody back is a single decision, and stays here.
+ */
 const confirming = ref<StaffRow | null>(null);
-const toggling = ref(false);
+const reinstating = ref(false);
 
-function confirmToggle() {
+function confirmReinstate() {
     if (!confirming.value) {
         return;
     }
 
-    toggling.value = true;
+    reinstating.value = true;
 
     router.patch(
-        `/admin/staff/${confirming.value.id}/toggle`,
+        `/admin/staff/${confirming.value.id}/reinstate`,
         {},
         {
             preserveScroll: true,
             onFinish: () => {
-                toggling.value = false;
+                reinstating.value = false;
                 confirming.value = null;
             },
         },
@@ -410,16 +415,24 @@ const statusOptions = [
                                                 View
                                             </AppButton>
                                         </Link>
+                                        <Link
+                                            v-if="person.is_active"
+                                            :href="`/admin/staff/${person.id}`"
+                                        >
+                                            <AppButton
+                                                size="sm"
+                                                variant="ghost"
+                                            >
+                                                Record exit
+                                            </AppButton>
+                                        </Link>
                                         <AppButton
+                                            v-else
                                             size="sm"
                                             variant="ghost"
                                             @click="confirming = person"
                                         >
-                                            {{
-                                                person.is_active
-                                                    ? 'Deactivate'
-                                                    : 'Reactivate'
-                                            }}
+                                            Reinstate
                                         </AppButton>
                                     </div>
                                 </td>
@@ -564,43 +577,28 @@ const statusOptions = [
             </template>
         </ModalShell>
 
-        <!-- Deactivation confirmation -->
+        <!-- Reinstatement confirmation -->
         <ModalShell
             :open="!!confirming"
             width="md"
-            :title="
-                confirming?.is_active
-                    ? 'Deactivate this account?'
-                    : 'Reactivate this account?'
-            "
+            title="Reinstate this account?"
             @close="confirming = null"
         >
             <p class="text-[13.5px] leading-relaxed text-muted">
-                <template v-if="confirming?.is_active">
-                    <span class="font-medium text-text">{{
-                        confirming?.name
-                    }}</span>
-                    will be signed out and blocked from signing in or clocking.
-                    Their attendance history is kept.
-                </template>
-                <template v-else>
-                    <span class="font-medium text-text">{{
-                        confirming?.name
-                    }}</span>
-                    will be able to sign in and clock again straight away.
-                </template>
+                <span class="font-medium text-text">{{
+                    confirming?.name
+                }}</span>
+                will be able to sign in and clock again straight away, and will
+                count towards company figures once more. Any recorded exit is
+                cleared.
             </p>
 
             <template #footer>
                 <AppButton variant="ghost" @click="confirming = null">
                     Cancel
                 </AppButton>
-                <AppButton
-                    :variant="confirming?.is_active ? 'danger' : 'primary'"
-                    :loading="toggling"
-                    @click="confirmToggle"
-                >
-                    {{ confirming?.is_active ? 'Deactivate' : 'Reactivate' }}
+                <AppButton :loading="reinstating" @click="confirmReinstate">
+                    Reinstate
                 </AppButton>
             </template>
         </ModalShell>

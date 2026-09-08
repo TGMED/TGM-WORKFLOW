@@ -13,6 +13,7 @@ use App\Services\LeaveEligibility;
 use App\Support\Workdays;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 
@@ -62,6 +63,13 @@ class StoreLeaveRequest extends FormRequest
             // on somebody's word. Only asked for where the type says so, and
             // not asked for twice when one is already on file.
             'evidence' => [
+                // The form posts the field on every request, empty when there
+                // is nothing to attach, so the type rules below have to be
+                // told to sit out a null. Without this every booking of a type
+                // that needs no paperwork is turned away for not being a file.
+                // `required_if` is implicit and still fires, so a type that
+                // does ask for evidence is no easier to get past.
+                'nullable',
                 Rule::requiredIf(fn (): bool => $this->needsEvidence()),
                 'file',
                 'mimes:pdf,jpg,jpeg,png,webp',
@@ -75,6 +83,8 @@ class StoreLeaveRequest extends FormRequest
      */
     public function messages(): array
     {
+        $dropped = $this->droppedUpload();
+
         return [
             'leave_type_id.exists' => 'Pick a leave type that is still in use.',
             'supervisor_id.exists' => 'Pick someone who can approve leave.',
@@ -84,6 +94,9 @@ class StoreLeaveRequest extends FormRequest
             'relief_officer_id.not_in' => 'Someone else has to cover your desk.',
             'end_date.after_or_equal' => 'The last day cannot fall before the first day.',
             'evidence.required' => 'That type of leave has to come with supporting evidence.',
+            'evidence.uploaded' => $dropped === null
+                ? 'That file did not finish uploading. Attach it again.'
+                : $this->droppedUploadMessage($dropped),
             'evidence.mimes' => 'Attach a PDF or an image of the document.',
             'evidence.max' => 'Keep the attachment under 8 MB.',
         ];
@@ -408,6 +421,40 @@ class StoreLeaveRequest extends FormRequest
             $window['start']->format('j M Y'),
             $window['end']->format('j M Y'),
         ));
+    }
+
+    /**
+     * An attachment PHP threw away before Laravel could see it. It stays in
+     * the file bag carrying an error code, while `hasFile` reports nothing
+     * there at all, so on its own the form tells somebody who did attach a
+     * document that they attached none.
+     *
+     * The commonest cause is a file over `upload_max_filesize`, which is a
+     * lower ceiling than the 8 MB these rules allow whenever the two are set
+     * apart -- and under `artisan serve` that is the CLI ini, not the one the
+     * deployed site runs on.
+     */
+    protected function droppedUpload(): ?UploadedFile
+    {
+        $file = $this->files->get('evidence');
+
+        return $file instanceof UploadedFile && ! $file->isValid() ? $file : null;
+    }
+
+    /**
+     * What to tell somebody whose attachment did not survive the upload. The
+     * server's own ceiling stands whatever these rules allow, so a file that
+     * was too big is measured against that rather than against the size the
+     * form advertises.
+     */
+    protected function droppedUploadMessage(UploadedFile $file): string
+    {
+        return in_array($file->getError(), [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)
+            ? sprintf(
+                'That file is bigger than this server takes, which is %s. Attach a smaller one.',
+                ini_get('upload_max_filesize'),
+            )
+            : 'That file did not finish uploading. Attach it again.';
     }
 
     /**

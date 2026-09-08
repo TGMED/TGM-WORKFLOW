@@ -13,10 +13,21 @@ return [
     |
     | See: https://inertiajs.com/server-side-rendering
     |
+    | Off, and it has to stay off until the teleports are dealt with. Every
+    | modal in the app teleports into <body>. Vue renders only the anchor
+    | comments for a teleport during SSR and leaves the content to the host to
+    | place; nothing here places it, so on hydration the teleport resolves its
+    | target to null and the first open dies on insertBefore. The modal never
+    | mounts and the button looks dead.
+    |
+    | Nothing was being gained for the cost: no SSR bundle is built (see the
+    | commented path below and the unused build:ssr script), nothing listens on
+    | the port, and `composer dev` does not start a renderer.
+    |
     */
 
     'ssr' => [
-        'enabled' => true,
+        'enabled' => false,
         'url' => 'http://127.0.0.1:13714',
         // 'bundle' => base_path('bootstrap/ssr/ssr.mjs'),
 

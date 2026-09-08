@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\AttendanceStatus;
+use App\Models\Concerns\BelongsToStaff;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -33,6 +34,7 @@ use Illuminate\Support\Carbon;
  * @property int|null $break_minutes
  * @property AttendanceStatus $status
  * @property int $late_minutes
+ * @property Carbon|null $excused_at
  * @property int|null $worked_minutes
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -59,10 +61,12 @@ use Illuminate\Support\Carbon;
     'break_minutes',
     'status',
     'late_minutes',
+    'excused_at',
     'worked_minutes',
 ])]
 class Attendance extends Model
 {
+    use BelongsToStaff;
     use SoftDeletes;
 
     /**
@@ -80,6 +84,7 @@ class Attendance extends Model
             'clock_out_latitude' => 'float',
             'clock_out_longitude' => 'float',
             'status' => AttendanceStatus::class,
+            'excused_at' => 'datetime',
         ];
     }
 
@@ -169,11 +174,45 @@ class Attendance extends Model
     }
 
     /**
+     * Whether this day was late and has stayed late.
+     *
+     * An approved explanation excuses the day without rewriting it, so the
+     * status still reads late and the minutes still stand; they simply stop
+     * counting. Anything that tallies lateness asks this rather than reading
+     * the status on its own.
+     */
+    public function countsAsLate(): bool
+    {
+        return $this->status->isLate() && $this->excused_at === null;
+    }
+
+    /**
+     * Whether an approved explanation has been accepted for this day.
+     */
+    public function isExcused(): bool
+    {
+        return $this->excused_at !== null;
+    }
+
+    /**
+     * Days that count as late: late, and not explained away.
+     *
      * @param  Builder<Attendance>  $query
      */
     public function scopeLate(Builder $query): void
     {
-        $query->where('status', AttendanceStatus::Late->value);
+        $query->where('status', AttendanceStatus::Late->value)
+            ->whereNull('excused_at');
+    }
+
+    /**
+     * Days that were late before an approved explanation settled them.
+     *
+     * @param  Builder<Attendance>  $query
+     */
+    public function scopeExcused(Builder $query): void
+    {
+        $query->whereNotNull('excused_at');
     }
 
     /**
