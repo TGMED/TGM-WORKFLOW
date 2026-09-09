@@ -3,6 +3,7 @@ import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import Avatar from '@/components/ui/Avatar.vue';
+import CheckboxGroupField from '@/components/ui/CheckboxGroupField.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
 import Pagination from '@/components/ui/Pagination.vue';
@@ -19,9 +20,10 @@ type StaffRow = {
     name: string;
     email: string;
     initials: string;
-    role: string;
-    role_label: string;
+    roles: string[];
+    role_labels: string[];
     department: string | null;
+    team: string | null;
     position: string | null;
     is_active: boolean;
     clocks_in: boolean;
@@ -50,9 +52,13 @@ const props = defineProps<{
         department: string;
         location: string;
     };
-    departments: string[];
+    departments: Array<{ value: number; label: string }>;
     locations: Array<{ value: number; label: string }>;
-    roles: Array<{ value: string; label: string }>;
+    role_options: Array<{
+        value: string;
+        label: string;
+        description: string | null;
+    }>;
     totals: {
         all: number;
         active: number;
@@ -102,10 +108,11 @@ const addForm = useForm({
     email: '',
     employee_id: '',
     phone: '',
-    department: '',
+    department_id: null as number | null,
+    team_id: null as number | null,
     position: '',
     hired_at: '',
-    role: 'staff',
+    roles: ['staff'] as string[],
     location_id: null as number | null,
     password: '',
     password_confirmation: '',
@@ -207,10 +214,7 @@ const statusOptions = [
 
                 <SelectField v-model="status" :options="statusOptions" />
 
-                <SelectField
-                    v-model="department"
-                    :options="departments.map((d) => ({ value: d, label: d }))"
-                >
+                <SelectField v-model="department" :options="departments">
                     <option value="">All departments</option>
                 </SelectField>
 
@@ -284,12 +288,33 @@ const statusOptions = [
                                                 }}</span>
                                                 <StatusPill
                                                     v-if="
-                                                        person.role ===
-                                                        'super_admin'
+                                                        person.roles.includes(
+                                                            'super_admin',
+                                                        )
                                                     "
                                                     tone="beacon"
                                                 >
                                                     Admin
+                                                </StatusPill>
+                                                <StatusPill
+                                                    v-if="
+                                                        person.roles.includes(
+                                                            'head_of_department',
+                                                        )
+                                                    "
+                                                    tone="neutral"
+                                                >
+                                                    Head
+                                                </StatusPill>
+                                                <StatusPill
+                                                    v-else-if="
+                                                        person.roles.includes(
+                                                            'team_lead',
+                                                        )
+                                                    "
+                                                    tone="neutral"
+                                                >
+                                                    Lead
                                                 </StatusPill>
                                             </span>
                                             <span
@@ -497,6 +522,7 @@ const statusOptions = [
                         label="Work email"
                         type="email"
                         required
+                        autocomplete="off"
                         :error="addForm.errors.email"
                     />
                     <TextField
@@ -504,11 +530,15 @@ const statusOptions = [
                         label="Phone"
                         :error="addForm.errors.phone"
                     />
-                    <TextField
-                        v-model="addForm.department"
+                    <SelectField
+                        v-model="addForm.department_id"
                         label="Department"
-                        :error="addForm.errors.department"
-                    />
+                        :options="departments"
+                        :error="addForm.errors.department_id"
+                        hint="Teams inside a department are set on the departments page."
+                    >
+                        <option :value="null">No department</option>
+                    </SelectField>
                     <TextField
                         v-model="addForm.position"
                         label="Job title"
@@ -521,28 +551,32 @@ const statusOptions = [
                         :error="addForm.errors.hired_at"
                     />
                     <SelectField
-                        v-model="addForm.role"
-                        label="Role"
-                        :options="roles"
-                        required
-                        :error="addForm.errors.role"
-                        hint="Admins manage staff and locations."
-                    />
-                    <SelectField
                         v-model="addForm.location_id"
                         label="Work location"
                         :options="locations"
-                        :required="addForm.role === 'staff'"
+                        :required="!addForm.roles.includes('super_admin')"
                         :error="addForm.errors.location_id"
                         :hint="
-                            addForm.role === 'staff'
-                                ? 'Their punches are measured against this site.'
-                                : 'Optional. Admins do not clock in.'
+                            addForm.roles.includes('super_admin')
+                                ? 'Optional. Admins do not clock in.'
+                                : 'Their punches are measured against this site.'
                         "
                     >
                         <option :value="null" disabled>Choose a site</option>
                     </SelectField>
                 </div>
+
+                <CheckboxGroupField
+                    v-model="addForm.roles"
+                    label="Roles"
+                    required
+                    :options="role_options"
+                    :error="
+                        addForm.errors.roles ??
+                        (addForm.errors as Record<string, string>)['roles.0']
+                    "
+                    hint="Somebody may hold more than one. Heads of department and team leads are named on the departments page, so the people they cover are named at the same time."
+                />
 
                 <div class="h-px bg-line-soft" />
 
@@ -552,6 +586,7 @@ const statusOptions = [
                         label="Temporary password"
                         type="password"
                         required
+                        autocomplete="new-password"
                         :error="addForm.errors.password"
                     />
                     <TextField
@@ -559,6 +594,7 @@ const statusOptions = [
                         label="Confirm password"
                         type="password"
                         required
+                        autocomplete="new-password"
                     />
                 </div>
             </form>
