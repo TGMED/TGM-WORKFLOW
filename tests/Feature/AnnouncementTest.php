@@ -170,7 +170,7 @@ class AnnouncementTest extends TestCase
             ->assertSessionHasErrors('expires_at');
     }
 
-    public function test_live_notices_reach_the_dashboard_pinned_first(): void
+    public function test_live_notices_reach_the_noticeboard_pinned_first(): void
     {
         $admin = $this->admin();
 
@@ -180,10 +180,25 @@ class AnnouncementTest extends TestCase
         Announcement::factory()->expired()->create(['user_id' => $admin->id, 'title' => 'Last month']);
 
         $this->actingAs($this->staff())
-            ->get('/dashboard')
+            ->get('/announcements')
+            ->assertOk()
             ->assertInertia(fn ($page) => $page
-                ->has('announcements', 2)
-                ->where('announcements.0.title', 'Read this first'));
+                ->has('announcements.data', 2)
+                ->where('announcements.data.0.title', 'Read this first'));
+    }
+
+    /**
+     * Notices used to be a panel on the dashboard. They have a page of their
+     * own now, and the dashboard is for numbers.
+     */
+    public function test_the_dashboard_no_longer_carries_notices(): void
+    {
+        Announcement::factory()->create(['user_id' => $this->admin()->id]);
+
+        $this->actingAs($this->staff())
+            ->get('/dashboard')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->missing('announcements'));
     }
 
     public function test_staff_cannot_write_notices(): void
