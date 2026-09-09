@@ -12,6 +12,7 @@ use App\Models\NotificationSetting;
 use App\Models\User;
 use App\Notifications\ApprovalRequested;
 use App\Notifications\ApprovalUpcoming;
+use App\Notifications\Messages\PanelMailMessage;
 use App\Notifications\RequestDecided;
 use App\Notifications\RequestRaised;
 use App\Services\ApprovalService;
@@ -164,13 +165,26 @@ class RequestNotificationTest extends TestCase
             ->load('user', 'raisedBy', 'leaveType', 'reliefOfficer', 'supervisor', 'approvals');
 
         $receipt = (new RequestRaised($leave))->toMail($staff);
-        $this->assertStringContainsString($filer->name, implode(' ', $receipt->introLines));
+        $this->assertStringContainsString($filer->name, $this->body($receipt));
 
         $copy = (new RequestRaised($leave))->toMail($filer);
-        $this->assertStringContainsString($staff->name, implode(' ', $copy->introLines));
+        $this->assertStringContainsString($staff->name, $this->body($copy));
 
         $headsUp = (new ApprovalUpcoming($leave))->toMail($supervisor);
-        $this->assertStringContainsString($relief->name, implode(' ', $headsUp->introLines));
+        $this->assertStringContainsString($relief->name, $this->body($headsUp));
+    }
+
+    /**
+     * Everything the reader sees, wherever it is set: the prose, the panel of
+     * details between it and the button, and anything after.
+     */
+    private function body(PanelMailMessage $mail): string
+    {
+        return implode(' ', [
+            ...$mail->introLines,
+            (string) ($mail->viewData['panel'] ?? ''),
+            ...$mail->outroLines,
+        ]);
     }
 
     public function test_the_named_approver_can_switch_off_the_heads_up(): void
