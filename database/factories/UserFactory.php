@@ -3,8 +3,10 @@
 namespace Database\Factories;
 
 use App\Enums\EmploymentStatus;
+use App\Models\Department;
 use App\Models\EmployeeProfile;
 use App\Models\Role;
+use App\Models\Team;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -34,11 +36,11 @@ class UserFactory extends Factory
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
-            'role_id' => fn (): int => Role::idFor(Role::STAFF),
             'phone' => fake()->numerify('080########'),
-            'department' => fake()->randomElement([
-                'Engineering', 'Operations', 'Finance', 'People', 'Sales', 'Support',
-            ]),
+            // Left unset: a department is a row now, and most tests do not
+            // care which one somebody is in. Those that do reach for
+            // inDepartment() below.
+            'department_id' => null,
             'position' => fake()->jobTitle(),
             // Far enough back to clear every service gate the policy sets, so
             // a test that does not care about length of service is never
@@ -59,6 +61,36 @@ class UserFactory extends Factory
     {
         return $this->afterCreating(function (User $user): void {
             $user->profile()->save(EmployeeProfile::factory()->make(['user_id' => null]));
+
+            // Roles live on a pivot, so they cannot be a column in the
+            // definition. Everyone is staff unless a state below says
+            // otherwise; those states run after this one and replace the set.
+            $user->roles()->sync([Role::idFor(Role::STAFF)]);
+        });
+    }
+
+    /**
+     * Exactly the roles named, replacing the default. Several may be given,
+     * which is the point: a person may lead a team as well as hold a role.
+     */
+    public function roles(string ...$slugs): static
+    {
+        return $this->afterCreating(function (User $user) use ($slugs): void {
+            $user->roles()->sync(
+                Role::query()->whereIn('slug', $slugs)->orderBy('id')->pluck('id')->all(),
+            );
+        });
+    }
+
+    /**
+     * The roles named, on top of whatever this person already holds.
+     */
+    public function alsoRoles(string ...$slugs): static
+    {
+        return $this->afterCreating(function (User $user) use ($slugs): void {
+            $user->roles()->syncWithoutDetaching(
+                Role::query()->whereIn('slug', $slugs)->pluck('id')->all(),
+            );
         });
     }
 
@@ -97,18 +129,27 @@ class UserFactory extends Factory
 
     public function superAdmin(): static
     {
+        return $this
+            ->state(fn (array $attributes) => [
+                'position' => 'HR Administrator',
+            ])
+            ->roles(Role::SUPER_ADMIN);
+    }
+
+    /**
+     * Somebody placed in a department, and optionally in a team inside it.
+     */
+    public function inDepartment(Department|int|null $department, Team|int|null $team = null): static
+    {
         return $this->state(fn (array $attributes) => [
-            'role_id' => Role::idFor(Role::SUPER_ADMIN),
-            'department' => 'People',
-            'position' => 'HR Administrator',
+            'department_id' => $department instanceof Department ? $department->id : $department,
+            'team_id' => $team instanceof Team ? $team->id : $team,
         ]);
     }
 
     public function approver(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'role_id' => Role::idFor(Role::APPROVER),
-        ]);
+        return $this->roles(Role::APPROVER);
     }
 
     public function deactivated(): static

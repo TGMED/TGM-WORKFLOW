@@ -101,12 +101,21 @@ class ApprovalController extends Controller
      */
     protected function raiseOptions(User $approver): array
     {
+        // A head of department or a team lead files for their own people. Only
+        // somebody who approves for the company sees the whole staff list.
+        $managed = $approver->managedUserIds();
+
         $staff = User::query()
             ->active()
             ->clocksIn()
             ->whereKeyNot($approver->id)
+            ->when(
+                ! $approver->approvesCompanyWide(),
+                fn ($query) => $query->whereKey($managed),
+            )
             ->orderBy('name')
-            ->get(['id', 'name', 'department', 'location_id']);
+            ->with('department:id,name')
+            ->get(['id', 'name', 'department_id', 'location_id']);
 
         return [
             'staff' => $staff
@@ -114,7 +123,11 @@ class ApprovalController extends Controller
                     'value' => $person->id,
                     'label' => $person->department === null
                         ? $person->name
-                        : "{$person->name} · {$person->department}",
+                        : "{$person->name} · {$person->department->name}",
+                    // Carried so the form can narrow the cover list to the
+                    // chosen person's own department, which is not known until
+                    // they are picked.
+                    'department_id' => $person->department_id,
                 ])
                 ->all(),
             'leave_types' => LeaveType::query()
@@ -138,17 +151,27 @@ class ApprovalController extends Controller
                         : "{$person->name} · {$person->position}",
                 ])
                 ->all(),
-            // Anyone still on the books can cover a desk, the filer included.
+            // Cover comes from the requester's own department, so the whole
+            // list goes over and the form narrows it once a person is chosen.
+            // The filer is included: an approver may well be the cover. Cut to
+            // their own people for a head or lead, who can only file for those
+            // anyway, so the roster is never handed over wholesale.
             'colleagues' => User::query()
                 ->active()
                 ->clocksIn()
+                ->when(
+                    ! $approver->approvesCompanyWide(),
+                    fn ($query) => $query->whereKey([...$managed, $approver->id]),
+                )
                 ->orderBy('name')
-                ->get(['id', 'name', 'department'])
+                ->with('department:id,name')
+                ->get(['id', 'name', 'department_id'])
                 ->map(fn (User $person): array => [
                     'value' => $person->id,
                     'label' => $person->department === null
                         ? $person->name
-                        : "{$person->name} · {$person->department}",
+                        : "{$person->name} · {$person->department->name}",
+                    'department_id' => $person->department_id,
                 ])
                 ->all(),
         ];
@@ -160,7 +183,7 @@ class ApprovalController extends Controller
     protected function openLeave(User $approver): array
     {
         return $this->approvals->awaitingLeave($approver)
-            ->load(['user:id,name,department,position,location_id', 'user.location:id,name', 'leaveType', 'supervisor:id,name', 'reliefOfficer:id,name', 'approvals.approver:id,name'])
+            ->load(['user:id,name,department_id,position,location_id', 'user.department:id,name', 'user.location:id,name', 'leaveType', 'supervisor:id,name', 'reliefOfficer:id,name', 'approvals.approver:id,name'])
             ->sortBy('start_date')
             ->map(fn (LeaveRequest $leave): array => [
                 ...$this->common($leave, $approver),
@@ -181,7 +204,7 @@ class ApprovalController extends Controller
     protected function openLateness(User $approver): array
     {
         return $this->approvals->awaitingLateness($approver)
-            ->load(['user:id,name,department,position,location_id', 'user.location:id,name', 'approvals.approver:id,name'])
+            ->load(['user:id,name,department_id,position,location_id', 'user.department:id,name', 'user.location:id,name', 'approvals.approver:id,name'])
             ->sortByDesc('work_date')
             ->map(fn (LatenessRequest $late): array => [
                 ...$this->common($late, $approver),
@@ -217,7 +240,7 @@ class ApprovalController extends Controller
                 'id' => $requester->id,
                 'name' => $requester->name,
                 'initials' => $requester->initials,
-                'department' => $requester->department,
+                'department' => $requester->department?->name,
                 'position' => $requester->position,
                 'location' => $requester->location?->name,
             ],

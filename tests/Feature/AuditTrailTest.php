@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\Permission;
 use App\Models\Audit;
+use App\Models\Department;
 use App\Models\Location;
 use App\Models\Role;
 use App\Models\User;
@@ -35,8 +36,7 @@ class AuditTrailTest extends TestCase
 
         $role->syncPermissions($permissions);
 
-        return User::factory()->create([
-            'role_id' => $role->id,
+        return User::factory()->roles($role->slug)->create([
             'location_id' => Location::factory()->create()->id,
         ]);
     }
@@ -80,12 +80,15 @@ class AuditTrailTest extends TestCase
     {
         $this->actingAs($this->admin());
 
-        // Pinned, so the update below is always a real change: the factory
-        // picks a department at random, and setting one to what it already
-        // says would leave nothing for the trail to record.
-        $staff = User::factory()->create(['department' => 'Operations']);
+        $operations = Department::factory()->create(['name' => 'Operations']);
+        $finance = Department::factory()->create(['name' => 'Finance']);
 
-        $staff->update(['password' => 'a-brand-new-secret', 'department' => 'Finance']);
+        // Pinned, so the update below is always a real change: setting a
+        // department to the one already on the record would leave nothing for
+        // the trail to record.
+        $staff = User::factory()->create(['department_id' => $operations->id]);
+
+        $staff->update(['password' => 'a-brand-new-secret', 'department_id' => $finance->id]);
 
         $audit = Audit::query()
             ->where('auditable_type', User::class)
@@ -96,7 +99,7 @@ class AuditTrailTest extends TestCase
 
         $this->assertArrayNotHasKey('password', $audit->new_values);
         $this->assertArrayNotHasKey('password', $audit->old_values);
-        $this->assertSame('Finance', $audit->new_values['department']);
+        $this->assertSame($finance->id, $audit->new_values['department_id']);
     }
 
     public function test_a_change_made_with_nobody_signed_in_records_no_actor(): void

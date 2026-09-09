@@ -42,7 +42,7 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         /** @var User|null $user */
-        $user = $request->user()?->loadMissing('location', 'role.rolePermissions', 'profile');
+        $user = $request->user()?->loadMissing('location', 'roles.rolePermissions', 'profile', 'department', 'team');
 
         return [
             ...parent::share($request),
@@ -55,16 +55,22 @@ class HandleInertiaRequests extends Middleware
                     'initials' => $user->initials,
                     'avatar_url' => $user->profile?->avatarUrl(),
                     'employee_id' => $user->employee_id,
-                    'department' => $user->department,
+                    'department' => $user->department?->name,
+                    'department_id' => $user->department_id,
+                    'team' => $user->team?->name,
                     'position' => $user->position,
-                    'role' => $user->role->slug,
-                    'role_label' => $user->role->name,
+                    'roles' => $user->roles
+                        ->sortBy('id')
+                        ->map(fn ($role): array => ['slug' => $role->slug, 'name' => $role->name])
+                        ->values()
+                        ->all(),
+                    'role_label' => $user->primaryRole()?->name,
                     'is_super_admin' => $user->isSuperAdmin(),
                     // Everything this person's role may do, so the nav and the
                     // page buttons offer exactly the doors that will open.
                     'permissions' => array_map(
                         fn (Permission $permission): string => $permission->value,
-                        $user->role->permissions(),
+                        $user->permissions(),
                     ),
                     'can_approve' => $user->canApprove(),
                     'can_use_approvals' => $user->usesApprovals(),

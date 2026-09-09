@@ -70,7 +70,7 @@ class PayslipController extends Controller
             'employee' => [
                 'name' => $user->name,
                 'employee_id' => $user->employee_id,
-                'department' => $user->department,
+                'department' => $user->department?->name,
                 'position' => $user->position,
                 'bank_name' => $payslip->user->profile?->bank_name,
                 // Only the tail of the account number: a payslip gets emailed

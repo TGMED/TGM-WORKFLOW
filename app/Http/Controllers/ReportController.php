@@ -97,11 +97,12 @@ class ReportController extends Controller
             ->active()
             ->whereKeyNot($user->id)
             ->orderBy('name')
-            ->get(['id', 'name', 'department'])
+            ->with('department:id,name')
+            ->get(['id', 'name', 'department_id'])
             ->map(fn (User $person): array => [
                 'value' => $person->id,
                 'label' => $person->department !== null
-                    ? "{$person->name} · {$person->department}"
+                    ? "{$person->name} · {$person->department->name}"
                     : $person->name,
             ])
             ->all();

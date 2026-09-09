@@ -37,8 +37,7 @@ class RolePermissionTest extends TestCase
 
         $role->syncPermissions($permissions);
 
-        return User::factory()->create([
-            'role_id' => $role->id,
+        return User::factory()->roles($role->slug)->create([
             'location_id' => Location::factory()->create()->id,
         ]);
     }
@@ -79,7 +78,7 @@ class RolePermissionTest extends TestCase
             );
         }
 
-        $this->assertSame(0, $admin->role->rolePermissions()->count());
+        $this->assertSame(0, $admin->roles->first()->rolePermissions()->count());
     }
 
     public function test_writes_are_guarded_as_well_as_reads(): void
@@ -199,7 +198,7 @@ class RolePermissionTest extends TestCase
     public function test_a_role_somebody_still_holds_cannot_be_deleted(): void
     {
         $holder = $this->staffWith([], 'Interim');
-        $role = $holder->role;
+        $role = $holder->roles()->where('slug', '!=', Role::STAFF)->sole();
 
         $this->actingAs($this->admin())
             ->delete("/admin/roles/{$role->id}")
@@ -219,6 +218,66 @@ class RolePermissionTest extends TestCase
 
         $this->assertSoftDeleted('roles', ['id' => $role->id]);
         $this->assertSoftDeleted('role_permissions', ['role_id' => $role->id]);
+    }
+
+    // Holding more than one role.
+
+    public function test_permissions_are_the_union_of_every_role_held(): void
+    {
+        $reports = Role::query()->create(['slug' => 'reports_desk', 'name' => 'Reports desk', 'is_system' => false]);
+        $reports->syncPermissions([Permission::HandleReports]);
+
+        $sites = Role::query()->create(['slug' => 'site_manager', 'name' => 'Site manager', 'is_system' => false]);
+        $sites->syncPermissions([Permission::ManageLocations]);
+
+        $person = User::factory()
+            ->roles($reports->slug, $sites->slug)
+            ->create(['location_id' => Location::factory()->create()->id]);
+
+        $this->assertTrue($person->hasPermission(Permission::HandleReports));
+        $this->assertTrue($person->hasPermission(Permission::ManageLocations));
+        $this->assertFalse($person->hasPermission(Permission::ManagePayroll));
+
+        $this->actingAs($person)->get('/admin/reports')->assertOk();
+        $this->actingAs($person)->get('/admin/locations')->assertOk();
+        $this->actingAs($person)->get('/admin/payroll')->assertForbidden();
+    }
+
+    public function test_taking_one_role_away_leaves_what_another_role_still_grants(): void
+    {
+        $first = Role::query()->create(['slug' => 'first_desk', 'name' => 'First', 'is_system' => false]);
+        $first->syncPermissions([Permission::ManageStaff]);
+
+        $second = Role::query()->create(['slug' => 'second_desk', 'name' => 'Second', 'is_system' => false]);
+        $second->syncPermissions([Permission::ManageStaff, Permission::ManageLocations]);
+
+        $person = User::factory()
+            ->roles($first->slug, $second->slug)
+            ->create(['location_id' => Location::factory()->create()->id]);
+
+        $person->roles()->detach($second->id);
+        $person->unsetRelation('roles');
+
+        // Staff management came from both roles, so losing one keeps it.
+        $this->assertTrue($person->hasPermission(Permission::ManageStaff));
+        // Sites came from the role that has gone.
+        $this->assertFalse($person->hasPermission(Permission::ManageLocations));
+    }
+
+    public function test_the_staff_form_will_not_hand_out_a_role_that_comes_with_people(): void
+    {
+        $this->actingAs($this->admin())
+            ->post('/admin/staff', [
+                'name' => 'Ada Eze',
+                'email' => 'ada@example.com',
+                'roles' => [Role::STAFF, Role::TEAM_LEAD],
+                'location_id' => Location::factory()->create()->id,
+                'password' => 'correct-horse-battery',
+                'password_confirmation' => 'correct-horse-battery',
+            ])
+            ->assertSessionHasErrors('roles.1');
+
+        $this->assertDatabaseMissing('users', ['email' => 'ada@example.com']);
     }
 
     // The approvals inbox, which is not a permission alone.

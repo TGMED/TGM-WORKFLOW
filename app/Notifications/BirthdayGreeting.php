@@ -37,8 +37,8 @@ class BirthdayGreeting extends TopicNotification
                 : "That is {$years} years with us now. Thank you for all of them.");
         }
 
-        if (filled($user->department)) {
-            $mail->line("Have a lovely day, from all of us and from everyone in {$user->department}.");
+        if ($user->department !== null) {
+            $mail->line("Have a lovely day, from all of us and from everyone in {$user->department->name}.");
         }
 
         return $mail->salutation('- The '.config('app.name').' team');

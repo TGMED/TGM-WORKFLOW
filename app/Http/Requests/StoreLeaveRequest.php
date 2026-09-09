@@ -15,6 +15,7 @@ use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class StoreLeaveRequest extends FormRequest
@@ -46,15 +47,29 @@ class StoreLeaveRequest extends FormRequest
                 'different:relief_officer_id',
                 Rule::notIn($this->ineligibleApprovers()),
                 Rule::exists('users', 'id')->where('is_active', true)->whereIn(
-                    'role_id',
-                    Role::idsWithPermission(Permission::ApproveRequests),
+                    'id',
+                    DB::table('role_user')
+                        ->whereIn('role_id', Role::idsWithPermission(Permission::ApproveRequests))
+                        ->pluck('user_id')
+                        ->all(),
                 ),
             ],
+            // Cover comes from the requester's own department: doing
+            // somebody's job while they are away is only a real offer from
+            // somebody who does that kind of work. Enforced here as well as in
+            // the picker, so a hand-made post cannot reach past the list the
+            // form offered. Somebody in no department is not narrowed, which
+            // matches the picker falling back to the whole company for them.
             'relief_officer_id' => [
                 'required',
                 'integer',
                 Rule::notIn($this->ineligibleOfficers()),
-                Rule::exists('users', 'id')->where('is_active', true),
+                Rule::exists('users', 'id')
+                    ->where('is_active', true)
+                    ->when(
+                        $this->staffDepartmentId() !== null,
+                        fn ($rule) => $rule->where('department_id', $this->staffDepartmentId()),
+                    ),
             ],
             'start_date' => ['required', 'date', 'after_or_equal:'.Carbon::now()->subYear()->toDateString()],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
@@ -90,7 +105,7 @@ class StoreLeaveRequest extends FormRequest
             'supervisor_id.exists' => 'Pick someone who can approve leave.',
             'supervisor_id.not_in' => 'You cannot approve your own leave.',
             'supervisor_id.different' => 'Your relief officer cannot also be your approver.',
-            'relief_officer_id.exists' => 'Pick a colleague who is still with the company.',
+            'relief_officer_id.exists' => 'Pick a colleague in your own department who is still with the company.',
             'relief_officer_id.not_in' => 'Someone else has to cover your desk.',
             'end_date.after_or_equal' => 'The last day cannot fall before the first day.',
             'evidence.required' => 'That type of leave has to come with supporting evidence.',
@@ -149,6 +164,16 @@ class StoreLeaveRequest extends FormRequest
         $user = $this->user();
 
         return $user->loadMissing('location');
+    }
+
+    /**
+     * The department the leave is being booked in. Read through staff() rather
+     * than off the signed-in user, so it stays right when an approver is
+     * filing on somebody else's behalf.
+     */
+    protected function staffDepartmentId(): ?int
+    {
+        return $this->staff()->department_id;
     }
 
     /**

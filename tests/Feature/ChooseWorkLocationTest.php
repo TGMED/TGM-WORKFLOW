@@ -158,7 +158,7 @@ class ChooseWorkLocationTest extends TestCase
             ->put("/admin/staff/{$staff->id}", [
                 'name' => $staff->name,
                 'email' => $staff->email,
-                'role' => 'staff',
+                'roles' => ['staff'],
                 'location_id' => $second->id,
             ])
             ->assertSessionHasNoErrors();

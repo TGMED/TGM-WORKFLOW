@@ -116,10 +116,6 @@ function submit() {
         </template>
 
         <div class="space-y-6">
-            <!-- The confidentiality notice. Worded to what the system
-                 actually does: the reporter is recorded, and only the reports
-                 desk can see who they are. Anything stronger would be a
-                 promise the database does not keep. -->
             <section
                 class="rounded-2xl border border-beacon/25 bg-beacon-soft/40 p-5"
             >
@@ -150,34 +146,12 @@ function submit() {
                             class="space-y-1.5 text-[13px] leading-relaxed text-muted"
                         >
                             <li>
-                                Your report is read only by the people team —
-                                {{ handler_count }} member{{
-                                    handler_count === 1 ? '' : 's'
-                                }}
-                                of staff hold that access.
-                            </li>
-                            <li>
                                 Your name is
                                 <strong class="font-semibold text-text"
                                     >never shown</strong
                                 >
                                 to the person you report, to your manager, or to
                                 anyone else in the company.
-                            </li>
-                            <li>
-                                Your identity
-                                <strong class="font-semibold text-text"
-                                    >is recorded</strong
-                                >
-                                and can be seen by the people team, so that they
-                                can come back to you. This is not an anonymous
-                                tip line, and we would rather say so than
-                                promise otherwise.
-                            </li>
-                            <li>
-                                Retaliating against someone for making a report
-                                is itself a disciplinary matter. If it happens,
-                                report that too.
                             </li>
                         </ul>
                     </div>

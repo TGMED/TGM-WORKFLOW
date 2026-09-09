@@ -75,6 +75,11 @@ const nav: NavItem[] = [
         icon: 'M6 3.5h12A1.5 1.5 0 0 1 19.5 5v15.5l-2.5-1.5-2.5 1.5-2.5-1.5-2.5 1.5-2.5-1.5V5A1.5 1.5 0 0 1 6 3.5ZM9 8h6M9 11.5h6M9 15h3',
     },
     {
+        label: 'Announcements',
+        href: '/announcements',
+        icon: 'M3.5 10.5v3a1.5 1.5 0 0 0 1.5 1.5h2l5 4V5l-5 4H5a1.5 1.5 0 0 0-1.5 1.5Zm13-2.2a5 5 0 0 1 0 7.4M19 5.5a9 9 0 0 1 0 13',
+    },
+    {
         label: 'Report an incident',
         href: '/reports',
         icon: 'M12 8.5v4m0 3h.01M10.6 3.9 2.5 18a1.5 1.5 0 0 0 1.3 2.3h16.4a1.5 1.5 0 0 0 1.3-2.3L13.4 3.9a1.6 1.6 0 0 0-2.8 0Z',
@@ -101,6 +106,12 @@ const nav: NavItem[] = [
                 href: '/admin/staff',
                 permission: 'staff.manage',
                 icon: 'M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20M9 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM22 20v-1.5a4 4 0 0 0-3-3.87M16 3.63a4 4 0 0 1 0 7.75',
+            },
+            {
+                label: 'Departments',
+                href: '/admin/departments',
+                permission: 'departments.manage',
+                icon: 'M4 20V9.5L12 4l8 5.5V20M4 20h16M9.5 20v-5h5v5M9.5 11h5',
             },
             {
                 label: 'Announcements',

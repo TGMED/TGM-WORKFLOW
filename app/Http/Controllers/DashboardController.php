@@ -2,14 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\Permission;
 use App\Enums\RequestStatus;
-use App\Models\Announcement;
 use App\Models\Attendance;
 use App\Models\ClockAttempt;
 use App\Models\LeaveRequest;
 use App\Models\Location;
 use App\Models\User;
 use App\Services\LeaveBalance;
+use App\Services\Metrics\CompanyMetrics;
+use App\Services\Metrics\GroupMetrics;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -18,14 +20,20 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function __construct(protected LeaveBalance $balances) {}
+    public function __construct(
+        protected LeaveBalance $balances,
+        protected CompanyMetrics $company,
+        protected GroupMetrics $groups,
+    ) {}
 
     public function __invoke(Request $request): Response
     {
-        $user = $request->user()->load('location');
+        $user = $request->user()->load('location', 'headedDepartment', 'ledTeam');
 
-        // Super admins run the clock rather than punch it, so they get the
-        // company console instead of a personal dashboard.
+        // Administrators run the clock rather than punch it, so they get the
+        // company console instead of a personal dashboard. Company notices are
+        // not here any more: they have a page of their own, and this one is
+        // for numbers.
         if (! $user->clocksIn()) {
             return Inertia::render('Dashboard', [
                 'clocksIn' => false,
@@ -38,8 +46,8 @@ class DashboardController extends Controller
                 'lastAttempt' => null,
                 'leave' => null,
                 'away' => null,
-                'announcements' => $this->announcements(),
-                'overview' => $this->companyOverview(),
+                'group' => $this->group($user),
+                'metrics' => $this->company->all($user),
             ]);
         }
 
@@ -74,35 +82,46 @@ class DashboardController extends Controller
             'lastAttempt' => $this->lastRejectedAttempt($user),
             'leave' => $this->leaveSummary($user, $localNow),
             'away' => $this->awaySummary($user, $localNow),
-            'announcements' => $this->announcements(),
-            'overview' => null,
+            // Set only for somebody who runs a department or a team, which is
+            // what puts their people's numbers on their own dashboard.
+            'group' => $this->group($user),
+            // The company console, for an administrator who also works a
+            // shift. Most people see nothing here.
+            'metrics' => $user->hasPermission(Permission::ViewAdminDashboard)
+                ? $this->company->all($user)
+                : null,
         ]);
     }
 
     /**
-     * The company notices worth showing on the dashboard: pinned ones first,
-     * then the newest. Deliberately few — this is a panel, not a noticeboard.
+     * The people this person is responsible for, if any.
      *
-     * @return array<int, array<string, mixed>>
+     * A head of department sees their whole department; a team lead sees their
+     * team. Somebody who is both sees both sets together, since that is who
+     * they answer for.
+     *
+     * @return array<string, mixed>|null
      */
-    protected function announcements(): array
+    protected function group(User $user): ?array
     {
-        return Announcement::query()
-            ->with('author:id,name')
-            ->live()
-            ->inReadingOrder()
-            ->limit(4)
-            ->get()
-            ->map(fn (Announcement $announcement): array => [
-                'id' => $announcement->id,
-                'title' => $announcement->title,
-                'body' => $announcement->body,
-                'excerpt' => $announcement->excerpt(),
-                'is_pinned' => $announcement->is_pinned,
-                'author' => $announcement->author?->name,
-                'published_at' => $announcement->published_at?->toIso8601String(),
-            ])
-            ->all();
+        if (! $user->managesAnyone()) {
+            return null;
+        }
+
+        $department = $user->headedDepartment;
+        $team = $user->ledTeam;
+
+        $label = match (true) {
+            $department !== null && $team !== null => "{$department->name} and {$team->name}",
+            $department !== null => $department->name,
+            default => (string) $team?->name,
+        };
+
+        return $this->groups->for(
+            $user->managedUserIds(),
+            $label,
+            $department !== null ? 'department' : 'team',
+        );
     }
 
     /**
@@ -353,79 +372,5 @@ class DashboardController extends Controller
             ->overlapping(Carbon::now(), Carbon::now())
             ->distinct()
             ->count('user_id');
-    }
-
-    /**
-     * Company-wide snapshot shown to super admins, broken down by site because
-     * each one keeps its own working day.
-     *
-     * @return array<string, mixed>
-     */
-    protected function companyOverview(): array
-    {
-        $locations = Location::query()->active()->orderBy('name')->get();
-
-        $activeStaff = User::query()->active()->clocksIn()->count();
-        $clockedIn = 0;
-        $lateToday = 0;
-        $rejectedToday = 0;
-        $sites = [];
-
-        foreach ($locations as $location) {
-            $today = Carbon::now()->setTimezone($location->timezone)->toDateString();
-
-            $records = Attendance::query()
-                ->ofActiveStaff()
-                ->where('location_id', $location->id)
-                ->where('work_date', $today)
-                ->get(['id', 'status', 'excused_at', 'clocked_in_at']);
-
-            $headcount = User::query()
-                ->active()
-                ->clocksIn()
-                ->where('location_id', $location->id)
-                ->count();
-
-            $in = $records->whereNotNull('clocked_in_at')->count();
-            $late = $records->filter(
-                fn (Attendance $record): bool => $record->countsAsLate(),
-            )->count();
-
-            $rejected = ClockAttempt::query()
-                ->ofActiveStaff()
-                ->rejected()
-                ->where('location_id', $location->id)
-                ->whereDate('created_at', $today)
-                ->count();
-
-            $clockedIn += $in;
-            $lateToday += $late;
-            $rejectedToday += $rejected;
-
-            $sites[] = [
-                'id' => $location->id,
-                'name' => $location->name,
-                'city' => $location->city,
-                'headcount' => $headcount,
-                'clocked_in' => $in,
-                'late' => $late,
-                'rejected' => $rejected,
-                'work_starts_at' => substr($location->work_starts_at, 0, 5),
-                'timezone' => $location->timezone,
-                'attendance_rate' => $headcount > 0 ? (int) round(($in / $headcount) * 100) : 0,
-            ];
-        }
-
-        return [
-            'active_staff' => $activeStaff,
-            'locations' => count($sites),
-            'on_leave_today' => $this->onLeaveToday(),
-            'clocked_in_today' => $clockedIn,
-            'late_today' => $lateToday,
-            'still_out' => max(0, $activeStaff - $clockedIn),
-            'rejected_attempts_today' => $rejectedToday,
-            'unassigned_staff' => User::query()->active()->clocksIn()->whereNull('location_id')->count(),
-            'sites' => $sites,
-        ];
     }
 }

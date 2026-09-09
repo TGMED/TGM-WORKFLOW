@@ -753,7 +753,7 @@ function toggleTrail(row: LeaveRow) {
                         required
                         :options="reliefOptions"
                         :error="form.errors.relief_officer_id"
-                        hint="Covers your desk, and agrees first."
+                        hint="Covers your desk, and agrees first. Colleagues in your own department."
                     >
                         <option :value="null" disabled>Pick a colleague</option>
                     </SelectField>
