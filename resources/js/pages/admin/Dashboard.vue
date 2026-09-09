@@ -403,7 +403,11 @@ const turnout = computed(() =>
                     </div>
                 </Panel>
 
-                <Panel title="Roles" subtitle="Who holds what" flush>
+                <Panel
+                    title="Roles"
+                    subtitle="Who holds what. Somebody holding two roles is counted under both."
+                    flush
+                >
                     <div class="divide-y divide-line-soft">
                         <Link
                             v-for="role in roles"
