@@ -94,7 +94,7 @@ class AdminDoesNotClockTest extends TestCase
                     ->where('location', null)
                     ->where('today', null)
                     ->where('stats', null)
-                    ->has('overview'),
+                    ->has('metrics'),
             );
     }
 
@@ -110,7 +110,10 @@ class AdminDoesNotClockTest extends TestCase
                     ->where('clocksIn', true)
                     ->has('location')
                     ->has('stats')
-                    ->where('overview', null),
+                    // Ordinary staff get no company console and no group of
+                    // their own to look after.
+                    ->where('metrics', null)
+                    ->where('group', null),
             );
     }
 
@@ -121,7 +124,7 @@ class AdminDoesNotClockTest extends TestCase
         $this->actingAs($admin)->post('/admin/staff', [
             'name' => 'Second Admin',
             'email' => 'second@tgm.test',
-            'role' => Role::SUPER_ADMIN,
+            'roles' => [Role::SUPER_ADMIN],
             'password' => 'Correct-Horse-Battery-9',
             'password_confirmation' => 'Correct-Horse-Battery-9',
         ])->assertSessionHasNoErrors();
@@ -139,7 +142,7 @@ class AdminDoesNotClockTest extends TestCase
         $this->actingAs($admin)->post('/admin/staff', [
             'name' => 'No Site',
             'email' => 'nosite@tgm.test',
-            'role' => Role::STAFF,
+            'roles' => [Role::STAFF],
             'password' => 'Correct-Horse-Battery-9',
             'password_confirmation' => 'Correct-Horse-Battery-9',
         ])->assertSessionHasErrors('location_id');

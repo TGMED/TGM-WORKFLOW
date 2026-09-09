@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Admin;
 use App\Enums\AttendanceStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
+use App\Models\Department;
 use App\Models\Location;
-use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -60,7 +60,7 @@ class AttendanceReportController extends Controller
         $filters = $this->filters($request);
 
         $paginator = $this->staff($filters)
-            ->with('location:id,name,city,timezone,workdays')
+            ->with('location:id,name,city,timezone,workdays', 'department:id,name')
             ->orderBy('name')
             ->paginate(15)
             ->withQueryString();
@@ -85,11 +85,7 @@ class AttendanceReportController extends Controller
             'range_label' => $this->rangeLabel($from, $to),
             'range_days' => (int) $from->diffInDays($to) + 1,
             'summary' => $this->summary($filters, $from, $to),
-            'departments' => User::query()
-                ->whereNotNull('department')
-                ->distinct()
-                ->orderBy('department')
-                ->pluck('department'),
+            'departments' => Department::options(),
             'locations' => Location::query()
                 ->orderBy('name')
                 ->get(['id', 'name'])
@@ -132,7 +128,7 @@ class AttendanceReportController extends Controller
                 fputcsv($handle, self::COLUMNS);
 
                 $this->staff($filters)
-                    ->with('location:id,name,city,timezone,workdays')
+                    ->with('location:id,name,city,timezone,workdays', 'department:id,name')
                     ->orderBy('name')
                     ->orderBy('id')
                     ->chunk(200, function (Collection $users) use ($handle, $from, $to, $expected): void {
@@ -192,7 +188,7 @@ class AttendanceReportController extends Controller
             'employee_id' => $user->employee_id,
             'name' => $user->name,
             'initials' => $user->initials,
-            'department' => $user->department,
+            'department' => $user->department?->name,
             'position' => $user->position,
             'is_active' => $user->is_active,
             'location' => $user->location?->name,
@@ -315,7 +311,7 @@ class AttendanceReportController extends Controller
         ['search' => $search, 'department' => $department, 'location' => $locationId, 'status' => $status] = $filters;
 
         return User::query()
-            ->whereRelation('role', 'slug', '!=', Role::SUPER_ADMIN)
+            ->clocksIn()
             ->when($status === 'active', fn (Builder $q) => $q->where('is_active', true))
             ->when($status === 'inactive', fn (Builder $q) => $q->where('is_active', false))
             ->when($search !== '', fn (Builder $q) => $q->where(function (Builder $q) use ($search): void {
@@ -323,7 +319,7 @@ class AttendanceReportController extends Controller
                     ->orWhere('email', 'like', "%{$search}%")
                     ->orWhere('employee_id', 'like', "%{$search}%");
             }))
-            ->when($department !== '', fn (Builder $q) => $q->where('department', $department))
+            ->when($department !== '', fn (Builder $q) => $q->where('department_id', $department))
             ->when($locationId === 'none', fn (Builder $q) => $q->whereNull('location_id'))
             ->when(
                 $locationId !== '' && $locationId !== 'none',

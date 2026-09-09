@@ -33,7 +33,7 @@ class WhoIsAwayController extends Controller
         };
 
         $away = LeaveRequest::query()
-            ->with(['user:id,name,employee_id,department,position,location_id', 'user.location:id,name', 'leaveType:id,name', 'reliefOfficer:id,name'])
+            ->with(['user:id,name,employee_id,department_id,position,location_id', 'user.department:id,name', 'user.location:id,name', 'leaveType:id,name', 'reliefOfficer:id,name'])
             ->approved()
             ->overlapping($today, $end)
             ->when($locationId !== '', fn (Builder $q) => $q->whereHas(
@@ -44,7 +44,7 @@ class WhoIsAwayController extends Controller
                 'user',
                 fn (Builder $u) => $u->where('name', 'like', "%{$search}%")
                     ->orWhere('employee_id', 'like', "%{$search}%")
-                    ->orWhere('department', 'like', "%{$search}%"),
+                    ->orWhereRelation('department', 'name', 'like', "%{$search}%"),
             ))
             ->orderBy('start_date')
             ->orderBy('end_date')
@@ -87,7 +87,7 @@ class WhoIsAwayController extends Controller
                 'name' => $leave->user->name,
                 'initials' => $leave->user->initials,
                 'employee_id' => $leave->user->employee_id,
-                'department' => $leave->user->department,
+                'department' => $leave->user->department?->name,
                 'position' => $leave->user->position,
                 'location' => $leave->user->location?->name,
             ],

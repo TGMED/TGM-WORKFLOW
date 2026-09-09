@@ -1,8 +1,19 @@
 import type { WhatsNewNotes } from './notifications';
 
-// Roles live in the database, so this covers the three the app ships with
+// Roles live in the database, so this covers the ones the app ships with
 // while leaving room for any added later.
-export type Role = 'super_admin' | 'approver' | 'staff' | (string & {});
+export type Role =
+    | 'super_admin'
+    | 'approver'
+    | 'staff'
+    | 'head_of_department'
+    | 'team_lead'
+    | (string & {});
+
+export type HeldRole = {
+    slug: Role;
+    name: string;
+};
 
 // Mirrors App\Enums\Permission. The catalogue is code on both sides, since
 // each entry guards a route that only exists in code.
@@ -10,6 +21,7 @@ export type Permission =
     | 'admin.dashboard'
     | 'staff.manage'
     | 'locations.manage'
+    | 'departments.manage'
     | 'attendance.report'
     | 'clock-attempts.view'
     | 'announcements.manage'
@@ -36,10 +48,12 @@ export type AuthUser = {
     employee_id: string | null;
     department: string | null;
     position: string | null;
-    role: Role;
-    role_label: string;
+    /** Every role this person holds, most senior first. */
+    roles: HeldRole[];
+    /** The most senior role held, for where there is only room for one. */
+    role_label: string | null;
     is_super_admin: boolean;
-    /** Everything this person's role may do. */
+    /** Everything this person may do, across every role they hold. */
     permissions: Permission[];
     can_approve: boolean;
     can_use_approvals: boolean;

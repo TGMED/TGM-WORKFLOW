@@ -27,9 +27,13 @@ class RegisteredUserController extends Controller
 
         $user = User::query()->create([
             ...$request->validated(),
-            'role_id' => Role::idFor(Role::STAFF),
             'is_active' => $activateNow,
         ]);
+
+        // Roles live on a pivot, so they are granted once the row exists.
+        // Everyone who signs up for themselves is staff; anything more is
+        // given to them from the staff page.
+        $user->roles()->sync([Role::idFor(Role::STAFF)]);
 
         if (! $activateNow) {
             return redirect()->route('login')->with(

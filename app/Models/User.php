@@ -12,12 +12,14 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use OwenIt\Auditing\Auditable;
 use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
 
@@ -26,9 +28,9 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  * @property string|null $employee_id
  * @property string $name
  * @property string $email
- * @property int $role_id
  * @property string|null $phone
- * @property string|null $department
+ * @property int|null $department_id
+ * @property int|null $team_id
  * @property string|null $position
  * @property Carbon|null $hired_at
  * @property EmploymentStatus $employment_status
@@ -47,7 +49,11 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
  * @property-read Location|null $location
- * @property-read Role $role
+ * @property-read Department|null $department
+ * @property-read Team|null $team
+ * @property-read Department|null $headedDepartment
+ * @property-read Team|null $ledTeam
+ * @property-read Collection<int, Role> $roles
  * @property-read EmployeeProfile|null $profile
  * @property-read SalaryProfile|null $salaryProfile
  */
@@ -56,9 +62,9 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
     'name',
     'email',
     'password',
-    'role_id',
     'phone',
-    'department',
+    'department_id',
+    'team_id',
     'position',
     'hired_at',
     'employment_status',
@@ -96,7 +102,6 @@ class User extends Authenticatable implements AuditableContract
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'role_id' => 'integer',
             'hired_at' => 'date',
             'employment_status' => EmploymentStatus::class,
             'confirmed_at' => 'date',
@@ -105,15 +110,21 @@ class User extends Authenticatable implements AuditableContract
             'exit_reason' => ExitReason::class,
             'exit_date' => 'date',
             'location_id' => 'integer',
+            'department_id' => 'integer',
+            'team_id' => 'integer',
         ];
     }
 
     /**
-     * @return BelongsTo<Role, $this>
+     * Every role this person holds. A pivot rather than a column because the
+     * roles are not mutually exclusive: leading a team is something somebody
+     * does as well as their job, not instead of it.
+     *
+     * @return BelongsToMany<Role, $this>
      */
-    public function role(): BelongsTo
+    public function roles(): BelongsToMany
     {
-        return $this->belongsTo(Role::class);
+        return $this->belongsToMany(Role::class);
     }
 
     /**
@@ -124,6 +135,47 @@ class User extends Authenticatable implements AuditableContract
     public function location(): BelongsTo
     {
         return $this->belongsTo(Location::class);
+    }
+
+    /**
+     * The part of the company this person sits in.
+     *
+     * @return BelongsTo<Department, $this>
+     */
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class);
+    }
+
+    /**
+     * The group inside that department, when the department has been divided
+     * into any. Most people have a department and no team.
+     *
+     * @return BelongsTo<Team, $this>
+     */
+    public function team(): BelongsTo
+    {
+        return $this->belongsTo(Team::class);
+    }
+
+    /**
+     * The department this person heads, if they head one.
+     *
+     * @return HasOne<Department, $this>
+     */
+    public function headedDepartment(): HasOne
+    {
+        return $this->hasOne(Department::class, 'head_user_id');
+    }
+
+    /**
+     * The team this person leads, if they lead one.
+     *
+     * @return HasOne<Team, $this>
+     */
+    public function ledTeam(): HasOne
+    {
+        return $this->hasOne(Team::class, 'lead_user_id');
     }
 
     /**
@@ -227,7 +279,42 @@ class User extends Authenticatable implements AuditableContract
 
     public function hasRole(string ...$slugs): bool
     {
-        return in_array($this->role->slug, $slugs, true);
+        $this->loadMissing('roles');
+
+        return $this->roles->contains(fn (Role $role): bool => in_array($role->slug, $slugs, true));
+    }
+
+    /**
+     * The role to show when there is only room for one. Roles are seeded in
+     * order of privilege, so the lowest id is the most senior one held.
+     */
+    public function primaryRole(): ?Role
+    {
+        $this->loadMissing('roles');
+
+        return $this->roles->sortBy('id')->first();
+    }
+
+    /**
+     * Everything this person may do, across every role they hold. Returned in
+     * catalogue order so the roles page and the shared props read the same way
+     * however the roles were granted.
+     *
+     * @return array<int, Permission>
+     */
+    public function permissions(): array
+    {
+        $this->loadMissing('roles.rolePermissions');
+
+        $held = $this->roles
+            ->flatMap(fn (Role $role): array => $role->permissions())
+            ->unique()
+            ->all();
+
+        return array_values(array_filter(
+            Permission::cases(),
+            fn (Permission $permission): bool => in_array($permission, $held, true),
+        ));
     }
 
     public function isSuperAdmin(): bool
@@ -241,15 +328,17 @@ class User extends Authenticatable implements AuditableContract
     }
 
     /**
-     * Whether this person's role has been granted something. Super admins hold
-     * the whole catalogue implicitly, so the system cannot be locked out of
+     * Whether any role this person holds has been granted something. Super
+     * admins hold the whole catalogue implicitly, so the system cannot be locked out of
      * itself by an unlucky edit on the roles page.
      */
     public function hasPermission(Permission $permission): bool
     {
-        $this->loadMissing('role.rolePermissions');
+        $this->loadMissing('roles.rolePermissions');
 
-        return $this->role->hasPermission($permission);
+        return $this->roles->contains(
+            fn (Role $role): bool => $role->hasPermission($permission),
+        );
     }
 
     /**
@@ -260,6 +349,67 @@ class User extends Authenticatable implements AuditableContract
     public function canApprove(): bool
     {
         return $this->hasPermission(Permission::ApproveRequests);
+    }
+
+    /**
+     * Everyone this person is responsible for: the department they head, and
+     * the team they lead. Themselves excluded — nobody manages themselves, and
+     * counting them would flatter every average on their own dashboard.
+     *
+     * One query, because both the approval routing and the dashboards read it
+     * and neither wants a loop.
+     *
+     * @return array<int, int>
+     */
+    public function managedUserIds(): array
+    {
+        $this->loadMissing('headedDepartment', 'ledTeam');
+
+        $department = $this->headedDepartment?->id;
+        $team = $this->ledTeam?->id;
+
+        if ($department === null && $team === null) {
+            return [];
+        }
+
+        return self::query()
+            ->active()
+            ->whereKeyNot($this->id)
+            ->where(fn (Builder $query) => $query
+                ->when($department !== null, fn (Builder $q) => $q->orWhere('department_id', $department))
+                ->when($team !== null, fn (Builder $q) => $q->orWhere('team_id', $team)))
+            ->pluck('id')
+            ->all();
+    }
+
+    /**
+     * Whether this person runs a department or a team, and so has a group to
+     * be shown on their own dashboard.
+     */
+    public function managesAnyone(): bool
+    {
+        $this->loadMissing('headedDepartment', 'ledTeam');
+
+        return $this->headedDepartment !== null || $this->ledTeam !== null;
+    }
+
+    /**
+     * Whether this person decides on requests for the whole company, or only
+     * for the people they are responsible for.
+     *
+     * Heading a department or leading a team carries approval rights, but only
+     * over that department or that team. Somebody who also holds approval
+     * rights through any other role — an approver, an administrator — decides
+     * company-wide as they always did. The test is where the right comes from,
+     * not whether it is held.
+     */
+    public function approvesCompanyWide(): bool
+    {
+        $this->loadMissing('roles.rolePermissions');
+
+        return $this->roles
+            ->reject(fn (Role $role): bool => in_array($role->slug, Role::assignedThroughDepartments(), true))
+            ->contains(fn (Role $role): bool => $role->hasPermission(Permission::ApproveRequests));
     }
 
     /**
@@ -403,7 +553,7 @@ class User extends Authenticatable implements AuditableContract
      */
     public function scopeClocksIn(Builder $query): void
     {
-        $query->whereHas('role', fn (Builder $q) => $q->where('slug', '!=', Role::SUPER_ADMIN));
+        $query->whereDoesntHave('roles', fn (Builder $q) => $q->where('slug', Role::SUPER_ADMIN));
     }
 
     /**
@@ -411,7 +561,7 @@ class User extends Authenticatable implements AuditableContract
      */
     public function scopeWithRole(Builder $query, string ...$slugs): void
     {
-        $query->whereHas('role', fn (Builder $q) => $q->whereIn('slug', $slugs));
+        $query->whereHas('roles', fn (Builder $q) => $q->whereIn('slug', $slugs));
     }
 
     /**
@@ -423,7 +573,7 @@ class User extends Authenticatable implements AuditableContract
      */
     public function scopeWithPermission(Builder $query, Permission $permission): void
     {
-        $query->whereIn('role_id', Role::idsWithPermission($permission));
+        $query->whereHas('roles', fn (Builder $q) => $q->whereKey(Role::idsWithPermission($permission)));
     }
 
     /**

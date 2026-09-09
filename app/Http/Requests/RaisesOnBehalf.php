@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Enums\Permission;
 use App\Models\Role;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 /**
@@ -39,8 +40,11 @@ trait RaisesOnBehalf
             Rule::exists('users', 'id')
                 ->where('is_active', true)
                 ->whereNotIn(
-                    'role_id',
-                    Role::query()->where('slug', Role::SUPER_ADMIN)->pluck('id')->all(),
+                    'id',
+                    DB::table('role_user')
+                        ->whereIn('role_id', Role::query()->where('slug', Role::SUPER_ADMIN)->pluck('id'))
+                        ->pluck('user_id')
+                        ->all(),
                 ),
         ];
     }

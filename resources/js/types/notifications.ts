@@ -1,11 +1,17 @@
 import type { Option } from './profile';
 
+/**
+ * Somebody who can be picked for a request raised on their behalf, carrying
+ * the department they sit in so cover can be narrowed to their own colleagues.
+ */
+export type PlacedOption = Option & { department_id: number | null };
+
 /** The lists behind the approvals page's "raise for a colleague" form. */
 export type RaiseOptions = {
-    staff: Option[];
+    staff: PlacedOption[];
     leave_types: Option[];
     approvers: Option[];
-    colleagues: Option[];
+    colleagues: PlacedOption[];
 };
 
 /** One row on the notification settings page. */

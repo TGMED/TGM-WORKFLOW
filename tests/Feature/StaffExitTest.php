@@ -7,13 +7,17 @@ use App\Enums\AttendanceStatus;
 use App\Enums\ExitReason;
 use App\Enums\RequestStatus;
 use App\Models\Attendance;
+use App\Models\Department;
 use App\Models\LatenessRequest;
 use App\Models\LeaveRequest;
 use App\Models\Location;
 use App\Models\PushToken;
 use App\Models\Role;
+use App\Models\Team;
 use App\Models\User;
+use App\Notifications\CoverHasLeft;
 use App\Services\ApprovalService;
+use App\Services\DepartmentAssignment;
 use App\Services\StaffExit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -45,8 +49,7 @@ class StaffExitTest extends TestCase
 
     private function admin(): User
     {
-        return User::factory()->create([
-            'role_id' => Role::idFor(Role::SUPER_ADMIN),
+        return User::factory()->superAdmin()->create([
             'location_id' => $this->location->id,
         ]);
     }
@@ -119,6 +122,154 @@ class StaffExitTest extends TestCase
         // The colleague's own leave is untouched: it is theirs, not the
         // leaver's, and somebody still has to decide what happens to it.
         $this->assertSame(RequestStatus::Approved, $covered->refresh()->status);
+    }
+
+    public function test_the_colleague_losing_their_cover_is_told(): void
+    {
+        $staff = $this->staff();
+        $colleague = $this->staff();
+        $monday = Carbon::now()->addWeek()->startOfWeek();
+
+        LeaveRequest::factory()->create([
+            'user_id' => $colleague->id,
+            'relief_officer_id' => $staff->id,
+            'status' => RequestStatus::Approved,
+            'start_date' => $monday,
+            'end_date' => $monday->copy()->addDays(2),
+        ]);
+
+        $this->exit($staff);
+
+        Notification::assertSentTo($colleague, CoverHasLeft::class);
+        // Not the person who left: they have gone.
+        Notification::assertNotSentTo($staff, CoverHasLeft::class);
+    }
+
+    public function test_cover_that_has_already_run_its_course_says_nothing(): void
+    {
+        $staff = $this->staff();
+        $colleague = $this->staff();
+        $lastMonth = Carbon::now()->subMonth();
+
+        LeaveRequest::factory()->create([
+            'user_id' => $colleague->id,
+            'relief_officer_id' => $staff->id,
+            'status' => RequestStatus::Approved,
+            'start_date' => $lastMonth,
+            'end_date' => $lastMonth->copy()->addDays(2),
+        ]);
+
+        $this->exit($staff);
+
+        Notification::assertNothingSentTo($colleague);
+    }
+
+    // Standing down from what they ran.
+
+    public function test_an_exit_empties_the_jobs_they_held(): void
+    {
+        $head = $this->staff();
+        $member = $this->staff();
+
+        $this->actingAs($this->admin())->post('/admin/departments', [
+            'name' => 'Operations',
+            'head_user_id' => $head->id,
+            'members' => [$head->id, $member->id],
+        ]);
+
+        $department = Department::query()->where('name', 'Operations')->sole();
+        $this->assertSame($head->id, $department->head_user_id);
+        $this->assertTrue($head->fresh()->hasRole(Role::HEAD_OF_DEPARTMENT));
+
+        $outcome = app(StaffExit::class)->record(
+            $head,
+            ExitReason::Resignation,
+            Carbon::now(),
+            null,
+        );
+
+        $this->assertNull($department->refresh()->head_user_id);
+        $this->assertFalse($head->fresh()->hasRole(Role::HEAD_OF_DEPARTMENT));
+        $this->assertSame(['Operations'], $outcome->jobsVacated);
+        $this->assertStringContainsString('nobody running it', (string) $outcome->summary());
+    }
+
+    public function test_a_team_lead_who_leaves_stands_down_too(): void
+    {
+        $lead = $this->staff();
+        $member = $this->staff();
+
+        $department = Department::query()->create(['name' => 'Operations', 'slug' => 'operations']);
+        $team = Team::query()->create([
+            'department_id' => $department->id,
+            'name' => 'Front desk',
+            'slug' => 'front-desk',
+        ]);
+
+        app(DepartmentAssignment::class)
+            ->setLead($team, $lead->id, [$lead->id, $member->id]);
+
+        $this->assertTrue($lead->fresh()->hasRole(Role::TEAM_LEAD));
+
+        $this->exit($lead);
+
+        $this->assertNull($team->refresh()->lead_user_id);
+        $this->assertFalse($lead->fresh()->hasRole(Role::TEAM_LEAD));
+    }
+
+    // Requests that were stuck behind them.
+
+    public function test_a_request_waiting_on_a_leaver_moves_on(): void
+    {
+        $requester = $this->staff();
+        $head = $this->staff();
+
+        $leave = LeaveRequest::factory()->create([
+            'user_id' => $requester->id,
+            'status' => RequestStatus::Pending,
+        ]);
+
+        // The line is stamped on the row rather than being fillable, so it is
+        // set the way the app sets it.
+        $leave->forceFill(['head_id' => $head->id])->save();
+
+        $this->assertSame($head->id, $leave->lineAwaiting());
+
+        $outcome = app(StaffExit::class)->record(
+            $head,
+            ExitReason::Resignation,
+            Carbon::now(),
+            null,
+        );
+
+        $leave->refresh()->load('approvals');
+
+        $this->assertNull($leave->head_id);
+        $this->assertNull($leave->lineAwaiting());
+        $this->assertSame(1, $outcome->requestsReleased);
+        // Still open: it moves on to whoever is left, it is not decided for them.
+        $this->assertSame(RequestStatus::Pending, $leave->status);
+    }
+
+    public function test_a_stage_the_leaver_already_ruled_on_is_left_on_the_trail(): void
+    {
+        $requester = $this->staff();
+        $head = User::factory()->approver()->create(['location_id' => $this->location->id]);
+
+        $leave = LeaveRequest::factory()->create([
+            'user_id' => $requester->id,
+            'status' => RequestStatus::Pending,
+        ]);
+
+        $leave->forceFill(['head_id' => $head->id])->save();
+
+        app(ApprovalService::class)->decide($leave, $head, ApprovalDecision::Approved);
+
+        $this->exit($head);
+
+        // The stamp stays: their decision is on the trail and stays true
+        // whether or not they still work here.
+        $this->assertSame($head->id, $leave->refresh()->head_id);
     }
 
     public function test_an_exit_clears_the_devices_and_the_open_sessions(): void

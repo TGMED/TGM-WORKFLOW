@@ -27,8 +27,10 @@ class ReportController extends Controller
 
         $reports = Report::query()
             ->with([
-                'reporter:id,name,employee_id,department',
-                'subjectUser:id,name,employee_id,department',
+                'reporter:id,name,employee_id,department_id',
+                'reporter.department:id,name',
+                'subjectUser:id,name,employee_id,department_id',
+                'subjectUser.department:id,name',
                 'handledBy:id,name',
             ])
             ->when($status === 'open', fn (Builder $q) => $q->open())
@@ -112,7 +114,7 @@ class ReportController extends Controller
                 'id' => $report->reporter->id,
                 'name' => $report->reporter->name,
                 'employee_id' => $report->reporter->employee_id,
-                'department' => $report->reporter->department,
+                'department' => $report->reporter->department?->name,
             ],
             'against' => $report->subjectLabel(),
             'against_user_id' => $report->subject_user_id,

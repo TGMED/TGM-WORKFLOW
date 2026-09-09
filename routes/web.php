@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\AnnouncementController;
 use App\Http\Controllers\Admin\AttendanceReportController;
 use App\Http\Controllers\Admin\AuditController;
 use App\Http\Controllers\Admin\ClockAttemptController;
+use App\Http\Controllers\Admin\DepartmentController;
 use App\Http\Controllers\Admin\ImportController;
 use App\Http\Controllers\Admin\LeaveRestrictedPeriodController;
 use App\Http\Controllers\Admin\LeaveTypeController;
@@ -16,6 +17,8 @@ use App\Http\Controllers\Admin\RequestSettingsController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\SalaryController;
 use App\Http\Controllers\Admin\StaffController;
+use App\Http\Controllers\Admin\TeamController;
+use App\Http\Controllers\AnnouncementController as PublicAnnouncementController;
 use App\Http\Controllers\ApprovalController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
@@ -80,6 +83,11 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
     Route::get('attendance', [AttendanceController::class, 'index'])
         ->middleware('clocks-in')
         ->name('attendance.index');
+
+    // The noticeboard, open to everyone. Notices used to be a panel on the
+    // dashboard; they are long enough to want a page.
+    Route::get('announcements', [PublicAnnouncementController::class, 'index'])
+        ->name('announcements.index');
 
     // Who the company is missing today, open to everyone: cover is easier to
     // arrange when you can see who is out.
@@ -218,6 +226,21 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
                 ->name('staff.reinstate');
         });
 
+        // How the company is arranged. Its own permission, and the only way
+        // in to the head of department and team lead roles: naming somebody
+        // here also names the people they are responsible for, which is the
+        // whole reason those two roles are not on the staff form.
+        Route::middleware('permission:departments.manage')->group(function (): void {
+            Route::get('departments', [DepartmentController::class, 'index'])->name('departments.index');
+            Route::post('departments', [DepartmentController::class, 'store'])->name('departments.store');
+            Route::put('departments/{department}', [DepartmentController::class, 'update'])->name('departments.update');
+            Route::delete('departments/{department}', [DepartmentController::class, 'destroy'])->name('departments.destroy');
+
+            Route::post('departments/{department}/teams', [TeamController::class, 'store'])->name('teams.store');
+            Route::put('teams/{team}', [TeamController::class, 'update'])->name('teams.update');
+            Route::delete('teams/{team}', [TeamController::class, 'destroy'])->name('teams.destroy');
+        });
+
         Route::middleware('permission:locations.manage')->group(function (): void {
             Route::get('locations', [LocationController::class, 'index'])->name('locations.index');
             Route::post('locations', [LocationController::class, 'store'])->name('locations.store');
@@ -240,7 +263,7 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
             ->name('clock-attempts.index');
 
         Route::middleware('permission:announcements.manage')->group(function (): void {
-            Route::get('announcements', [AnnouncementController::class, 'index'])->name('announcements.index');
+            Route::get('announcements', [PublicAnnouncementController::class, 'index'])->name('announcements.index');
             Route::post('announcements', [AnnouncementController::class, 'store'])->name('announcements.store');
             Route::put('announcements/{announcement}', [AnnouncementController::class, 'update'])->name('announcements.update');
             Route::delete('announcements/{announcement}', [AnnouncementController::class, 'destroy'])->name('announcements.destroy');

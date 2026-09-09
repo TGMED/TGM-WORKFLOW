@@ -112,9 +112,30 @@ trait HasApprovals
             : RequestStatus::Rejected;
     }
 
+    /**
+     * How many approvals the request still needs before it is granted.
+     *
+     * Named people are gates rather than entries in a tally: while somebody
+     * the request has to pass still has to see it, it is not granted, however
+     * many approvals have already been given. Without this, a module asking
+     * for a single approval would let the team lead grant the leave and the
+     * head of department would never be asked at all.
+     */
     public function approvalsOutstanding(): int
     {
-        return max(0, $this->approvalsRequired() - $this->approvalsGiven());
+        $outstanding = max(0, $this->approvalsRequired() - $this->approvalsGiven());
+
+        return $this->approvalGatesFinished() ? $outstanding : max(1, $outstanding);
+    }
+
+    /**
+     * Whether everybody this request has to pass has had their say. The
+     * reporting line for every module; leave adds the approver the requester
+     * named on top of it.
+     */
+    protected function approvalGatesFinished(): bool
+    {
+        return $this->lineFinished();
     }
 
     /**
@@ -130,6 +151,22 @@ trait HasApprovals
         }
 
         return $named->name ?? $fallback;
+    }
+
+    /**
+     * Name a person on the request, pointing out to the reader where they are
+     * the one named. This is the part they hold, which is not the same
+     * question as whose turn it is now.
+     */
+    protected function name(?User $person, ?User $viewer, string $fallback): string
+    {
+        if ($person === null) {
+            return $fallback;
+        }
+
+        return $viewer !== null && $viewer->id === $person->id
+            ? $person->name.' (you)'
+            : $person->name;
     }
 
     /**
@@ -187,13 +224,33 @@ trait HasApprovals
     /**
      * An approver may act while the request is open, has not already had their
      * say, and is not their own.
+     *
+     * The reporting line goes first where the request carries one: a team lead
+     * and then a head of department are asked before the request is opened to
+     * everybody who may approve. A request carrying neither — somebody in no
+     * team and no department, or one filed before the line existed — behaves
+     * exactly as it always did.
      */
     public function awaitsDecisionFrom(User $user): bool
     {
-        return $this->requestStatus()->isOpen()
+        $open = $this->requestStatus()->isOpen()
             && $user->canApprove()
             && $this->user_id !== $user->id
             && ! $this->wasDecidedBy($user);
+
+        if (! $open) {
+            return false;
+        }
+
+        if (($awaiting = $this->lineAwaiting()) !== null) {
+            return $awaiting === $user->id;
+        }
+
+        // Past the reporting line, the request is open to anyone who approves
+        // for the company. It is not open to somebody whose approval rights
+        // come only from heading a department or leading a team: those cover
+        // their own people, and this request is not one of theirs.
+        return $user->approvesCompanyWide();
     }
 
     /**

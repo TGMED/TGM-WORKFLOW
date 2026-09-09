@@ -258,9 +258,15 @@ class LeaveRequestController extends Controller
     }
 
     /**
-     * Anyone still on the books can cover a desk, approver or not. Each one
-     * carries the leave they already have booked, so the form can drop the
-     * people who will be away over the days being asked for.
+     * Who can cover a desk: colleagues in the same department, approver or
+     * not. Cover means doing somebody's job while they are away, which is only
+     * a real offer from somebody who does that kind of work.
+     *
+     * Somebody in no department gets the whole company rather than an empty
+     * list, since a picker with nothing in it would stop them filing at all.
+     *
+     * Each one carries the leave they already have booked, so the form can
+     * drop the people who will be away over the days being asked for.
      *
      * @return array<int, array{value: int, label: string, away: array<int, array{start: string, end: string}>}>
      */
@@ -276,13 +282,18 @@ class LeaveRequestController extends Controller
             ->active()
             ->clocksIn()
             ->whereKeyNot($user->id)
+            ->when(
+                $user->department_id !== null,
+                fn ($query) => $query->where('department_id', $user->department_id),
+            )
             ->orderBy('name')
-            ->get(['id', 'name', 'department'])
+            ->with('department:id,name')
+            ->get(['id', 'name', 'department_id'])
             ->map(fn (User $colleague): array => [
                 'value' => $colleague->id,
                 'label' => $colleague->department === null
                     ? $colleague->name
-                    : "{$colleague->name} · {$colleague->department}",
+                    : "{$colleague->name} · {$colleague->department->name}",
                 'away' => $away->get($colleague->id, collect())
                     ->map(fn (LeaveRequest $leave): array => [
                         'start' => $leave->start_date->toDateString(),

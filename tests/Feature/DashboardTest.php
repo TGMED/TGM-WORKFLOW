@@ -142,7 +142,7 @@ class DashboardTest extends TestCase
                 ->where('leave.balances.0.remaining', $annual->days_per_year - 3));
     }
 
-    public function test_the_company_overview_counts_who_is_on_leave_today(): void
+    public function test_the_company_console_counts_who_is_on_leave_today(): void
     {
         $onLeave = User::factory()->create(['location_id' => $this->location->id]);
 
@@ -165,6 +165,6 @@ class DashboardTest extends TestCase
         $this->actingAs(User::factory()->superAdmin()->create())
             ->get('/dashboard')
             ->assertOk()
-            ->assertInertia(fn ($page) => $page->where('overview.on_leave_today', 1));
+            ->assertInertia(fn ($page) => $page->where('metrics.headline.on_leave_today', 1));
     }
 }

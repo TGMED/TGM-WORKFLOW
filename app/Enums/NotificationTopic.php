@@ -24,6 +24,9 @@ enum NotificationTopic: string
     /** Our note to you on the anniversary of the day you joined. */
     case Anniversary = 'anniversary';
 
+    /** Where you sit in the company changed: a department, or the running of one. */
+    case Department = 'department';
+
     public function label(): string
     {
         return match ($this) {
@@ -33,6 +36,7 @@ enum NotificationTopic: string
             self::Announcement => 'Company announcements',
             self::Birthday => 'Birthday greetings',
             self::Anniversary => 'Work anniversaries',
+            self::Department => 'Department changes',
         };
     }
 
@@ -45,6 +49,7 @@ enum NotificationTopic: string
             self::Announcement => 'Notices published to the whole company.',
             self::Birthday => 'Our note to you on your birthday.',
             self::Anniversary => 'Our note to you on the anniversary of your first day.',
+            self::Department => 'You were moved into a department, or named to run one.',
         };
     }
 

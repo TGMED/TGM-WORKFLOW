@@ -4,7 +4,12 @@ import { computed, onMounted, ref, watch } from 'vue';
 const props = withDefaults(
     defineProps<{
         label: string;
-        value: number;
+        /**
+         * A string is shown as written and does not count up: some figures
+         * have no number behind them yet ("-") or are not a quantity at all
+         * ("08:42"), and animating those would be theatre.
+         */
+        value: number | string;
         suffix?: string;
         decimals?: number;
         caption?: string;
@@ -46,10 +51,22 @@ function animate(to: number) {
     requestAnimationFrame(frame);
 }
 
-onMounted(() => animate(props.value));
-watch(() => props.value, animate);
+const isNumber = computed(() => typeof props.value === 'number');
 
-const display = computed(() => shown.value.toFixed(props.decimals));
+onMounted(() => {
+    if (typeof props.value === 'number') animate(props.value);
+});
+
+watch(
+    () => props.value,
+    (value) => {
+        if (typeof value === 'number') animate(value);
+    },
+);
+
+const display = computed(() =>
+    isNumber.value ? shown.value.toFixed(props.decimals) : String(props.value),
+);
 </script>
 
 <template>

@@ -46,8 +46,7 @@ class AdminDashboardTest extends TestCase
 
         $role->syncPermissions($permissions);
 
-        return User::factory()->create([
-            'role_id' => $role->id,
+        return User::factory()->roles($role->slug)->create([
             'location_id' => $this->location->id,
         ]);
     }

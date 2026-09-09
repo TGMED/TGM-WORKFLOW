@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\Permission;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
@@ -39,6 +40,22 @@ class Role extends Model implements AuditableContract
 
     public const STAFF = 'staff';
 
+    public const HEAD_OF_DEPARTMENT = 'head_of_department';
+
+    public const TEAM_LEAD = 'team_lead';
+
+    /**
+     * The two roles that come with people attached. Neither may be granted
+     * from the staff form: they are set on the departments page, where naming
+     * somebody a head or a lead also names who they are responsible for.
+     *
+     * @return array<int, string>
+     */
+    public static function assignedThroughDepartments(): array
+    {
+        return [self::HEAD_OF_DEPARTMENT, self::TEAM_LEAD];
+    }
+
     /**
      * @return array<string, string>
      */
@@ -50,11 +67,11 @@ class Role extends Model implements AuditableContract
     }
 
     /**
-     * @return HasMany<User, $this>
+     * @return BelongsToMany<User, $this>
      */
-    public function users(): HasMany
+    public function users(): BelongsToMany
     {
-        return $this->hasMany(User::class);
+        return $this->belongsToMany(User::class);
     }
 
     /**
@@ -194,6 +211,21 @@ class Role extends Model implements AuditableContract
                 'description' => $role->description,
             ])
             ->all();
+    }
+
+    /**
+     * The roles the staff form may hand out. Heads of department and team
+     * leads are missing on purpose: they come with people attached, and the
+     * departments page is where those people get named.
+     *
+     * @return array<int, array{value: string, label: string, description: string|null}>
+     */
+    public static function grantableOptions(): array
+    {
+        return array_values(array_filter(
+            self::options(),
+            fn (array $option): bool => ! in_array($option['value'], self::assignedThroughDepartments(), true),
+        ));
     }
 
     /**

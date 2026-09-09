@@ -193,8 +193,12 @@ class AdminDashboardController extends Controller
     {
         $managerRoles = Role::idsWithPermission(Permission::ApproveRequests);
 
-        $managers = User::query()->active()->clocksIn()->whereIn('role_id', $managerRoles)->count();
-        $others = User::query()->active()->clocksIn()->whereNotIn('role_id', $managerRoles)->count();
+        $managers = User::query()->active()->clocksIn()
+            ->whereHas('roles', fn ($query) => $query->whereKey($managerRoles))
+            ->count();
+        $others = User::query()->active()->clocksIn()
+            ->whereDoesntHave('roles', fn ($query) => $query->whereKey($managerRoles))
+            ->count();
 
         $committed = LeaveRequest::query()
             ->ofActiveStaff()

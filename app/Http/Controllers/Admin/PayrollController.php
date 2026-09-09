@@ -73,7 +73,7 @@ class PayrollController extends Controller
                 'name' => $user->name,
                 'initials' => $user->initials,
                 'employee_id' => $user->employee_id,
-                'department' => $user->department,
+                'department' => $user->department?->name,
                 'position' => $user->position,
                 'annual_gross' => $user->salaryProfile?->annual_gross,
                 'monthly_gross' => $user->salaryProfile?->monthlyGross(),
@@ -101,7 +101,7 @@ class PayrollController extends Controller
         $run->load(['createdBy:id,name', 'finalisedBy:id,name']);
 
         $payslips = $run->payslips()
-            ->with('user:id,name,employee_id,department')
+            ->with('user:id,name,employee_id,department_id', 'user.department:id,name')
             ->get()
             ->sortBy(fn (Payslip $slip): string => $slip->user->name)
             ->map(fn (Payslip $slip): array => [
@@ -110,7 +110,7 @@ class PayrollController extends Controller
                     'id' => $slip->user->id,
                     'name' => $slip->user->name,
                     'employee_id' => $slip->user->employee_id,
-                    'department' => $slip->user->department,
+                    'department' => $slip->user->department?->name,
                 ],
                 'currency' => $slip->currency,
                 'earnings' => $slip->earnings,

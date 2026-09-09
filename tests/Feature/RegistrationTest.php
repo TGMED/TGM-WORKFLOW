@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Department;
 use App\Models\Location;
 use App\Models\Role;
 use App\Models\User;
@@ -21,7 +22,7 @@ class RegistrationTest extends TestCase
         return array_merge([
             'name' => 'Amara Nwosu',
             'email' => 'amara@tgm.test',
-            'department' => 'Engineering',
+            'department_id' => Department::factory()->create()->id,
             'position' => 'Technician',
             'password' => 'Correct-Horse-Battery-9',
             'password_confirmation' => 'Correct-Horse-Battery-9',
@@ -75,7 +76,7 @@ class RegistrationTest extends TestCase
         $user = User::query()->where('email', 'amara@tgm.test')->firstOrFail();
 
         $this->assertSame($location->id, $user->location_id);
-        $this->assertSame(Role::STAFF, $user->role->slug);
+        $this->assertSame([Role::STAFF], $user->roles->pluck('slug')->all());
         $this->assertTrue($user->is_active);
         $this->assertAuthenticatedAs($user);
     }
@@ -148,12 +149,12 @@ class RegistrationTest extends TestCase
 
         $this->post('/register', $this->payload([
             'location_id' => $location->id,
-            'role' => Role::SUPER_ADMIN,
+            'roles' => [Role::SUPER_ADMIN],
         ]));
 
         $user = User::query()->where('email', 'amara@tgm.test')->firstOrFail();
 
-        $this->assertSame(Role::STAFF, $user->role->slug);
+        $this->assertSame([Role::STAFF], $user->roles->pluck('slug')->all());
     }
 
     public function test_an_existing_email_is_rejected(): void

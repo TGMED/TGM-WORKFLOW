@@ -32,7 +32,7 @@ class ClockAttemptController extends Controller
         };
 
         $attempts = ClockAttempt::query()
-            ->with(['user:id,name,employee_id,department', 'location:id,name,timezone'])
+            ->with(['user:id,name,employee_id,department_id', 'user.department:id,name', 'location:id,name,timezone'])
             ->when($since !== null, fn (Builder $q) => $q->where('created_at', '>=', $since))
             ->when($result === 'rejected', fn (Builder $q) => $q->rejected())
             ->when($locationId !== '', fn (Builder $q) => $q->where('location_id', $locationId))
@@ -56,7 +56,7 @@ class ClockAttemptController extends Controller
                     'name' => $a->user->name,
                     'initials' => $a->user->initials,
                     'employee_id' => $a->user->employee_id,
-                    'department' => $a->user->department,
+                    'department' => $a->user->department?->name,
                 ],
                 'type' => $a->type->value,
                 'type_label' => $a->type->label(),

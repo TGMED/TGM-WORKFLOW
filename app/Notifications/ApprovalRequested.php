@@ -7,9 +7,9 @@ use App\Enums\ApprovalStage;
 use App\Enums\NotificationTopic;
 use App\Models\User;
 use App\Notifications\Concerns\DescribesRequest;
+use App\Notifications\Messages\PanelMailMessage;
 use App\Services\Push\PushMessage;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Notifications\Messages\MailMessage;
 
 /**
  * Tells someone a request is now waiting on them, whether they are agreeing
@@ -32,12 +32,12 @@ class ApprovalRequested extends TopicNotification
         return NotificationTopic::ApprovalRequested;
     }
 
-    public function toMail(object $notifiable): MailMessage
+    public function toMail(object $notifiable): PanelMailMessage
     {
         $requester = $this->request->requester();
         $raisedBy = $this->request->filedBy();
 
-        $mail = (new MailMessage)
+        $mail = (new PanelMailMessage)
             ->subject($this->subject())
             ->greeting('Hello '.$this->firstName($notifiable).',');
 

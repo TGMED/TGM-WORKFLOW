@@ -36,8 +36,8 @@ class WorkAnniversary extends TopicNotification
             $mail->line("Thank you for everything you have brought to us as {$user->position}.");
         }
 
-        if (filled($user->department)) {
-            $mail->line("From all of us, and from everyone in {$user->department}.");
+        if ($user->department !== null) {
+            $mail->line("From all of us, and from everyone in {$user->department->name}.");
         }
 
         return $mail->salutation('- The '.config('app.name').' team');

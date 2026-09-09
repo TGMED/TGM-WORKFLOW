@@ -6,8 +6,8 @@ use App\Enums\NotificationTopic;
 use App\Models\LeaveRequest;
 use App\Models\User;
 use App\Notifications\Concerns\DescribesRequest;
+use App\Notifications\Messages\PanelMailMessage;
 use App\Services\Push\PushMessage;
-use Illuminate\Notifications\Messages\MailMessage;
 
 /**
  * Tells the named approver that leave is on its way to them.
@@ -27,12 +27,12 @@ class ApprovalUpcoming extends TopicNotification
         return NotificationTopic::RequestRaised;
     }
 
-    public function toMail(object $notifiable): MailMessage
+    public function toMail(object $notifiable): PanelMailMessage
     {
         $requester = $this->request->requester();
         $filer = $this->request->filedBy();
 
-        $mail = (new MailMessage)
+        $mail = (new PanelMailMessage)
             ->subject($this->subject())
             ->greeting('Hello '.$this->firstName($notifiable).',')
             ->line("{$requester->name} has named you to approve their leave.");

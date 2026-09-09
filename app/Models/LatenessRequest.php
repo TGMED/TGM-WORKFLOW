@@ -7,6 +7,7 @@ use App\Enums\RequestModule;
 use App\Enums\RequestStatus;
 use App\Models\Concerns\BelongsToStaff;
 use App\Models\Concerns\HasApprovals;
+use App\Models\Concerns\RoutesThroughTheLine;
 use Database\Factories\LatenessRequestFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -23,6 +24,8 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $user_id
  * @property int|null $raised_by_id
+ * @property int|null $team_lead_id
+ * @property int|null $head_id
  * @property int|null $attendance_id
  * @property Carbon $work_date
  * @property int $minutes_late
@@ -56,6 +59,7 @@ class LatenessRequest extends Model implements Approvable
     /** @use HasFactory<LatenessRequestFactory> */
     use HasFactory;
 
+    use RoutesThroughTheLine;
     use SoftDeletes;
 
     /**
@@ -88,6 +92,17 @@ class LatenessRequest extends Model implements Approvable
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * The chain is settled the moment the request is filed, in one place, so
+     * no caller can forget it and no route can skip it.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (self $request): void {
+            $request->stampReportingLine();
+        });
     }
 
     /**
@@ -136,6 +151,8 @@ class LatenessRequest extends Model implements Approvable
             'Date' => $this->work_date->format('j M Y'),
             'Minutes late' => (string) $this->minutes_late,
             'Reason' => blank($this->reason) ? 'Not given' : $this->reason,
+            'Team lead' => $this->name($this->teamLead, $viewer, 'None'),
+            'Head of department' => $this->name($this->head, $viewer, 'None'),
             'Status' => $shared['Status'],
             'Filed' => $shared['Filed'],
         ];
@@ -144,7 +161,7 @@ class LatenessRequest extends Model implements Approvable
     public function standing(?User $viewer = null): string
     {
         return $this->settledStanding()
-            ?? 'Waiting on '.$this->decider($viewer, null, 'an approver').' for a decision.';
+            ?? 'Waiting on '.$this->decider($viewer, $this->lineAwaitingUser(), 'an approver').' for a decision.';
     }
 
     public function nextStep(?User $viewer = null): ?string

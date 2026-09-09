@@ -9,6 +9,7 @@ use App\Enums\RequestModule;
 use App\Enums\RequestStatus;
 use App\Models\Concerns\BelongsToStaff;
 use App\Models\Concerns\HasApprovals;
+use App\Models\Concerns\RoutesThroughTheLine;
 use Database\Factories\LeaveRequestFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -27,6 +28,8 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  * @property int $id
  * @property int $user_id
  * @property int|null $raised_by_id
+ * @property int|null $team_lead_id
+ * @property int|null $head_id
  * @property int $leave_type_id
  * @property int|null $supervisor_id
  * @property int|null $relief_officer_id
@@ -48,6 +51,8 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  * @property-read LeaveType $leaveType
  * @property-read User|null $supervisor
  * @property-read User|null $reliefOfficer
+ * @property-read User|null $teamLead
+ * @property-read User|null $head
  */
 #[Fillable([
     'user_id',
@@ -75,6 +80,7 @@ class LeaveRequest extends Model implements Approvable, AuditableContract
     /** @use HasFactory<LeaveRequestFactory> */
     use HasFactory;
 
+    use RoutesThroughTheLine;
     use SoftDeletes;
 
     /**
@@ -121,6 +127,17 @@ class LeaveRequest extends Model implements Approvable, AuditableContract
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * The chain is settled the moment the request is filed, in one place, so
+     * no caller can forget it and no route can skip it.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (self $request): void {
+            $request->stampReportingLine();
+        });
     }
 
     /**
@@ -213,9 +230,14 @@ class LeaveRequest extends Model implements Approvable, AuditableContract
     }
 
     /**
-     * The run is ordered: the relief officer signs off the cover, the named
-     * supervisor rules on it, and only then may any other approver top up the
-     * count when the module asks for more than one approval.
+     * The run is ordered: the relief officer signs off the cover, then the
+     * people responsible for the requester have their say — team lead first,
+     * then head of department — then the named supervisor, and only after all
+     * of that may any other approver top up the count when the module asks for
+     * more than one approval.
+     *
+     * Each stage falls away when nobody fills it, so somebody in no team and
+     * no department reaches the supervisor exactly as they did before.
      */
     public function awaitsDecisionFrom(User $user): bool
     {
@@ -235,11 +257,27 @@ class LeaveRequest extends Model implements Approvable, AuditableContract
             return false;
         }
 
+        if (($awaiting = $this->lineAwaiting()) !== null) {
+            return $awaiting === $user->id;
+        }
+
         if ($this->supervisor_id !== null && ! $this->supervisorDecided()) {
             return $this->supervisor_id === $user->id;
         }
 
-        return true;
+        // See HasApprovals::awaitsDecisionFrom(): a head or lead approves for
+        // their own people, not for whoever is left over.
+        return $user->approvesCompanyWide();
+    }
+
+    /**
+     * Leave passes the reporting line and then the approver the requester
+     * named. Both are gates: neither one settles the request on its own.
+     */
+    protected function approvalGatesFinished(): bool
+    {
+        return $this->lineFinished()
+            && ($this->supervisor_id === null || $this->supervisorDecided());
     }
 
     public function approvalStageFor(User $user): ApprovalStage
@@ -260,6 +298,10 @@ class LeaveRequest extends Model implements Approvable, AuditableContract
 
         if (! $this->reliefAgreed()) {
             return "With {$this->reliefOfficer->name} for cover";
+        }
+
+        if (($line = $this->lineStageLabel()) !== null) {
+            return $line;
         }
 
         if ($this->supervisor_id !== null && ! $this->supervisorDecided()) {
@@ -320,6 +362,8 @@ class LeaveRequest extends Model implements Approvable, AuditableContract
             'Working days' => (string) $this->days,
             'Reason' => blank($this->reason) ? 'Not given' : $this->reason,
             'Relief officer' => $this->name($this->reliefOfficer, $viewer, 'None named'),
+            'Team lead' => $this->name($this->teamLead, $viewer, 'None'),
+            'Head of department' => $this->name($this->head, $viewer, 'None'),
             'Approver' => $this->name($this->supervisor, $viewer, 'Any approver'),
             'Status' => $shared['Status'],
             'Filed' => $shared['Filed'],
@@ -336,6 +380,10 @@ class LeaveRequest extends Model implements Approvable, AuditableContract
             return 'Waiting on '.$this->decider($viewer, $this->reliefOfficer, 'a relief officer').' to agree cover.';
         }
 
+        if (($waiting = $this->lineAwaitingUser()) !== null) {
+            return 'Waiting on '.$this->decider($viewer, $waiting, 'an approver').' for a decision.';
+        }
+
         return 'Waiting on '.$this->decider($viewer, $this->supervisor, 'an approver').' for a decision.';
     }
 
@@ -346,7 +394,11 @@ class LeaveRequest extends Model implements Approvable, AuditableContract
         }
 
         if (! $this->reliefAgreed()) {
-            return 'After that it goes to '.$this->upNext($viewer, $this->supervisor, 'an approver').' for approval.';
+            return 'After that it goes to '.$this->upNext(
+                $viewer,
+                $this->lineAwaitingUser() ?? $this->supervisor,
+                'an approver',
+            ).' for approval.';
         }
 
         $outstanding = $this->approvalsOutstanding();
@@ -370,22 +422,6 @@ class LeaveRequest extends Model implements Approvable, AuditableContract
         return $this->start_date->isSameDay($this->end_date)
             ? $start
             : $start.' - '.$this->end_date->format('j M Y');
-    }
-
-    /**
-     * Name a person on the request, pointing out to the reader where they are
-     * the one named. This is the part they hold, which is not the same
-     * question as whose turn it is now.
-     */
-    protected function name(?User $person, ?User $viewer, string $fallback): string
-    {
-        if ($person === null) {
-            return $fallback;
-        }
-
-        return $viewer !== null && $viewer->id === $person->id
-            ? $person->name.' (you)'
-            : $person->name;
     }
 
     /**

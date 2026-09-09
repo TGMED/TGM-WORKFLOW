@@ -2,12 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Enums\EmploymentStatus;
 use App\Enums\ExitReason;
+use App\Models\Department;
 use App\Models\Location;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class StaffManagementTest extends TestCase
@@ -52,8 +55,8 @@ class StaffManagementTest extends TestCase
             'name' => 'Amara Nwosu',
             'email' => 'amara@tgm.test',
             'employee_id' => 'TGM-0099',
-            'role' => Role::STAFF,
-            'department' => 'Engineering',
+            'roles' => [Role::STAFF],
+            'department_id' => Department::factory()->create()->id,
             'location_id' => $this->location->id,
             'password' => 'Correct-Horse-Battery-9',
             'password_confirmation' => 'Correct-Horse-Battery-9',
@@ -72,7 +75,7 @@ class StaffManagementTest extends TestCase
         $this->actingAs($this->admin())->post('/admin/staff', [
             'name' => 'No Site',
             'email' => 'nosite@tgm.test',
-            'role' => Role::STAFF,
+            'roles' => [Role::STAFF],
             'password' => 'Correct-Horse-Battery-9',
             'password_confirmation' => 'Correct-Horse-Battery-9',
         ])->assertSessionHasErrors('location_id');
@@ -86,7 +89,7 @@ class StaffManagementTest extends TestCase
             ->post('/admin/staff', [
                 'name' => 'Sneaky',
                 'email' => 'sneaky@tgm.test',
-                'role' => Role::SUPER_ADMIN,
+                'roles' => [Role::SUPER_ADMIN],
                 'location_id' => $this->location->id,
                 'password' => 'Correct-Horse-Battery-9',
                 'password_confirmation' => 'Correct-Horse-Battery-9',
@@ -105,7 +108,7 @@ class StaffManagementTest extends TestCase
             ->put("/admin/staff/{$staff->id}", [
                 'name' => $staff->name,
                 'email' => $staff->email,
-                'role' => Role::STAFF,
+                'roles' => [Role::STAFF],
                 'location_id' => $other->id,
             ])
             ->assertSessionHasNoErrors();
@@ -124,12 +127,113 @@ class StaffManagementTest extends TestCase
         $this->actingAs($this->admin())->put("/admin/staff/{$staff->id}", [
             'name' => $staff->name,
             'email' => $staff->email,
-            'role' => Role::STAFF,
+            'roles' => [Role::STAFF],
             'location_id' => $this->location->id,
             'password' => '',
         ]);
 
         $this->assertSame($hash, $staff->refresh()->password);
+    }
+
+    /**
+     * The edit form leaves the password out of the request entirely when it
+     * has not been touched, rather than sending an empty pair, so the route
+     * has to take a payload with no password key at all.
+     */
+    public function test_editing_without_the_password_fields_at_all_keeps_the_existing_one(): void
+    {
+        $staff = User::factory()->create([
+            'password' => 'password',
+            'location_id' => $this->location->id,
+        ]);
+        $hash = $staff->password;
+
+        $this->actingAs($this->admin())
+            ->put("/admin/staff/{$staff->id}", [
+                'name' => 'Renamed Person',
+                'email' => $staff->email,
+                'roles' => [Role::STAFF],
+                'location_id' => $this->location->id,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $staff->refresh();
+
+        $this->assertSame('Renamed Person', $staff->name);
+        $this->assertSame($hash, $staff->password);
+    }
+
+    public function test_the_staff_page_carries_the_whole_record(): void
+    {
+        $staff = User::factory()->create([
+            'location_id' => $this->location->id,
+            'employment_status' => EmploymentStatus::Probation,
+            'confirmed_at' => null,
+        ]);
+
+        $this->actingAs($this->admin())
+            ->get("/admin/staff/{$staff->id}")
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('admin/StaffShow')
+                ->where('staff.employment_status', 'probation')
+                ->where('staff.employment_status_label', 'On probation')
+                ->where('staff.employment_status_tone', 'brass')
+                ->where('staff.confirmed_at', null)
+                ->has('staff.email_verified_at')
+                ->has('staff.created_at')
+                ->has('staff.updated_at')
+            );
+    }
+
+    /**
+     * The HR record the employee keeps themselves is sent whole, filled in or
+     * not, so the page can show the gaps as gaps rather than dropping the row.
+     */
+    public function test_the_staff_page_carries_the_employee_profile(): void
+    {
+        $staff = User::factory()->create(['location_id' => $this->location->id]);
+
+        // The factory already gave them one; this is the record as filled in.
+        $staff->profile->update([
+            'first_name' => 'Amara',
+            'last_name' => 'Nwosu',
+            'bank_name' => 'Zenith Bank',
+            'genotype' => null,
+            'rsa_number' => null,
+        ]);
+
+        $this->actingAs($this->admin())
+            ->get("/admin/staff/{$staff->id}")
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('profile.exists', true)
+                ->where('profile.first_name', 'Amara')
+                ->where('profile.bank_name', 'Zenith Bank')
+                ->where('profile.genotype', null)
+                ->where('profile.rsa_number', null)
+                ->has('profile.bvn')
+                ->has('profile.national_id_number')
+                ->has('profile.tax_identification_number')
+                ->etc()
+            );
+    }
+
+    public function test_the_staff_page_copes_with_no_employee_profile(): void
+    {
+        // The factory gives everyone a profile, so this is the imported staff
+        // member whose HR record has not been started yet.
+        $staff = User::factory()->create(['location_id' => $this->location->id]);
+        $staff->profile()->forceDelete();
+
+        $this->assertNull($staff->fresh()->profile);
+
+        $this->actingAs($this->admin())
+            ->get("/admin/staff/{$staff->id}")
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('profile.exists', false)
+                ->where('profile.first_name', null)
+                ->etc()
+            );
     }
 
     public function test_super_admins_can_walk_staff_out_and_reinstate_them(): void

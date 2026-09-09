@@ -62,7 +62,7 @@ const props = defineProps<{
         total_hours: number;
         punctuality: number;
     };
-    departments: string[];
+    departments: Array<{ value: number; label: string }>;
     locations: Array<{ value: string; label: string }>;
 }>();
 
@@ -163,9 +163,7 @@ function applyPreset(preset: { from: string; to: string }) {
     to.value = preset.to;
 }
 
-const departmentOptions = computed(() =>
-    props.departments.map((name) => ({ value: name, label: name })),
-);
+const departmentOptions = computed(() => props.departments);
 
 /**
  * Built from the filters the server echoed back rather than the live inputs,

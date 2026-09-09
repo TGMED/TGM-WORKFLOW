@@ -41,8 +41,7 @@ class IncidentReportTest extends TestCase
 
         $role->syncPermissions([Permission::HandleReports]);
 
-        return User::factory()->create([
-            'role_id' => $role->id,
+        return User::factory()->roles($role->slug)->create([
             'location_id' => Location::factory()->create()->id,
         ]);
     }

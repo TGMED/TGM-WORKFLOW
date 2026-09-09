@@ -5,8 +5,9 @@ namespace App\Http\Requests;
 use App\Models\Role;
 
 /**
- * Roles come off the wire as slugs. This swaps the slug for the foreign key
- * the users table actually stores.
+ * Roles come off the wire as slugs and live on a pivot, so they are not part
+ * of what the users table itself stores. This splits the two apart: `payload()`
+ * is what gets written to the row, `roleIds()` is what gets synced after.
  */
 trait ResolvesRole
 {
@@ -18,12 +19,25 @@ trait ResolvesRole
         /** @var array<string, mixed> $data */
         $data = $this->validated();
 
-        /** @var string $slug */
-        $slug = $data['role'];
-        unset($data['role']);
-
-        $data['role_id'] = Role::idFor($slug);
+        unset($data['roles']);
 
         return $data;
+    }
+
+    /**
+     * The roles to sync onto the person, in catalogue order.
+     *
+     * @return array<int, int>
+     */
+    public function roleIds(): array
+    {
+        /** @var array<int, string> $slugs */
+        $slugs = $this->validated()['roles'] ?? [];
+
+        return Role::query()
+            ->whereIn('slug', $slugs)
+            ->orderBy('id')
+            ->pluck('id')
+            ->all();
     }
 }

@@ -8,9 +8,14 @@ namespace App\Services;
  */
 final readonly class StaffExitOutcome
 {
+    /**
+     * @param  array<int, string>  $jobsVacated  Departments and teams they ran.
+     */
     public function __construct(
         public int $requestsCancelled,
         public int $coverToReassign,
+        public array $jobsVacated = [],
+        public int $requestsReleased = 0,
     ) {}
 
     /**
@@ -29,6 +34,17 @@ final readonly class StaffExitOutcome
             $parts[] = $this->coverToReassign.' leave '.
                 ($this->coverToReassign === 1 ? 'request needs' : 'requests need').
                 ' a new relief officer';
+        }
+
+        if ($this->requestsReleased > 0) {
+            $parts[] = $this->requestsReleased.' '.
+                ($this->requestsReleased === 1 ? 'request was' : 'requests were').
+                ' waiting on them and has moved on';
+        }
+
+        if ($this->jobsVacated !== []) {
+            $parts[] = implode(' and ', $this->jobsVacated).
+                (count($this->jobsVacated) === 1 ? ' now has' : ' now have').' nobody running it';
         }
 
         return $parts === [] ? null : ucfirst(implode(', and ', $parts)).'.';

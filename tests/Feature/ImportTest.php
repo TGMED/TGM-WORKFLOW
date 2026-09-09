@@ -9,6 +9,7 @@ use App\Enums\RelationKind;
 use App\Enums\RequestStatus;
 use App\Imports\ImportRegistry;
 use App\Models\Attendance;
+use App\Models\Department;
 use App\Models\LeaveRequest;
 use App\Models\LeaveRestrictedPeriod;
 use App\Models\LeaveType;
@@ -53,8 +54,7 @@ class ImportTest extends TestCase
 
         $role->syncPermissions($permissions);
 
-        return User::factory()->create([
-            'role_id' => $role->id,
+        return User::factory()->roles($role->slug)->create([
             'location_id' => Location::factory()->create()->id,
         ]);
     }
@@ -285,8 +285,8 @@ class ImportTest extends TestCase
     public function test_update_writes_over_the_record_that_is_there(): void
     {
         $staff = User::factory()->create([
+            'department_id' => Department::factory()->create(['name' => 'Operations'])->id,
             'email' => 'ada@example.com',
-            'department' => 'Operations',
             'location_id' => Location::factory()->create()->id,
         ]);
 
@@ -294,15 +294,15 @@ class ImportTest extends TestCase
             ['ada@example.com', 'Finance'],
         ]);
 
-        $this->assertSame('Finance', $staff->fresh()->department);
+        $this->assertSame('Finance', $staff->fresh()->department?->name);
         $this->assertSame(1, session('import_result')['updated']);
     }
 
     public function test_skip_leaves_the_record_alone(): void
     {
         $staff = User::factory()->create([
+            'department_id' => Department::factory()->create(['name' => 'Operations'])->id,
             'email' => 'ada@example.com',
-            'department' => 'Operations',
             'location_id' => Location::factory()->create()->id,
         ]);
 
@@ -314,7 +314,7 @@ class ImportTest extends TestCase
             extra: ['duplicates' => 'skip'],
         );
 
-        $this->assertSame('Operations', $staff->fresh()->department);
+        $this->assertSame('Operations', $staff->fresh()->department?->name);
         $this->assertSame(1, session('import_result')['skipped']);
     }
 
@@ -436,7 +436,7 @@ class ImportTest extends TestCase
 
     public function test_an_administrator_may_be_imported_without_a_site(): void
     {
-        $this->upload($this->admin(), 'staff', ['email', 'name', 'role'], [
+        $this->upload($this->admin(), 'staff', ['email', 'name', 'roles'], [
             ['boss@example.com', 'The Boss', Role::SUPER_ADMIN],
         ]);
 

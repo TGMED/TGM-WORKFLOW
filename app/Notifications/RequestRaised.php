@@ -7,9 +7,9 @@ use App\Enums\NotificationTopic;
 use App\Enums\RequestModule;
 use App\Models\LeaveRequest;
 use App\Models\User;
+use App\Notifications\Messages\PanelMailMessage;
 use App\Services\Push\PushMessage;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Notifications\Messages\MailMessage;
 
 /**
  * Tells the requester side that a request is on the books.
@@ -30,14 +30,13 @@ class RequestRaised extends TopicNotification
         return NotificationTopic::RequestRaised;
     }
 
-    public function toMail(object $notifiable): MailMessage
+    public function toMail(object $notifiable): PanelMailMessage
     {
-        return (new MailMessage)
+        return (new PanelMailMessage)
             ->subject($this->subject($notifiable))
             ->greeting('Hello '.$this->firstName($notifiable).',')
             ->line($this->headline($notifiable))
-            ->line($this->request->summary())
-            ->line($this->waitingOn())
+            ->panel($this->request->summary(), $this->waitingOn())
             ->action('View the request', $this->link($this->path()));
     }
 

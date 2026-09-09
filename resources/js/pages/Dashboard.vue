@@ -2,7 +2,8 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import ArrivalStrip from '@/components/ArrivalStrip.vue';
-import AnnouncementsPanel from '@/components/dashboard/AnnouncementsPanel.vue';
+import CompanyConsole from '@/components/dashboard/CompanyConsole.vue';
+import GroupPanel from '@/components/dashboard/GroupPanel.vue';
 import PunchDial from '@/components/PunchDial.vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
@@ -21,7 +22,7 @@ import {
     duration,
     timeOfDay,
 } from '@/lib/format';
-import type { Announcement, SharedProps } from '@/types';
+import type { CompanyMetrics, GroupMetrics, SharedProps } from '@/types';
 
 type Attendance = {
     id: number;
@@ -118,29 +119,10 @@ const props = defineProps<{
         today: number;
         names: string[];
     } | null;
-    announcements: Announcement[];
-    overview: {
-        active_staff: number;
-        locations: number;
-        clocked_in_today: number;
-        late_today: number;
-        on_leave_today: number;
-        still_out: number;
-        rejected_attempts_today: number;
-        unassigned_staff: number;
-        sites: Array<{
-            id: number;
-            name: string;
-            city: string | null;
-            headcount: number;
-            clocked_in: number;
-            late: number;
-            rejected: number;
-            work_starts_at: string;
-            timezone: string;
-            attendance_rate: number;
-        }>;
-    } | null;
+    /** The people this person heads or leads, and null when they run nothing. */
+    group: GroupMetrics | null;
+    /** The company console, for whoever may see the admin dashboard. */
+    metrics: CompanyMetrics | null;
 }>();
 
 const page = usePage<SharedProps>();
@@ -312,7 +294,7 @@ const statusPill = computed(() => {
     <Head title="Dashboard" />
 
     <AppLayout
-        :heading="clocksIn ? 'Dashboard' : 'Company overview'"
+        :heading="clocksIn ? 'Dashboard' : 'Company console'"
         :lede="`${greeting}, ${user?.name.split(' ')[0]}`"
     >
         <template #toolbar>
@@ -767,151 +749,17 @@ const statusPill = computed(() => {
                 </div>
             </div>
 
-            <!-- What the company has been told, for everyone. -->
-            <AnnouncementsPanel :announcements="announcements" />
+            <!-- The people this person is responsible for. -->
+            <GroupPanel
+                v-if="group"
+                :group="group"
+                :can-open-records="
+                    user?.permissions.includes('staff.manage') ?? false
+                "
+            />
 
-            <!-- Company snapshot, super admins only. -->
-            <Panel
-                v-if="overview"
-                eyebrow="Across the company"
-                :title="`Today at ${overview.locations} ${overview.locations === 1 ? 'site' : 'sites'}`"
-                subtitle="Administrators keep the clock, they do not punch it. These are your staff."
-            >
-                <template #action>
-                    <div class="flex items-center gap-1">
-                        <Link href="/admin/staff">
-                            <AppButton size="sm" variant="ghost"
-                                >Staff</AppButton
-                            >
-                        </Link>
-                        <Link href="/admin/locations">
-                            <AppButton size="sm" variant="secondary">
-                                Manage locations
-                            </AppButton>
-                        </Link>
-                    </div>
-                </template>
-
-                <div
-                    class="stagger grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6"
-                >
-                    <StatTile
-                        label="Active staff"
-                        :value="overview.active_staff"
-                    />
-                    <StatTile
-                        label="Clocked in"
-                        :value="overview.clocked_in_today"
-                        tone="signal"
-                    />
-                    <StatTile
-                        label="Late today"
-                        :value="overview.late_today"
-                        :tone="overview.late_today > 0 ? 'brass' : 'default'"
-                    />
-                    <Link href="/away" class="block">
-                        <StatTile
-                            label="On leave"
-                            :value="overview.on_leave_today"
-                            caption="Approved for today · see who"
-                        />
-                    </Link>
-                    <StatTile
-                        label="Yet to arrive"
-                        :value="overview.still_out"
-                    />
-                    <StatTile
-                        label="Rejected punches"
-                        :value="overview.rejected_attempts_today"
-                        :tone="
-                            overview.rejected_attempts_today > 0
-                                ? 'alert'
-                                : 'default'
-                        "
-                        caption="Out of range or no GPS"
-                    />
-                </div>
-
-                <!-- Per site, because each one keeps its own working day. -->
-                <div v-if="overview.sites.length" class="mt-5">
-                    <p class="eyebrow mb-3">By location</p>
-                    <ul class="divide-y divide-line-soft">
-                        <li
-                            v-for="site in overview.sites"
-                            :key="site.id"
-                            class="flex flex-wrap items-center gap-x-4 gap-y-2 py-3"
-                        >
-                            <div class="min-w-[160px] flex-1">
-                                <p class="truncate text-[13.5px] font-medium">
-                                    {{ site.name }}
-                                </p>
-                                <p
-                                    class="tabular truncate font-mono text-[11.5px] text-faint"
-                                >
-                                    {{ site.city ?? '-' }} · opens
-                                    {{ site.work_starts_at }}
-                                </p>
-                            </div>
-
-                            <!-- Attendance rate as a bar, not another number. -->
-                            <div class="min-w-[140px] flex-1">
-                                <div
-                                    class="h-1.5 w-full overflow-hidden rounded-full bg-line"
-                                >
-                                    <div
-                                        class="h-full rounded-full bg-signal transition-all duration-700 ease-out"
-                                        :style="{
-                                            width: `${site.attendance_rate}%`,
-                                        }"
-                                    />
-                                </div>
-                                <p
-                                    class="tabular mt-1 font-mono text-[11px] text-faint"
-                                >
-                                    {{ site.clocked_in }}/{{ site.headcount }}
-                                    in
-                                </p>
-                            </div>
-
-                            <div class="flex shrink-0 items-center gap-1.5">
-                                <StatusPill v-if="site.late > 0" tone="brass">
-                                    {{ site.late }} late
-                                </StatusPill>
-                                <StatusPill
-                                    v-if="site.rejected > 0"
-                                    tone="alert"
-                                >
-                                    {{ site.rejected }} rejected
-                                </StatusPill>
-                                <StatusPill
-                                    v-if="
-                                        site.late === 0 && site.rejected === 0
-                                    "
-                                    tone="signal"
-                                >
-                                    All clear
-                                </StatusPill>
-                            </div>
-                        </li>
-                    </ul>
-                </div>
-
-                <p
-                    v-if="overview.unassigned_staff > 0"
-                    class="mt-4 rounded-xl border border-brass/30 bg-brass-soft px-3.5 py-2.5 text-[12.5px] text-brass"
-                >
-                    {{ overview.unassigned_staff }} active
-                    {{
-                        overview.unassigned_staff === 1
-                            ? 'person has'
-                            : 'people have'
-                    }}
-                    no location and cannot clock in.
-                    <Link href="/admin/staff?location=none" class="underline">
-                        Assign them
-                    </Link>
-                </p>
-            </Panel>
+            <!-- The company console. -->
+            <CompanyConsole v-if="metrics" :metrics="metrics" />
 
             <!-- Personal history -->
             <Panel

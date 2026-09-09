@@ -9,8 +9,11 @@ use App\Http\Requests\StoreStaffRequest;
 use App\Http\Requests\UpdateStaffRequest;
 use App\Models\Attendance;
 use App\Models\ClockAttempt;
+use App\Models\Department;
+use App\Models\EmployeeProfile;
 use App\Models\Location;
 use App\Models\Role;
+use App\Models\Team;
 use App\Models\User;
 use App\Services\StaffExit;
 use Illuminate\Database\Eloquent\Builder;
@@ -35,7 +38,7 @@ class StaffController extends Controller
         $monthStart = Carbon::now()->startOfMonth()->toDateString();
 
         $paginator = User::query()
-            ->with(['location:id,name,city,timezone', 'role:id,slug,name'])
+            ->with(['location:id,name,city,timezone', 'roles:id,slug,name', 'department:id,name', 'team:id,name'])
             ->when($search !== '', fn (Builder $q) => $q->where(function (Builder $q) use ($search): void {
                 $q->where('name', 'like', "%{$search}%")
                     ->orWhere('email', 'like', "%{$search}%")
@@ -43,7 +46,7 @@ class StaffController extends Controller
             }))
             ->when($status === 'active', fn (Builder $q) => $q->where('is_active', true))
             ->when($status === 'inactive', fn (Builder $q) => $q->where('is_active', false))
-            ->when($department !== '', fn (Builder $q) => $q->where('department', $department))
+            ->when($department !== '', fn (Builder $q) => $q->where('department_id', $department))
             ->when($locationId === 'none', fn (Builder $q) => $q->whereNull('location_id'))
             ->when(
                 $locationId !== '' && $locationId !== 'none',
@@ -65,9 +68,10 @@ class StaffController extends Controller
             'name' => $user->name,
             'email' => $user->email,
             'initials' => $user->initials,
-            'role' => $user->role->slug,
-            'role_label' => $user->role->name,
-            'department' => $user->department,
+            'roles' => $user->roles->sortBy('id')->pluck('slug')->values()->all(),
+            'role_labels' => $user->roles->sortBy('id')->pluck('name')->values()->all(),
+            'department' => $user->department?->name,
+            'team' => $user->team?->name,
             'position' => $user->position,
             'is_active' => $user->is_active,
             'location' => $user->location === null ? null : [
@@ -91,13 +95,9 @@ class StaffController extends Controller
                 'department' => $department,
                 'location' => $locationId,
             ],
-            'departments' => User::query()
-                ->whereNotNull('department')
-                ->distinct()
-                ->orderBy('department')
-                ->pluck('department'),
+            'departments' => Department::options(),
             'locations' => $this->locationOptions(),
-            'roles' => Role::options(),
+            'role_options' => Role::grantableOptions(),
             'totals' => [
                 'all' => User::query()->count(),
                 'active' => User::query()->active()->count(),
@@ -110,6 +110,7 @@ class StaffController extends Controller
     public function store(StoreStaffRequest $request): RedirectResponse
     {
         $user = User::query()->create($request->payload());
+        $user->roles()->sync($request->roleIds());
 
         return back()->with('toast', [
             'type' => 'success',
@@ -119,7 +120,7 @@ class StaffController extends Controller
 
     public function show(Request $request, User $staff): Response
     {
-        $staff->load('location', 'role');
+        $staff->load('location', 'roles', 'department', 'team', 'profile');
 
         $timezone = $staff->location !== null
             ? $staff->location->timezone
@@ -146,11 +147,19 @@ class StaffController extends Controller
                 'email' => $staff->email,
                 'initials' => $staff->initials,
                 'phone' => $staff->phone,
-                'department' => $staff->department,
+                'department' => $staff->department?->name,
+                'department_id' => $staff->department_id,
+                'team' => $staff->team?->name,
+                'team_id' => $staff->team_id,
                 'position' => $staff->position,
-                'role' => $staff->role->slug,
-                'role_label' => $staff->role->name,
+                'roles' => $staff->roles->sortBy('id')->pluck('slug')->values()->all(),
+                'role_labels' => $staff->roles->sortBy('id')->pluck('name')->values()->all(),
                 'hired_at' => $staff->hired_at?->toDateString(),
+                'employment_status' => $staff->employment_status->value,
+                'employment_status_label' => $staff->employment_status->label(),
+                'employment_status_tone' => $staff->employment_status->tone(),
+                'confirmed_at' => $staff->confirmed_at?->toDateString(),
+                'email_verified_at' => $staff->email_verified_at?->toIso8601String(),
                 'is_active' => $staff->is_active,
                 'deactivated_at' => $staff->deactivated_at?->toIso8601String(),
                 'has_exited' => $staff->hasExited(),
@@ -161,6 +170,7 @@ class StaffController extends Controller
                 'exit_date_label' => $staff->exit_date?->format('j M Y'),
                 'exit_note' => $staff->exit_note,
                 'created_at' => $staff->created_at?->toIso8601String(),
+                'updated_at' => $staff->updated_at?->toIso8601String(),
                 'location_id' => $staff->location_id,
                 'clocks_in' => $staff->clocksIn(),
                 'location' => $staff->location === null ? null : [
@@ -174,6 +184,7 @@ class StaffController extends Controller
                     'radius_meters' => $staff->location->radius_meters,
                 ],
             ],
+            'profile' => $this->profilePayload($staff),
             'stats' => $this->monthStats($thisMonth),
             'attendances' => $attendances->map(fn (Attendance $a): array => [
                 'id' => $a->id,
@@ -208,8 +219,10 @@ class StaffController extends Controller
                     'ip_address' => $a->ip_address,
                     'created_at' => $a->created_at->copy()->setTimezone($timezone)->toIso8601String(),
                 ])->values(),
-            'roles' => Role::options(),
+            'role_options' => Role::grantableOptions(),
             'locations' => $this->locationOptions(),
+            'departments' => Department::options(),
+            'teams' => $this->teamOptions(),
             'exit_reasons' => ExitReason::options(),
         ]);
     }
@@ -223,11 +236,90 @@ class StaffController extends Controller
         }
 
         $staff->update($data);
+        $staff->roles()->sync($request->roleIds());
 
         return back()->with('toast', [
             'type' => 'success',
             'message' => "{$staff->name}'s profile has been updated.",
         ]);
+    }
+
+    /**
+     * The HR record the employee keeps themselves, whole.
+     *
+     * Every field is sent whether or not it has been filled in, so the staff
+     * page can show the gaps as gaps: an empty next of kin or a missing RSA
+     * number is exactly the thing the people team is looking for, and a row
+     * that quietly disappears when blank hides it.
+     *
+     * @return array<string, mixed>
+     */
+    protected function profilePayload(User $staff): array
+    {
+        $profile = $staff->profile;
+
+        return [
+            'exists' => $profile !== null,
+            'completed_at' => $profile?->completed_at?->toIso8601String(),
+            'missing' => $profile?->missingFields() ?? EmployeeProfile::REQUIRED,
+            'title' => $profile?->title,
+            'first_name' => $profile?->first_name,
+            'other_names' => $profile?->other_names,
+            'last_name' => $profile?->last_name,
+            'attendance_id' => $profile?->attendance_id,
+            'gender' => $profile?->gender,
+            'date_of_birth' => $profile?->date_of_birth?->toDateString(),
+            'place_of_birth' => $profile?->place_of_birth,
+            'marital_status' => $profile?->marital_status,
+            'mothers_maiden_name' => $profile?->mothers_maiden_name,
+            'spouse_name' => $profile?->spouse_name,
+            'spouse_phone' => $profile?->spouse_phone,
+            'number_of_kids' => $profile?->number_of_kids,
+            'religion' => $profile?->religion,
+            'blood_group' => $profile?->blood_group,
+            'genotype' => $profile?->genotype,
+            'allergies' => $profile?->allergies,
+            'medical_history' => $profile?->medical_history,
+            'national_id_number' => $profile?->national_id_number,
+            'country_of_origin' => $profile?->country_of_origin,
+            'state_of_origin' => $profile?->state_of_origin,
+            'local_government' => $profile?->local_government,
+            'alternate_phone' => $profile?->alternate_phone,
+            'alternate_email' => $profile?->alternate_email,
+            'bank_name' => $profile?->bank_name,
+            'account_name' => $profile?->account_name,
+            'account_number' => $profile?->account_number,
+            'bvn' => $profile?->bvn,
+            'sort_code' => $profile?->sort_code,
+            'swift_code' => $profile?->swift_code,
+            'tax_identification_number' => $profile?->tax_identification_number,
+            'rsa_number' => $profile?->rsa_number,
+            'pfa_name' => $profile?->pfa_name,
+            'nhf_number' => $profile?->nhf_number,
+            'annual_rent' => $profile?->annual_rent === null
+                ? null
+                : (float) $profile->annual_rent,
+        ];
+    }
+
+    /**
+     * Every team, carrying the department it belongs to so the staff form can
+     * narrow the list to the department chosen without another round trip.
+     *
+     * @return array<int, array{value: int, label: string, department_id: int}>
+     */
+    protected function teamOptions(): array
+    {
+        return Team::query()
+            ->with('department:id,name')
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Team $team): array => [
+                'value' => $team->id,
+                'label' => $team->name,
+                'department_id' => $team->department_id,
+            ])
+            ->all();
     }
 
     /**

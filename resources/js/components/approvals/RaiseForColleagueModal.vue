@@ -30,11 +30,24 @@ const lateness = useForm({
     reason: '',
 });
 
-// Whoever the request is for cannot cover their own desk or approve their own
-// time off, so they drop off both lists as soon as they are picked.
+// The department the request is being raised in, once somebody is chosen.
+const staffDepartment = computed(
+    () =>
+        props.options.staff.find((option) => option.value === leave.staff_id)
+            ?.department_id ?? null,
+);
+
+// Cover comes from the requester's own department: doing their job while they
+// are away is only a real offer from somebody who does that kind of work.
+// Whoever the request is for cannot cover their own desk, so they drop off as
+// soon as they are picked. Somebody in no department is not narrowed, which
+// matches how their own leave form behaves.
 const relief = computed(() =>
     props.options.colleagues.filter(
-        (option) => option.value !== leave.staff_id,
+        (option) =>
+            option.value !== leave.staff_id &&
+            (staffDepartment.value === null ||
+                option.department_id === staffDepartment.value),
     ),
 );
 
@@ -47,6 +60,16 @@ const approvers = computed(() =>
 watch(
     () => leave.staff_id,
     (staffId) => {
+        // Cover already named may not be in the new person's department, so
+        // it is cleared rather than left to be rejected on save.
+        if (
+            !relief.value.some(
+                (option) => option.value === leave.relief_officer_id,
+            )
+        ) {
+            leave.relief_officer_id = null;
+        }
+
         if (leave.relief_officer_id === staffId) {
             leave.relief_officer_id = null;
         }
@@ -149,7 +172,7 @@ function submitLateness() {
                         required
                         :options="relief"
                         :error="leave.errors.relief_officer_id"
-                        hint="They agree the cover before it reaches an approver."
+                        hint="From their own department. They agree the cover before it reaches the reporting line."
                     >
                         <option :value="null" disabled>Pick a colleague</option>
                     </SelectField>

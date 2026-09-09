@@ -9,10 +9,12 @@ use App\Imports\BaseImporter;
 use App\Imports\ImportColumn;
 use App\Imports\ImportResult;
 use App\Imports\ImportRow;
+use App\Models\Department;
 use App\Models\Location;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
@@ -84,13 +86,13 @@ class StaffImporter extends BaseImporter
             ImportColumn::required('name', 'Full name, as it should appear on screen.', 'Ada Eze'),
             ImportColumn::make('employee_id', 'The staff ID the company issues. Must be unique, and is what the other sheets point at.', 'TGM-0148'),
             ImportColumn::make('phone', 'Primary phone number.', '+2348012345678'),
-            ImportColumn::make('department', 'The department this person sits in.', 'Operations'),
+            ImportColumn::make('department', 'The department this person sits in, by name. One that does not exist yet is created.', 'Operations'),
             ImportColumn::make('position', 'Their job title.', 'Warehouse Supervisor'),
             ImportColumn::make(
-                'role',
-                'The role they hold, by slug. Left blank a new person is given staff.',
-                Role::STAFF,
-                format: 'Role slug',
+                'roles',
+                'The roles they hold, by slug, separated by a pipe. Left blank a new person is given staff. Heads of department and team leads are named on the departments page instead, so those two slugs are refused here.',
+                Role::STAFF.'|'.Role::APPROVER,
+                format: 'Role slugs, pipe-separated',
             ),
             ImportColumn::make(
                 'location',
@@ -129,8 +131,10 @@ class StaffImporter extends BaseImporter
             $this->reject("{$email} is already on the staff list.");
         }
 
-        $roleSlug = $row->string('role');
-        $role = $this->role($roleSlug, $existing);
+        $roles = $this->roles($row->string('roles') ?? $row->string('role'), $existing);
+        // The site rule reads whether this person clocks in, which is a
+        // question about the whole set of roles, not any one of them.
+        $role = $roles->firstWhere('slug', Role::SUPER_ADMIN) ?? $roles->first();
 
         $data = $this->validate(
             [
@@ -138,7 +142,6 @@ class StaffImporter extends BaseImporter
                 'name' => $row->string('name'),
                 'employee_id' => $row->string('employee_id'),
                 'phone' => $row->string('phone'),
-                'department' => $row->string('department'),
                 'position' => $row->string('position'),
                 'hired_at' => $row->date('hired_at')?->toDateString(),
                 'employment_status' => $row->string('employment_status'),
@@ -150,7 +153,6 @@ class StaffImporter extends BaseImporter
                 'name' => [$existing === null ? 'required' : 'nullable', 'string', 'max:120'],
                 'employee_id' => ['nullable', 'string', 'max:40', Rule::unique('users', 'employee_id')->ignore($existing?->id)],
                 'phone' => ['nullable', 'string', 'max:30'],
-                'department' => ['nullable', 'string', 'max:80'],
                 'position' => ['nullable', 'string', 'max:80'],
                 'hired_at' => ['nullable', 'date', 'before_or_equal:today'],
                 'employment_status' => ['nullable', Rule::enum(EmploymentStatus::class)],
@@ -164,8 +166,8 @@ class StaffImporter extends BaseImporter
             ],
         );
 
-        $data['role_id'] = $role->id;
         $data['location_id'] = $this->locationId($row, $role, $existing);
+        $data['department_id'] = $this->departmentId($row, $existing);
 
         // Deactivating somebody has a second half: the app reads the date to
         // say when they were let go, and a reactivation has to clear it.
@@ -175,39 +177,100 @@ class StaffImporter extends BaseImporter
 
         if ($existing !== null) {
             $existing->update($this->presentKeepingNulls($data));
+            $existing->roles()->sync($roles->pluck('id')->all());
             $result->updated();
 
             return;
         }
 
-        User::query()->create([
+        $user = User::query()->create([
             ...$this->presentKeepingNulls($data),
             // Never a value from the file. A password column would put every
             // new starter's credentials in a spreadsheet somebody emails.
             'password' => Str::password(32),
         ]);
 
+        $user->roles()->sync($roles->pluck('id')->all());
+
         $result->created();
     }
 
     /**
-     * The role a row names, or the one the person already holds. A new
-     * starter with nothing in the column is staff, which is what an import
-     * of a headcount file almost always means.
+     * The roles a row names, or the ones the person already holds. Several may
+     * be listed, separated by a pipe. A new starter with nothing in the column
+     * is staff, which is what an import of a headcount file almost always
+     * means.
+     *
+     * @return Collection<int, Role>
      */
-    private function role(?string $slug, ?User $existing): Role
+    private function roles(?string $column, ?User $existing): Collection
     {
-        if ($slug === null) {
-            $slug = $existing?->role->slug ?? Role::STAFF;
+        $slugs = collect(explode('|', (string) $column))
+            ->map(fn (string $slug): string => trim($slug))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($slugs->isEmpty()) {
+            $slugs = $existing === null
+                ? collect([Role::STAFF])
+                : $existing->roles->pluck('slug');
         }
 
-        $role = Role::query()->where('slug', $slug)->first();
-
-        if ($role === null) {
-            $this->reject("No role has the slug {$slug}. Import the roles sheet first, or use one of: ".implode(', ', Role::query()->orderBy('slug')->pluck('slug')->all()).'.');
+        if ($slugs->isEmpty()) {
+            $slugs = collect([Role::STAFF]);
         }
 
-        return $role;
+        // Heads and leads come with people attached, which a spreadsheet has
+        // no way to name. They are granted on the departments page instead.
+        $reserved = $slugs->intersect(Role::assignedThroughDepartments());
+
+        if ($reserved->isNotEmpty()) {
+            $this->reject($reserved->implode(', ').' is granted on the departments page, where the people it covers are named at the same time, so it cannot be set from a file.');
+        }
+
+        $roles = Role::query()->whereIn('slug', $slugs)->get();
+
+        $missing = $slugs->diff($roles->pluck('slug'));
+
+        if ($missing->isNotEmpty()) {
+            $this->reject('No role has the slug '.$missing->implode(', ').'. Import the roles sheet first, or use one of: '.implode(', ', Role::query()->orderBy('slug')->pluck('slug')->all()).'.');
+        }
+
+        return $roles;
+    }
+
+    /**
+     * The department a row names, matched on the name case-insensitively so a
+     * file that says "finance" lands in the same department as one that says
+     * "Finance". A department the company does not have yet is created, since
+     * an import of a headcount file is the usual way a new one arrives.
+     *
+     * A blank column leaves an existing person where they are, rather than
+     * taking their department away: a sheet carrying only an email and a phone
+     * number is a correction, not a reorganisation.
+     */
+    private function departmentId(ImportRow $row, ?User $existing): ?int
+    {
+        $name = trim((string) $row->string('department'));
+
+        if ($name === '') {
+            return $existing?->department_id;
+        }
+
+        $department = Department::query()
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])
+            ->first();
+
+        if ($department !== null) {
+            return $department->id;
+        }
+
+        return Department::query()->create([
+            'name' => $name,
+            'slug' => Department::uniqueSlug($name),
+            'is_active' => true,
+        ])->id;
     }
 
     /**
@@ -254,7 +317,7 @@ class StaffImporter extends BaseImporter
      */
     private function presentKeepingNulls(array $data): array
     {
-        $keep = ['deactivated_at', 'location_id', 'role_id'];
+        $keep = ['deactivated_at', 'location_id'];
 
         return array_filter(
             $data,

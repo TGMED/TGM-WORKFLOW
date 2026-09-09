@@ -22,7 +22,7 @@ class RegisterRequest extends FormRequest
             'name' => ['required', 'string', 'max:120'],
             'email' => ['required', 'string', 'email', 'max:190', Rule::unique('users', 'email')],
             'phone' => ['nullable', 'string', 'max:30'],
-            'department' => ['nullable', 'string', 'max:80'],
+            'department_id' => ['nullable', 'integer', Rule::exists('departments', 'id')->where('is_active', true)],
             'position' => ['nullable', 'string', 'max:80'],
 
             // Optional at signup: a site may not exist yet when someone
