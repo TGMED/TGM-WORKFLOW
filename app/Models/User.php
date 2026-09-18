@@ -485,6 +485,28 @@ class User extends Authenticatable implements AuditableContract
     }
 
     /**
+     * Everyone this person may speak for: the people who report to them, and
+     * anybody in a department they head or a team they lead.
+     *
+     * Wider than managedUserIds() on purpose. That one answers "whose numbers
+     * are mine to see", which follows the unit. This one follows the line as
+     * well, because somebody seconded elsewhere still answers to the person
+     * who manages them.
+     *
+     * @return array<int, int>
+     */
+    public function peopleAnsweringToMe(): array
+    {
+        $reports = self::query()
+            ->active()
+            ->where('manager_id', $this->id)
+            ->pluck('id')
+            ->all();
+
+        return array_values(array_unique([...$this->managedUserIds(), ...$reports]));
+    }
+
+    /**
      * Whether this person may read the reports desk. Kept beside canApprove()
      * as a named check rather than a permission test scattered through the
      * code, because it guards the one thing in the app that identifies a

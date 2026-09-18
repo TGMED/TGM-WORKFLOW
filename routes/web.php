@@ -14,6 +14,7 @@ use App\Http\Controllers\Admin\OffenceController;
 use App\Http\Controllers\Admin\PayrollController;
 use App\Http\Controllers\Admin\PayrollSettingsController;
 use App\Http\Controllers\Admin\PolicyController as AdminPolicyController;
+use App\Http\Controllers\Admin\RecommendationDeskController;
 use App\Http\Controllers\Admin\ReportController as AdminReportController;
 use App\Http\Controllers\Admin\RequestSettingsController;
 use App\Http\Controllers\Admin\RoleController;
@@ -47,6 +48,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReportEvidenceController;
 use App\Http\Controllers\Settings\NotificationSettingsController;
 use App\Http\Controllers\Settings\PushTokenController;
+use App\Http\Controllers\TerminationRecommendationController;
 use App\Http\Controllers\WhatsNewController;
 use App\Http\Controllers\WhoIsAwayController;
 use App\Http\Controllers\WorkLocationController;
@@ -126,6 +128,16 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
     // draws no salary here and simply sees an empty list.
     Route::get('payslips', [PayslipController::class, 'index'])->name('payslips.index');
     Route::get('payslips/{payslip}', [PayslipController::class, 'show'])->name('payslips.show');
+
+    // Putting it to the people team that somebody should be let go. Guarded
+    // in the form request rather than by middleware: who may raise one depends
+    // on who answers to them, which no role can express.
+    Route::get('recommendations', [TerminationRecommendationController::class, 'index'])
+        ->name('recommendations.index');
+    Route::post('recommendations', [TerminationRecommendationController::class, 'store'])
+        ->name('recommendations.store');
+    Route::delete('recommendations/{recommendation}', [TerminationRecommendationController::class, 'destroy'])
+        ->name('recommendations.destroy');
 
     // The handbook and the policies under it. Open to everybody who signs in:
     // a rule nobody can look up is not a rule anybody can follow.
@@ -275,6 +287,15 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
         Route::get('clock-attempts', [ClockAttemptController::class, 'index'])
             ->middleware('permission:clock-attempts.view')
             ->name('clock-attempts.index');
+
+        // Answering those recommendations is the people team's, since it is
+        // their staff records that carry the outcome.
+        Route::middleware('permission:staff.manage')->group(function (): void {
+            Route::get('recommendations', [RecommendationDeskController::class, 'index'])
+                ->name('recommendations.index');
+            Route::put('recommendations/{recommendation}', [RecommendationDeskController::class, 'update'])
+                ->name('recommendations.update');
+        });
 
         Route::middleware('permission:policies.manage')->group(function (): void {
             Route::get('policies', [AdminPolicyController::class, 'index'])->name('policies.index');

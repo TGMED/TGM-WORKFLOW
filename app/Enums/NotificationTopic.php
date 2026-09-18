@@ -30,6 +30,9 @@ enum NotificationTopic: string
     /** A request somebody raised has been waiting too long to be decided. */
     case ApprovalOverdue = 'approval_overdue';
 
+    /** Somebody has been recommended for termination, or that case was answered. */
+    case TerminationRecommended = 'termination_recommended';
+
     public function label(): string
     {
         return match ($this) {
@@ -41,6 +44,7 @@ enum NotificationTopic: string
             self::Anniversary => 'Work anniversaries',
             self::Department => 'Department changes',
             self::ApprovalOverdue => 'Requests left waiting',
+            self::TerminationRecommended => 'Terminations recommended',
         };
     }
 
@@ -55,6 +59,7 @@ enum NotificationTopic: string
             self::Anniversary => 'Our note to you on the anniversary of your first day.',
             self::Department => 'You were moved into a department, or named to run one.',
             self::ApprovalOverdue => 'A request has sat undecided long enough that somebody should chase it.',
+            self::TerminationRecommended => 'A case has been put to HR that somebody be let go, or one you raised has been answered.',
         };
     }
 
