@@ -32,6 +32,17 @@ enum RequestModule: string
     }
 
     /**
+     * The module in the singular, for a sentence that names one request.
+     */
+    public function noun(): string
+    {
+        return match ($this) {
+            self::Leave => 'leave request',
+            self::Lateness => 'lateness request',
+        };
+    }
+
+    /**
      * @return class-string<Approvable&Model>
      */
     public function model(): string

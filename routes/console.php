@@ -1,5 +1,6 @@
 <?php
 
+use App\Console\Commands\EscalateStaleApprovals;
 use App\Console\Commands\SendBirthdayGreetings;
 use App\Console\Commands\SendDueAnnouncements;
 use App\Console\Commands\SendWorkAnniversaryGreetings;
@@ -28,6 +29,12 @@ Schedule::command(SendDueAnnouncements::class)
 // than two sends racing each other.
 Schedule::command(SendWorkAnniversaryGreetings::class)
     ->dailyAt('07:05')
+    ->withoutOverlapping();
+
+// Hourly is close enough for a deadline set in hours, and keeps the note
+// arriving at a sensible hour rather than in the middle of the night.
+Schedule::command(EscalateStaleApprovals::class)
+    ->hourly()
     ->withoutOverlapping();
 
 // Horizon's metrics graphs are built from snapshots rather than kept live, so

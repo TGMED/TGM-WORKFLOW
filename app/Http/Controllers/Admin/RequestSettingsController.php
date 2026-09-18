@@ -33,6 +33,8 @@ class RequestSettingsController extends Controller
                     'label' => $module->label(),
                     'description' => $module->description(),
                     'approvers_required' => ApprovalSetting::approversRequired($module),
+                    // Null switches chasing off for this module entirely.
+                    'escalation_hours' => ApprovalSetting::escalationHours($module),
                     'pending' => $module->model()::query()
                         ->where('status', RequestStatus::Pending->value)
                         ->count(),
@@ -70,10 +72,17 @@ class RequestSettingsController extends Controller
 
         $validated = $request->validate([
             'approvers_required' => ['required', 'integer', 'between:1,5'],
+            // Null is off. A fortnight is the ceiling: past that the chase has
+            // stopped being a chase. Left out of the request entirely, the
+            // setting is untouched.
+            'escalation_hours' => ['sometimes', 'nullable', 'integer', 'between:1,336'],
         ]);
 
         ApprovalSetting::for($requestModule)->update([
             'approvers_required' => $validated['approvers_required'],
+            ...$request->has('escalation_hours')
+                ? ['escalation_hours' => $validated['escalation_hours'] ?? null]
+                : [],
         ]);
 
         $count = $validated['approvers_required'];

@@ -27,6 +27,9 @@ enum NotificationTopic: string
     /** Where you sit in the company changed: a department, or the running of one. */
     case Department = 'department';
 
+    /** A request somebody raised has been waiting too long to be decided. */
+    case ApprovalOverdue = 'approval_overdue';
+
     public function label(): string
     {
         return match ($this) {
@@ -37,6 +40,7 @@ enum NotificationTopic: string
             self::Birthday => 'Birthday greetings',
             self::Anniversary => 'Work anniversaries',
             self::Department => 'Department changes',
+            self::ApprovalOverdue => 'Requests left waiting',
         };
     }
 
@@ -50,6 +54,7 @@ enum NotificationTopic: string
             self::Birthday => 'Our note to you on your birthday.',
             self::Anniversary => 'Our note to you on the anniversary of your first day.',
             self::Department => 'You were moved into a department, or named to run one.',
+            self::ApprovalOverdue => 'A request has sat undecided long enough that somebody should chase it.',
         };
     }
 

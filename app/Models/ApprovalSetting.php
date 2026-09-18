@@ -16,11 +16,12 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  * @property int $id
  * @property RequestModule $module
  * @property int $approvers_required
+ * @property int|null $escalation_hours
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
  */
-#[Fillable(['module', 'approvers_required'])]
+#[Fillable(['module', 'approvers_required', 'escalation_hours'])]
 class ApprovalSetting extends Model implements AuditableContract
 {
     use Auditable;
@@ -34,6 +35,7 @@ class ApprovalSetting extends Model implements AuditableContract
         return [
             'module' => RequestModule::class,
             'approvers_required' => 'integer',
+            'escalation_hours' => 'integer',
         ];
     }
 
@@ -48,5 +50,17 @@ class ApprovalSetting extends Model implements AuditableContract
     public static function approversRequired(RequestModule $module): int
     {
         return max(1, self::for($module)->approvers_required);
+    }
+
+    /**
+     * How long a request of this module may sit undecided before the people
+     * team and the approver's own manager are told, or null where that module
+     * does not escalate at all.
+     */
+    public static function escalationHours(RequestModule $module): ?int
+    {
+        $hours = self::for($module)->escalation_hours;
+
+        return $hours === null || $hours < 1 ? null : $hours;
     }
 }

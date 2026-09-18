@@ -14,6 +14,8 @@ type ModuleRow = {
     label: string;
     description: string;
     approvers_required: number;
+    /** Null means requests of this module are never chased. */
+    escalation_hours: number | null;
     pending: number;
 };
 
@@ -114,12 +116,40 @@ function saveCutoff() {
     );
 }
 
+// How long a request may sit before the people team and the approver's own
+// manager are told. Off by default, since a company that has not asked to be
+// chased should not start being chased by surprise.
+const chaseSteps: Array<number | null> = [null, 24, 48, 72, 168];
+
+const chases = reactive<Record<string, number | null>>(
+    Object.fromEntries(
+        props.modules.map((module) => [module.value, module.escalation_hours]),
+    ),
+);
+
+const chaseLabel = (hours: number | null) => {
+    if (hours === null) {
+        return 'Never';
+    }
+
+    return hours % 24 === 0
+        ? `${hours / 24} day${hours === 24 ? '' : 's'}`
+        : `${hours}h`;
+};
+
+const changed = (module: ModuleRow) =>
+    drafts[module.value] !== module.approvers_required ||
+    chases[module.value] !== module.escalation_hours;
+
 function save(module: ModuleRow) {
     saving.value = module.value;
 
     router.put(
         `/admin/request-settings/${module.value}`,
-        { approvers_required: drafts[module.value] },
+        {
+            approvers_required: drafts[module.value],
+            escalation_hours: chases[module.value],
+        },
         {
             preserveScroll: true,
             onFinish: () => {
@@ -350,10 +380,7 @@ function toggle(type: LeaveTypeRow) {
 
                             <AppButton
                                 size="sm"
-                                :disabled="
-                                    drafts[module.value] ===
-                                    module.approvers_required
-                                "
+                                :disabled="!changed(module)"
                                 :loading="saving === module.value"
                                 @click="save(module)"
                             >
@@ -369,6 +396,36 @@ function toggle(type: LeaveTypeRow) {
                             </p>
                         </div>
 
+                        <div class="mt-4 border-t border-line-soft pt-4">
+                            <p class="text-[12.5px] font-medium text-muted">
+                                Chase after
+                            </p>
+                            <p class="mt-0.5 text-[12px] text-faint">
+                                Waiting longer than this, the people team and
+                                the manager of whoever it is sitting with are
+                                told. The approvers themselves are not written
+                                to again.
+                            </p>
+
+                            <div
+                                class="mt-3 flex items-center gap-1 rounded-xl bg-sunken p-1"
+                            >
+                                <button
+                                    v-for="hours in chaseSteps"
+                                    :key="String(hours)"
+                                    type="button"
+                                    :class="[
+                                        'rounded-lg px-3 py-2 text-[13px] font-semibold transition-all duration-200',
+                                        chases[module.value] === hours
+                                            ? 'bg-brand text-white'
+                                            : 'text-muted hover:bg-line-soft hover:text-text',
+                                    ]"
+                                    @click="chases[module.value] = hours"
+                                >
+                                    {{ chaseLabel(hours) }}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </Panel>
