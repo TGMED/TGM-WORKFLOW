@@ -239,9 +239,9 @@ const totals = computed(() => ({
                     {{ unassigned === 1 ? 'person is' : 'people are' }}
                     in no department, so nobody sees their numbers.
                 </p>
-                <Link href="/admin/staff">
+                <Link href="/admin/staff?department=none">
                     <AppButton size="sm" variant="secondary">
-                        Open the staff list
+                        See who they are
                     </AppButton>
                 </Link>
             </div>

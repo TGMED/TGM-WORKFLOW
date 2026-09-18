@@ -305,4 +305,22 @@ class StaffManagementTest extends TestCase
             ->assertOk();
     }
 
+    public function test_the_staff_list_can_be_narrowed_to_people_in_no_department(): void
+    {
+        $admin = User::factory()->superAdmin()->create();
+        $department = Department::factory()->create();
+
+        $placed = User::factory()->create(['department_id' => $department->id]);
+        $unplaced = User::factory()->create(['department_id' => null]);
+
+        $this->actingAs($admin)
+            ->get('/admin/staff?department=none')
+            ->assertOk()
+            ->assertInertia(function ($page) use ($placed, $unplaced) {
+                $ids = collect($page->toArray()['props']['staff']['data'])->pluck('id');
+
+                $this->assertTrue($ids->contains($unplaced->id));
+                $this->assertFalse($ids->contains($placed->id));
+            });
+    }
 }

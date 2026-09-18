@@ -46,7 +46,11 @@ class StaffController extends Controller
             }))
             ->when($status === 'active', fn (Builder $q) => $q->where('is_active', true))
             ->when($status === 'inactive', fn (Builder $q) => $q->where('is_active', false))
-            ->when($department !== '', fn (Builder $q) => $q->where('department_id', $department))
+            ->when($department === 'none', fn (Builder $q) => $q->whereNull('department_id'))
+            ->when(
+                $department !== '' && $department !== 'none',
+                fn (Builder $q) => $q->where('department_id', $department),
+            )
             ->when($locationId === 'none', fn (Builder $q) => $q->whereNull('location_id'))
             ->when(
                 $locationId !== '' && $locationId !== 'none',
@@ -103,6 +107,7 @@ class StaffController extends Controller
                 'active' => User::query()->active()->count(),
                 'inactive' => User::query()->where('is_active', false)->count(),
                 'unassigned' => User::query()->whereNull('location_id')->count(),
+                'no_department' => User::query()->whereNull('department_id')->count(),
             ],
         ]);
     }

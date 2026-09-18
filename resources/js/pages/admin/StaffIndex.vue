@@ -64,6 +64,7 @@ const props = defineProps<{
         active: number;
         inactive: number;
         unassigned: number;
+        no_department: number;
     };
 }>();
 
@@ -216,6 +217,7 @@ const statusOptions = [
 
                 <SelectField v-model="department" :options="departments">
                     <option value="">All departments</option>
+                    <option value="none">No department set</option>
                 </SelectField>
 
                 <SelectField
