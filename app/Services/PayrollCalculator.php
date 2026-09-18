@@ -44,6 +44,7 @@ class PayrollCalculator
      *     total_deductions: float,
      *     net_pay: float,
      *     employer_pension: float,
+     *     employee_pension: float,
      *     annual: array<string, float>
      * }
      */
@@ -120,6 +121,10 @@ class PayrollCalculator
             'total_deductions' => $totalDeductions,
             'net_pay' => round($totalEarnings - $totalDeductions, 2),
             'employer_pension' => round($employerPension / 12, 2),
+            // Kept in its own right as well as inside the deductions, because
+            // the pension schedule totals it and reading a figure back out of
+            // a list of labels is no way to pay a remittance.
+            'employee_pension' => round($employeePension / 12, 2),
             // The annual working, for the payroll page. Not shown on a
             // payslip, but it is what finance checks a run against.
             'annual' => [

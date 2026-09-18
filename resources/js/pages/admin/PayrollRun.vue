@@ -96,6 +96,12 @@ function finalise() {
                 >
                     All runs
                 </Link>
+                <Link
+                    :href="`/admin/payroll/${run.id}/pension`"
+                    class="text-[13px] font-medium text-muted hover:text-text"
+                >
+                    Pension schedule
+                </Link>
                 <AppButton
                     v-if="run.is_draft"
                     variant="secondary"

@@ -26,6 +26,7 @@ use Illuminate\Support\Carbon;
  * @property float $total_deductions
  * @property float $net_pay
  * @property float $employer_pension
+ * @property float $employee_pension
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
@@ -45,6 +46,7 @@ use Illuminate\Support\Carbon;
     'total_deductions',
     'net_pay',
     'employer_pension',
+    'employee_pension',
 ])]
 class Payslip extends Model
 {
@@ -65,6 +67,7 @@ class Payslip extends Model
             'total_deductions' => 'float',
             'net_pay' => 'float',
             'employer_pension' => 'float',
+            'employee_pension' => 'float',
         ];
     }
 

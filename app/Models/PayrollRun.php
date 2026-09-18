@@ -20,6 +20,9 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  * @property int $year
  * @property int $month
  * @property PayrollRunStatus $status
+ * @property Carbon|null $pension_remitted_at
+ * @property string|null $pension_reference
+ * @property int|null $pension_remitted_by_id
  * @property int|null $created_by_id
  * @property int|null $finalised_by_id
  * @property Carbon|null $finalised_at
@@ -29,7 +32,17 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  * @property-read User|null $createdBy
  * @property-read User|null $finalisedBy
  */
-#[Fillable(['year', 'month', 'status', 'created_by_id', 'finalised_by_id', 'finalised_at'])]
+#[Fillable([
+    'year',
+    'month',
+    'status',
+    'created_by_id',
+    'finalised_by_id',
+    'finalised_at',
+    'pension_remitted_at',
+    'pension_reference',
+    'pension_remitted_by_id',
+])]
 class PayrollRun extends Model implements AuditableContract
 {
     use Auditable;
@@ -44,6 +57,7 @@ class PayrollRun extends Model implements AuditableContract
             'year' => 'integer',
             'month' => 'integer',
             'status' => PayrollRunStatus::class,
+            'pension_remitted_at' => 'datetime',
             'finalised_at' => 'datetime',
         ];
     }
@@ -70,6 +84,16 @@ class PayrollRun extends Model implements AuditableContract
     public function finalisedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'finalised_by_id');
+    }
+
+    /**
+     * Who recorded the pension remittance for this month.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function pensionRemittedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'pension_remitted_by_id');
     }
 
     public function isDraft(): bool

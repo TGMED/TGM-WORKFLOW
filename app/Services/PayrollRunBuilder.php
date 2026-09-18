@@ -67,6 +67,7 @@ class PayrollRunBuilder
                     'total_deductions' => $breakdown['total_deductions'],
                     'net_pay' => $breakdown['net_pay'],
                     'employer_pension' => $breakdown['employer_pension'],
+                    'employee_pension' => $breakdown['employee_pension'],
                 ]);
 
                 $written++;

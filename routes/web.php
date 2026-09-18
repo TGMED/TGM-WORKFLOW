@@ -13,6 +13,7 @@ use App\Http\Controllers\Admin\LocationController;
 use App\Http\Controllers\Admin\OffenceController;
 use App\Http\Controllers\Admin\PayrollController;
 use App\Http\Controllers\Admin\PayrollSettingsController;
+use App\Http\Controllers\Admin\PensionController;
 use App\Http\Controllers\Admin\PolicyController as AdminPolicyController;
 use App\Http\Controllers\Admin\RecommendationDeskController;
 use App\Http\Controllers\Admin\ReportController as AdminReportController;
@@ -350,6 +351,12 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
             Route::post('payroll/{run}/rebuild', [PayrollController::class, 'rebuild'])->name('payroll.rebuild');
             Route::post('payroll/{run}/finalise', [PayrollController::class, 'finalise'])->name('payroll.finalise');
             Route::delete('payroll/{run}', [PayrollController::class, 'destroy'])->name('payroll.destroy');
+
+            // The pension side of a run: who is owed what, and whether it has
+            // been paid over.
+            Route::get('payroll/{run}/pension', [PensionController::class, 'show'])->name('pension.show');
+            Route::get('payroll/{run}/pension/export', [PensionController::class, 'export'])->name('pension.export');
+            Route::post('payroll/{run}/pension/remit', [PensionController::class, 'remit'])->name('pension.remit');
 
             Route::put('payroll-settings', [PayrollSettingsController::class, 'update'])->name('payroll-settings.update');
 
