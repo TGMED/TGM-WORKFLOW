@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\LeaveTypeController;
 use App\Http\Controllers\Admin\LocationController;
 use App\Http\Controllers\Admin\PayrollController;
 use App\Http\Controllers\Admin\PayrollSettingsController;
+use App\Http\Controllers\Admin\PolicyController as AdminPolicyController;
 use App\Http\Controllers\Admin\ReportController as AdminReportController;
 use App\Http\Controllers\Admin\RequestSettingsController;
 use App\Http\Controllers\Admin\RoleController;
@@ -35,6 +36,7 @@ use App\Http\Controllers\OnBehalfRequestController;
 use App\Http\Controllers\OutOfOfficeController;
 use App\Http\Controllers\PasswordController;
 use App\Http\Controllers\PayslipController;
+use App\Http\Controllers\PolicyController;
 use App\Http\Controllers\Profile\AddressController;
 use App\Http\Controllers\Profile\BankDetailsController;
 use App\Http\Controllers\Profile\ProfileController;
@@ -123,6 +125,11 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
     // draws no salary here and simply sees an empty list.
     Route::get('payslips', [PayslipController::class, 'index'])->name('payslips.index');
     Route::get('payslips/{payslip}', [PayslipController::class, 'show'])->name('payslips.show');
+
+    // The handbook and the policies under it. Open to everybody who signs in:
+    // a rule nobody can look up is not a rule anybody can follow.
+    Route::get('policies', [PolicyController::class, 'index'])->name('policies.index');
+    Route::get('policies/{policy}/file', [PolicyController::class, 'download'])->name('policies.download');
 
     // Raising an incident is open to everyone who signs in, admins included:
     // there is no group of staff whose concerns the company does not want to
@@ -267,6 +274,14 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
         Route::get('clock-attempts', [ClockAttemptController::class, 'index'])
             ->middleware('permission:clock-attempts.view')
             ->name('clock-attempts.index');
+
+        Route::middleware('permission:policies.manage')->group(function (): void {
+            Route::get('policies', [AdminPolicyController::class, 'index'])->name('policies.index');
+            Route::post('policies', [AdminPolicyController::class, 'store'])->name('policies.store');
+            Route::put('policies/{policy}', [AdminPolicyController::class, 'update'])->name('policies.update');
+            Route::patch('policies/{policy}/retire', [AdminPolicyController::class, 'retire'])->name('policies.retire');
+            Route::patch('policies/{policy}/restore', [AdminPolicyController::class, 'restore'])->name('policies.restore');
+        });
 
         Route::middleware('permission:announcements.manage')->group(function (): void {
             Route::get('announcements', [PublicAnnouncementController::class, 'index'])->name('announcements.index');

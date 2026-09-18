@@ -19,6 +19,7 @@ enum Permission: string
     case ViewAttendanceReport = 'attendance.report';
     case ViewClockAttempts = 'clock-attempts.view';
     case ManageAnnouncements = 'announcements.manage';
+    case ManagePolicies = 'policies.manage';
     case ManageRequestSettings = 'request-settings.manage';
     case ApproveRequests = 'requests.approve';
     case ManagePayroll = 'payroll.manage';
@@ -37,6 +38,7 @@ enum Permission: string
             self::ViewAttendanceReport => 'See the attendance report',
             self::ViewClockAttempts => 'See rejected clock attempts',
             self::ManageAnnouncements => 'Manage announcements',
+            self::ManagePolicies => 'Manage company policy',
             self::ManageRequestSettings => 'Manage request settings',
             self::ApproveRequests => 'Decide on requests',
             self::ManagePayroll => 'Run payroll and set salaries',
@@ -57,6 +59,7 @@ enum Permission: string
             self::ViewAttendanceReport => 'Attendance across the whole company for any window.',
             self::ViewClockAttempts => 'Clock-ins the geofence turned away, and why.',
             self::ManageAnnouncements => 'Write and publish company notices.',
+            self::ManagePolicies => 'Publish the handbook and the policies staff are held to, and retire the versions they replace. Everyone may read what is published; this is who decides what that is.',
             self::ManageRequestSettings => 'Leave types, their policy rules, closed periods and approval counts.',
             self::ApproveRequests => 'The approvals inbox, and filing a request for somebody else.',
             self::ManagePayroll => 'Salaries, the tax and pension rates, and building and signing off each month\'s payslips.',
@@ -74,7 +77,7 @@ enum Permission: string
     {
         return match ($this) {
             self::ViewAdminDashboard, self::ViewAttendanceReport, self::ViewClockAttempts, self::ViewAuditTrail => 'Visibility',
-            self::ManageStaff, self::ManageLocations, self::ManageDepartments, self::ManageAnnouncements => 'People and sites',
+            self::ManageStaff, self::ManageLocations, self::ManageDepartments, self::ManageAnnouncements, self::ManagePolicies => 'People and sites',
             self::ManagePayroll, self::HandleReports => 'Confidential',
             self::ManageRequestSettings, self::ApproveRequests => 'Requests',
             self::ImportData, self::ManageRoles => 'System',

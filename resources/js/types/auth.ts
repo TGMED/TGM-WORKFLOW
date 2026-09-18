@@ -25,6 +25,7 @@ export type Permission =
     | 'attendance.report'
     | 'clock-attempts.view'
     | 'announcements.manage'
+    | 'policies.manage'
     | 'request-settings.manage'
     | 'requests.approve'
     | 'payroll.manage'
