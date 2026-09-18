@@ -35,9 +35,9 @@ export const tours: Record<string, Tour> = {
                 body: 'This is where your day starts and ends. It checks you are at your site before it records anything, so turn location on when your phone asks.',
             },
             {
-                anchor: 'nav-requests',
+                anchor: 'nav-my-work',
                 title: 'Asking for things',
-                body: 'Leave, lateness and days worked away from the office all live here. Each one goes to your team lead and your head of department before anybody else sees it.',
+                body: 'Your attendance, leave, lateness and days worked away from the office all live here. Each request goes to your team lead and your head of department before anybody else sees it.',
             },
             {
                 anchor: 'nav-finance',

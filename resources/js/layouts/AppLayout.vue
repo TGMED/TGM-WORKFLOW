@@ -39,6 +39,11 @@ type NavItem = {
 };
 
 // Icons are single-path outlines, kept inline so there is no icon dependency.
+//
+// The rail is grouped rather than listed flat: a signed-in member of staff sees
+// four rows, and everything else is one click behind the heading it belongs to.
+// The two exceptions are deliberate. The dashboard is where people land, and
+// raising an incident is the one route nobody should have to go looking for.
 const nav: NavItem[] = [
     {
         label: 'Dashboard',
@@ -46,17 +51,15 @@ const nav: NavItem[] = [
         icon: 'M4 13h6V4H4v9Zm0 7h6v-5H4v5Zm10 0h6v-9h-6v9Zm0-16v5h6V4h-6Z',
     },
     {
-        label: 'My attendance',
-        href: '/attendance',
-        staffOnly: true,
-        icon: 'M8 3v3m8-3v3M3.5 9.5h17M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v12A1.5 1.5 0 0 1 19 20.5H5A1.5 1.5 0 0 1 3.5 19V7A1.5 1.5 0 0 1 5 5.5Z',
-    },
-    {
-        label: 'My requests',
-        href: '/leave',
+        label: 'My work',
         staffOnly: true,
         icon: 'M8 4h8a1.5 1.5 0 0 1 1.5 1.5v14L12 17l-5.5 2.5v-14A1.5 1.5 0 0 1 8 4Z',
         children: [
+            {
+                label: 'My attendance',
+                href: '/attendance',
+                icon: 'M8 3v3m8-3v3M3.5 9.5h17M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v12A1.5 1.5 0 0 1 19 20.5H5A1.5 1.5 0 0 1 3.5 19V7A1.5 1.5 0 0 1 5 5.5Z',
+            },
             {
                 label: 'Leave',
                 href: '/leave',
@@ -75,42 +78,53 @@ const nav: NavItem[] = [
         ],
     },
     {
-        label: "Who's away",
-        href: '/away',
-        icon: 'M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20M9 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM16.5 8.5h5',
-    },
-    {
-        label: 'Announcements',
-        href: '/announcements',
-        icon: 'M3.5 10.5v3a1.5 1.5 0 0 0 1.5 1.5h2l5 4V5l-5 4H5a1.5 1.5 0 0 0-1.5 1.5Zm13-2.2a5 5 0 0 1 0 7.4M19 5.5a9 9 0 0 1 0 13',
-    },
-    {
-        label: 'Recommendations',
-        href: '/recommendations',
+        label: 'Approvals',
         approverOnly: true,
-        icon: 'M12 8.5v4m0 3h.01M10.6 3.9 2.5 18a1.5 1.5 0 0 0 1.3 2.3h16.4a1.5 1.5 0 0 0 1.3-2.3L13.4 3.9a1.6 1.6 0 0 0-2.8 0Z',
+        icon: 'M9 12.5 11 14.5 15.5 10M6 3.5h12A1.5 1.5 0 0 1 19.5 5v15.5l-3.5-2-4 2-4-2-3.5 2V5A1.5 1.5 0 0 1 6 3.5Z',
+        children: [
+            {
+                label: 'Waiting on you',
+                href: '/approvals',
+                badge: () => page.props.pending_approvals ?? 0,
+                icon: 'M9 12.5 11 14.5 15.5 10M6 3.5h12A1.5 1.5 0 0 1 19.5 5v15.5l-3.5-2-4 2-4-2-3.5 2V5A1.5 1.5 0 0 1 6 3.5Z',
+            },
+            {
+                label: 'Recommendations',
+                href: '/recommendations',
+                icon: 'M12 8.5v4m0 3h.01M10.6 3.9 2.5 18a1.5 1.5 0 0 0 1.3 2.3h16.4a1.5 1.5 0 0 0 1.3-2.3L13.4 3.9a1.6 1.6 0 0 0-2.8 0Z',
+            },
+        ],
     },
     {
-        label: 'Organogram',
-        href: '/organogram',
-        icon: 'M9 4.5h6v4H9v-4Zm-6 11h6v4H3v-4Zm12 0h6v4h-6v-4ZM12 8.5v3m0 0H6v4m6-4h6v4',
-    },
-    {
-        label: 'Company policy',
-        href: '/policies',
-        icon: 'M8 3.5h5.5L18.5 8v11a1.5 1.5 0 0 1-1.5 1.5H8A1.5 1.5 0 0 1 6.5 19V5A1.5 1.5 0 0 1 8 3.5Zm5 0V8h4.5M9.5 12.5h5m-5 3h3',
+        label: 'The company',
+        icon: 'M4 20V9.5L12 4l8 5.5V20M4 20h16M9.5 20v-5h5v5M9.5 11h5',
+        children: [
+            {
+                label: "Who's away",
+                href: '/away',
+                icon: 'M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20M9 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM16.5 8.5h5',
+            },
+            {
+                label: 'Organogram',
+                href: '/organogram',
+                icon: 'M9 4.5h6v4H9v-4Zm-6 11h6v4H3v-4Zm12 0h6v4h-6v-4ZM12 8.5v3m0 0H6v4m6-4h6v4',
+            },
+            {
+                label: 'Announcements',
+                href: '/announcements',
+                icon: 'M3.5 10.5v3a1.5 1.5 0 0 0 1.5 1.5h2l5 4V5l-5 4H5a1.5 1.5 0 0 0-1.5 1.5Zm13-2.2a5 5 0 0 1 0 7.4M19 5.5a9 9 0 0 1 0 13',
+            },
+            {
+                label: 'Company policy',
+                href: '/policies',
+                icon: 'M8 3.5h5.5L18.5 8v11a1.5 1.5 0 0 1-1.5 1.5H8A1.5 1.5 0 0 1 6.5 19V5A1.5 1.5 0 0 1 8 3.5Zm5 0V8h4.5M9.5 12.5h5m-5 3h3',
+            },
+        ],
     },
     {
         label: 'Report an incident',
         href: '/reports',
         icon: 'M12 8.5v4m0 3h.01M10.6 3.9 2.5 18a1.5 1.5 0 0 0 1.3 2.3h16.4a1.5 1.5 0 0 0 1.3-2.3L13.4 3.9a1.6 1.6 0 0 0-2.8 0Z',
-    },
-    {
-        label: 'Approvals',
-        href: '/approvals',
-        approverOnly: true,
-        badge: () => page.props.pending_approvals ?? 0,
-        icon: 'M9 12.5 11 14.5 15.5 10M6 3.5h12A1.5 1.5 0 0 1 19.5 5v15.5l-3.5-2-4 2-4-2-3.5 2V5A1.5 1.5 0 0 1 6 3.5Z',
     },
     {
         label: 'Admin console',
@@ -140,12 +154,14 @@ const nav: NavItem[] = [
                 permission: 'announcements.manage',
                 icon: 'M3.5 10.5v3a1.5 1.5 0 0 0 1.5 1.5h2l5 4V5l-5 4H5a1.5 1.5 0 0 0-1.5 1.5Zm13-1.5a5 5 0 0 1 0 6',
             },
-            {
-                label: 'Recommendations',
-                href: '/admin/recommendations',
-                permission: 'staff.manage',
-                icon: 'M12 8.5v4m0 3h.01M10.6 3.9 2.5 18a1.5 1.5 0 0 0 1.3 2.3h16.4a1.5 1.5 0 0 0 1.3-2.3L13.4 3.9a1.6 1.6 0 0 0-2.8 0Z',
-            },
+        ],
+    },
+    {
+        // The conduct side of the people team: what the rules are, and every
+        // case brought under them.
+        label: 'Conduct',
+        icon: 'M12 3.5 4.5 6.5v5c0 4.3 3.1 7.9 7.5 9 4.4-1.1 7.5-4.7 7.5-9v-5L12 3.5Zm-2.2 8.6 1.7 1.7 3.2-3.4',
+        children: [
             {
                 label: 'Policy library',
                 href: '/admin/policies',
@@ -163,6 +179,12 @@ const nav: NavItem[] = [
                 href: '/admin/reports',
                 permission: 'reports.handle',
                 icon: 'M12 8.5v4m0 3h.01M10.6 3.9 2.5 18a1.5 1.5 0 0 0 1.3 2.3h16.4a1.5 1.5 0 0 0 1.3-2.3L13.4 3.9a1.6 1.6 0 0 0-2.8 0Z',
+            },
+            {
+                label: 'Terminations',
+                href: '/admin/recommendations',
+                permission: 'staff.manage',
+                icon: 'M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20M9 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM16.5 12.5h5',
             },
         ],
     },
@@ -257,6 +279,18 @@ function navAnchor(item: NavItem): string {
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, '-')
             .replace(/(^-|-$)/g, '')
+    );
+}
+
+/**
+ * What a group is holding, added up. Shown on the heading while the group is
+ * shut, so nesting the approvals inbox does not hide the one number on the
+ * rail that asks somebody to do something.
+ */
+function groupBadge(item: NavItem): number {
+    return (item.children ?? []).reduce(
+        (total, child) => total + (child.badge?.() ?? 0),
+        0,
     );
 }
 
@@ -453,9 +487,20 @@ watch(currentUrl, () => {
                             </svg>
                             <span class="truncate">{{ item.label }}</span>
                             <span class="ml-auto flex items-center gap-1.5">
-                                <!-- Shut, but you are somewhere inside it. -->
+                                <!-- Shut, with something inside waiting. -->
                                 <span
                                     v-if="
+                                        groupBadge(item) > 0 &&
+                                        !isExpanded(item)
+                                    "
+                                    class="rounded-full bg-brand px-1.5 py-0.5 text-[11px] font-semibold text-white"
+                                >
+                                    {{ groupBadge(item) }}
+                                </span>
+
+                                <!-- Shut, but you are somewhere inside it. -->
+                                <span
+                                    v-else-if="
                                         holdsCurrent(item) && !isExpanded(item)
                                     "
                                     class="size-1.5 shrink-0 rounded-full bg-brand"
@@ -518,6 +563,14 @@ watch(currentUrl, () => {
                                         <span class="truncate">{{
                                             child.label
                                         }}</span>
+                                        <span
+                                            v-if="
+                                                child.badge && child.badge() > 0
+                                            "
+                                            class="ml-auto rounded-full bg-brand px-1.5 py-0.5 text-[11px] font-semibold text-white"
+                                        >
+                                            {{ child.badge() }}
+                                        </span>
                                     </Link>
                                 </div>
                             </div>
