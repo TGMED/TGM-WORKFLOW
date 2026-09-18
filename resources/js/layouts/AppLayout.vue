@@ -136,6 +136,12 @@ const nav: NavItem[] = [
                 icon: 'M8 3.5h5.5L18.5 8v11a1.5 1.5 0 0 1-1.5 1.5H8A1.5 1.5 0 0 1 6.5 19V5A1.5 1.5 0 0 1 8 3.5Zm5 0V8h4.5M9.5 12.5h5m-5 3h3',
             },
             {
+                label: 'Offences',
+                href: '/admin/offences',
+                permission: 'policies.manage',
+                icon: 'M12 8.5v4m0 3h.01M4.5 7.5 12 3.5l7.5 4v5c0 4.3-3.1 7.9-7.5 9-4.4-1.1-7.5-4.7-7.5-9v-5Z',
+            },
+            {
                 label: 'Reports desk',
                 href: '/admin/reports',
                 permission: 'reports.handle',

@@ -6,7 +6,9 @@ use App\Enums\ReportCategory;
 use App\Enums\ReportStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UpdateReportRequest;
+use App\Models\Offence;
 use App\Models\Report;
+use App\Models\Sanction;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -32,6 +34,7 @@ class ReportController extends Controller
                 'subjectUser:id,name,employee_id,department_id',
                 'subjectUser.department:id,name',
                 'handledBy:id,name',
+                'offence:id,code,title,severity',
             ])
             ->when($status === 'open', fn (Builder $q) => $q->open())
             ->when(
@@ -62,6 +65,31 @@ class ReportController extends Controller
                 'category' => $category ?: '',
             ],
             'statuses' => ReportStatus::options(),
+            // The register, so a case can be closed against what the policy
+            // actually says rather than against somebody's memory of it.
+            'offences' => Offence::query()
+                ->active()
+                ->with('sanctions')
+                ->inRegisterOrder()
+                ->get()
+                ->map(fn (Offence $offence): array => [
+                    'value' => $offence->id,
+                    'label' => $offence->code === null
+                        ? $offence->title
+                        : "{$offence->code} · {$offence->title}",
+                    'severity_label' => $offence->severity->label(),
+                    'severity_tone' => $offence->severity->tone(),
+                    'ladder' => $offence->sanctions
+                        ->map(fn (Sanction $sanction): array => [
+                            'occurrence_label' => $sanction->occurrenceLabel(),
+                            'action_label' => $sanction->action->label(),
+                            'action_tone' => $sanction->action->tone(),
+                            'notes' => $sanction->notes,
+                        ])
+                        ->values()
+                        ->all(),
+                ])
+                ->all(),
             'categories' => ReportCategory::options(),
             'counts' => [
                 'open' => (int) $counts->get(ReportStatus::Submitted->value, 0)
@@ -84,6 +112,9 @@ class ReportController extends Controller
 
         $report->update([
             'status' => $status,
+            // What the case was found to be, off the register, where the desk
+            // named one. That is what ties the outcome back to the policy.
+            'offence_id' => $request->input('offence_id'),
             'resolution_note' => $request->string('resolution_note')->trim()->toString() ?: null,
             'handled_by_id' => $request->user()->id,
             // Stamped only when the case closes: the point of the timestamp is
@@ -128,6 +159,14 @@ class ReportController extends Controller
             'handled_by' => $report->handledBy?->name,
             'handled_at' => $report->handled_at?->toIso8601String(),
             'resolution_note' => $report->resolution_note,
+            'offence_id' => $report->offence_id,
+            'offence' => $report->offence === null ? null : [
+                'id' => $report->offence->id,
+                'code' => $report->offence->code,
+                'title' => $report->offence->title,
+                'severity_label' => $report->offence->severity->label(),
+                'severity_tone' => $report->offence->severity->tone(),
+            ],
             'created_at' => $report->created_at?->toIso8601String(),
         ];
     }

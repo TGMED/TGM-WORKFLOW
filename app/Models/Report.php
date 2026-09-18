@@ -35,6 +35,7 @@ use Illuminate\Support\Str;
  * @property string|null $evidence_path
  * @property string|null $evidence_name
  * @property ReportStatus $status
+ * @property int|null $offence_id
  * @property int|null $handled_by_id
  * @property Carbon|null $handled_at
  * @property string|null $resolution_note
@@ -44,6 +45,7 @@ use Illuminate\Support\Str;
  * @property-read User|null $reporter
  * @property-read User|null $subjectUser
  * @property-read User|null $handledBy
+ * @property-read Offence|null $offence
  */
 #[Fillable([
     'user_id',
@@ -57,6 +59,7 @@ use Illuminate\Support\Str;
     'evidence_path',
     'evidence_name',
     'status',
+    'offence_id',
     'handled_by_id',
     'handled_at',
     'resolution_note',
@@ -106,6 +109,18 @@ class Report extends Model
     public function handledBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'handled_by_id');
+    }
+
+    /**
+     * The offence the case was found to be, where the desk has named one.
+     * That is what lets the sanction be read off the policy rather than
+     * invented at the desk.
+     *
+     * @return BelongsTo<Offence, $this>
+     */
+    public function offence(): BelongsTo
+    {
+        return $this->belongsTo(Offence::class);
     }
 
     public function hasEvidence(): bool

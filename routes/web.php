@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\ImportController;
 use App\Http\Controllers\Admin\LeaveRestrictedPeriodController;
 use App\Http\Controllers\Admin\LeaveTypeController;
 use App\Http\Controllers\Admin\LocationController;
+use App\Http\Controllers\Admin\OffenceController;
 use App\Http\Controllers\Admin\PayrollController;
 use App\Http\Controllers\Admin\PayrollSettingsController;
 use App\Http\Controllers\Admin\PolicyController as AdminPolicyController;
@@ -281,6 +282,14 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
             Route::put('policies/{policy}', [AdminPolicyController::class, 'update'])->name('policies.update');
             Route::patch('policies/{policy}/retire', [AdminPolicyController::class, 'retire'])->name('policies.retire');
             Route::patch('policies/{policy}/restore', [AdminPolicyController::class, 'restore'])->name('policies.restore');
+
+            // What counts as an offence, and what the policy says follows it.
+            // Same permission: this is the handbook written out in a form the
+            // app can read, and it has to stay in step with the document.
+            Route::get('offences', [OffenceController::class, 'index'])->name('offences.index');
+            Route::post('offences', [OffenceController::class, 'store'])->name('offences.store');
+            Route::put('offences/{offence}', [OffenceController::class, 'update'])->name('offences.update');
+            Route::patch('offences/{offence}/toggle', [OffenceController::class, 'toggle'])->name('offences.toggle');
         });
 
         Route::middleware('permission:announcements.manage')->group(function (): void {
