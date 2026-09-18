@@ -9,6 +9,7 @@ use App\Models\Approval;
 use App\Models\Attendance;
 use App\Models\LatenessRequest;
 use App\Models\LeaveRequest;
+use App\Models\OutOfOfficeRequest;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -165,6 +166,24 @@ class ApprovalService
     }
 
     /**
+     * @return Collection<int, OutOfOfficeRequest>
+     */
+    public function awaitingOutOfOffice(User $approver): Collection
+    {
+        return OutOfOfficeRequest::query()
+            ->with('approvals')
+            ->pending()
+            ->where('user_id', '!=', $approver->id)
+            ->whereDoesntHave(
+                'approvals',
+                fn (Builder $query) => $query->where('approver_id', $approver->id),
+            )
+            ->get()
+            ->filter(fn (OutOfOfficeRequest $away): bool => $away->awaitsDecisionFrom($approver))
+            ->values();
+    }
+
+    /**
      * Everything waiting on this person, for the badge on the nav item. Staff
      * without approval rights can still be sitting on a relief sign-off.
      */
@@ -176,6 +195,7 @@ class ApprovalService
 
         if ($user->canApprove()) {
             $count += $this->awaitingLateness($user)->count();
+            $count += $this->awaitingOutOfOffice($user)->count();
         }
 
         return $count;

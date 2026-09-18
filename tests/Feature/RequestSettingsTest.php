@@ -205,7 +205,7 @@ class RequestSettingsTest extends TestCase
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('admin/RequestSettings')
-                ->has('modules', 2)
+                ->has('modules', 3)
                 ->has('leave_types', 11)
                 ->where('modules.0.value', 'leave'));
     }

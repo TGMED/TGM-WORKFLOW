@@ -23,7 +23,7 @@ type Requester = {
 
 type PendingRequest = {
     id: number;
-    module: 'leave' | 'lateness';
+    module: 'leave' | 'lateness' | 'out_of_office';
     stage: 'relief' | 'approval';
     stage_label: string;
     summary: string;
@@ -41,6 +41,11 @@ type PendingRequest = {
     // Lateness only
     day_label?: string;
     minutes_late?: number;
+    // Out of office only
+    kind?: string;
+    kind_label?: string;
+    destination?: string | null;
+    contact_number?: string | null;
     reason: string | null;
 };
 
@@ -60,13 +65,16 @@ type HistoryRow = {
 const props = defineProps<{
     leave: PendingRequest[];
     lateness: PendingRequest[];
+    out_of_office: PendingRequest[];
     history: HistoryRow[];
     // Null for a relief officer, who reaches this page without being an
     // approver and so cannot file for anyone.
     raise: RaiseOptions | null;
 }>();
 
-const tab = ref<'leave' | 'lateness'>('leave');
+type Tab = 'leave' | 'lateness' | 'out_of_office';
+
+const tab = ref<Tab>('leave');
 
 const raising = ref(false);
 
@@ -78,11 +86,22 @@ const form = useForm({
     comment: '',
 });
 
-const rows = computed(() =>
-    tab.value === 'leave' ? props.leave : props.lateness,
+const rows = computed(() => {
+    if (tab.value === 'leave') {
+        return props.leave;
+    }
+
+    return tab.value === 'lateness' ? props.lateness : props.out_of_office;
+});
+
+const tabLabel = computed(() =>
+    tab.value === 'out_of_office' ? 'out of office' : tab.value,
 );
 
-const total = computed(() => props.leave.length + props.lateness.length);
+const total = computed(
+    () =>
+        props.leave.length + props.lateness.length + props.out_of_office.length,
+);
 
 const relief = computed(() => deciding.value?.stage === 'relief');
 
@@ -156,6 +175,11 @@ function submit() {
                             label: 'Lateness',
                             count: lateness.length,
                         },
+                        {
+                            key: 'out_of_office',
+                            label: 'Out of office',
+                            count: out_of_office.length,
+                        },
                     ]"
                     :key="option.key"
                     type="button"
@@ -165,7 +189,7 @@ function submit() {
                             ? 'bg-panel-raised text-text shadow-panel'
                             : 'text-muted hover:text-text',
                     ]"
-                    @click="tab = option.key as 'leave' | 'lateness'"
+                    @click="tab = option.key as Tab"
                 >
                     {{ option.label }}
                     <span
@@ -181,7 +205,7 @@ function submit() {
                 <EmptyState
                     v-if="rows.length === 0"
                     title="Inbox clear"
-                    :message="`No ${tab} requests are waiting on your decision.`"
+                    :message="`No ${tabLabel} requests are waiting on your decision.`"
                 />
 
                 <ul v-else class="divide-y divide-line-soft">
@@ -229,9 +253,20 @@ function submit() {
                                         of {{ row.type }},
                                         {{ row.range_label }}
                                     </template>
-                                    <template v-else>
+                                    <template
+                                        v-else-if="row.module === 'lateness'"
+                                    >
                                         {{ duration(row.minutes_late) }} late on
                                         {{ row.day_label }}
+                                    </template>
+                                    <template v-else>
+                                        {{ row.kind_label }} for
+                                        {{ row.days }} working day{{
+                                            row.days === 1 ? '' : 's'
+                                        }}, {{ row.range_label }}
+                                        <template v-if="row.destination">
+                                            · {{ row.destination }}
+                                        </template>
                                     </template>
                                 </p>
 

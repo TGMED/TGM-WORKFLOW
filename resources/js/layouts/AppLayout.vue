@@ -62,6 +62,11 @@ const nav: NavItem[] = [
                 href: '/lateness',
                 icon: 'M12 7v5.2l3.2 1.9M3.5 12a8.5 8.5 0 1 0 17 0 8.5 8.5 0 0 0-17 0Z',
             },
+            {
+                label: 'Out of office',
+                href: '/out-of-office',
+                icon: 'M4 20V9.5L12 4l8 5.5V20M4 20h16M9.5 20v-5h5v5M14.5 9.5h4.5m0 0-1.8-1.8m1.8 1.8-1.8 1.8',
+            },
         ],
     },
     {

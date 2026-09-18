@@ -5,6 +5,7 @@ namespace App\Enums;
 use App\Contracts\Approvable;
 use App\Models\LatenessRequest;
 use App\Models\LeaveRequest;
+use App\Models\OutOfOfficeRequest;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -14,12 +15,14 @@ enum RequestModule: string
 {
     case Leave = 'leave';
     case Lateness = 'lateness';
+    case OutOfOffice = 'out_of_office';
 
     public function label(): string
     {
         return match ($this) {
             self::Leave => 'Leave requests',
             self::Lateness => 'Lateness requests',
+            self::OutOfOffice => 'Out of office requests',
         };
     }
 
@@ -28,6 +31,7 @@ enum RequestModule: string
         return match ($this) {
             self::Leave => 'Time off booked against an allowance.',
             self::Lateness => 'Explanations for arriving after the start of a shift.',
+            self::OutOfOffice => 'Days worked from home or out on company business.',
         };
     }
 
@@ -39,6 +43,7 @@ enum RequestModule: string
         return match ($this) {
             self::Leave => 'leave request',
             self::Lateness => 'lateness request',
+            self::OutOfOffice => 'out of office request',
         };
     }
 
@@ -50,6 +55,7 @@ enum RequestModule: string
         return match ($this) {
             self::Leave => LeaveRequest::class,
             self::Lateness => LatenessRequest::class,
+            self::OutOfOffice => OutOfOfficeRequest::class,
         };
     }
 }

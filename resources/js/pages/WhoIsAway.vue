@@ -34,15 +34,30 @@ type Person = {
     relief_officer: string | null;
 };
 
+type Elsewhere = {
+    id: number;
+    user: Person['user'];
+    kind: string;
+    kind_label: string;
+    kind_tone: 'signal' | 'brass' | 'alert' | 'beacon' | 'neutral';
+    range_label: string;
+    days: number;
+    destination: string | null;
+    contact_number: string | null;
+    is_out_now: boolean;
+};
+
 const props = defineProps<{
     filters: { window: string; search: string; location: string };
     today: string;
     people: Person[];
+    elsewhere: Elsewhere[];
     stats: {
         away_today: number;
         away_this_week: number;
         back_tomorrow: number;
         pending: number;
+        working_elsewhere_today: number;
         active_staff: number;
     };
     locations: Array<{ value: string; label: string }>;
@@ -138,6 +153,11 @@ function backLabel(person: Person): string {
                     :value="stats.back_tomorrow"
                     tone="signal"
                     caption="Last day of leave is today"
+                />
+                <StatTile
+                    label="Working elsewhere"
+                    :value="stats.working_elsewhere_today"
+                    caption="At work, out of the office"
                 />
                 <StatTile
                     label="Not yet decided"
@@ -333,6 +353,63 @@ function backLabel(person: Person): string {
                                 person.starts_in === 1 ? '' : 's'
                             }}
                         </p>
+                    </li>
+                </ul>
+            </Panel>
+            <!-- At work, elsewhere. Kept apart from the away lists above: a
+                 day at a client site is not a day off, and nobody should be
+                 chasing cover for it. -->
+            <Panel
+                v-if="elsewhere.length"
+                flush
+                eyebrow="Out of the office"
+                :title="`${elsewhere.length} working elsewhere`"
+                subtitle="Still at work, and still reachable."
+            >
+                <ul class="divide-y divide-line-soft">
+                    <li
+                        v-for="person in elsewhere"
+                        :key="person.id"
+                        class="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3.5 transition-colors hover:bg-line-soft/40"
+                    >
+                        <div
+                            class="flex min-w-[200px] flex-1 items-center gap-3"
+                        >
+                            <Avatar
+                                :initials="person.user.initials"
+                                :name="person.user.name"
+                                size="sm"
+                            />
+                            <span class="min-w-0">
+                                <span
+                                    class="block truncate text-[13.5px] font-medium"
+                                >
+                                    {{ person.user.name }}
+                                </span>
+                                <span
+                                    class="block truncate text-[11.5px] text-faint"
+                                >
+                                    {{ person.range_label }}
+                                    <template v-if="person.destination">
+                                        · {{ person.destination }}
+                                    </template>
+                                </span>
+                            </span>
+                        </div>
+
+                        <p
+                            v-if="person.contact_number"
+                            class="tabular font-mono text-[12px] text-muted"
+                        >
+                            {{ person.contact_number }}
+                        </p>
+
+                        <StatusPill
+                            :tone="person.kind_tone"
+                            :dot="person.is_out_now"
+                        >
+                            {{ person.kind_label }}
+                        </StatusPill>
                     </li>
                 </ul>
             </Panel>

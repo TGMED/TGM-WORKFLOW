@@ -12,6 +12,7 @@ use App\Models\Approval;
 use App\Models\LatenessRequest;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
+use App\Models\OutOfOfficeRequest;
 use App\Models\User;
 use App\Services\ApprovalService;
 use Illuminate\Database\Eloquent\Model;
@@ -31,6 +32,7 @@ class ApprovalController extends Controller
         return Inertia::render('Approvals', [
             'leave' => $this->openLeave($approver),
             'lateness' => $this->openLateness($approver),
+            'out_of_office' => $this->openOutOfOffice($approver),
             'history' => $this->history($approver),
             // Only approvers may file for someone else, and a relief officer
             // reaches this page without being one.
@@ -211,6 +213,28 @@ class ApprovalController extends Controller
                 'day_label' => $late->work_date->format('D, j M Y'),
                 'minutes_late' => $late->minutes_late,
                 'reason' => $late->reason,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    protected function openOutOfOffice(User $approver): array
+    {
+        return $this->approvals->awaitingOutOfOffice($approver)
+            ->load(['user:id,name,department_id,position,location_id', 'user.department:id,name', 'user.location:id,name', 'approvals.approver:id,name'])
+            ->sortBy('start_date')
+            ->map(fn (OutOfOfficeRequest $away): array => [
+                ...$this->common($away, $approver),
+                'kind' => $away->kind->value,
+                'kind_label' => $away->kind->label(),
+                'range_label' => $away->dateRange(),
+                'days' => $away->days,
+                'reason' => $away->reason,
+                'destination' => $away->destination,
+                'contact_number' => $away->contact_number,
             ])
             ->values()
             ->all();

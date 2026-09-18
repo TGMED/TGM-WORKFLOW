@@ -25,6 +25,7 @@ type Row = {
     days_late: number;
     days_grace: number;
     days_expected: number | null;
+    days_elsewhere: number;
     days_absent: number | null;
     late_minutes: number;
     worked_minutes: number;
@@ -355,6 +356,9 @@ const hoursOf = (minutes: number) => Math.round((minutes / 60) * 10) / 10;
                                     Present
                                 </th>
                                 <th class="eyebrow px-5 py-3 font-medium">
+                                    Elsewhere
+                                </th>
+                                <th class="eyebrow px-5 py-3 font-medium">
                                     Absent
                                 </th>
                                 <th
@@ -427,6 +431,17 @@ const hoursOf = (minutes: number) => Math.round((minutes / 60) * 10) / 10;
                                         class="text-faint"
                                         >/{{ row.days_expected }}</span
                                     >
+                                </td>
+                                <td
+                                    class="tabular px-5 py-3 font-mono text-[12.5px]"
+                                    :class="
+                                        row.days_elsewhere
+                                            ? 'text-beacon'
+                                            : 'text-muted'
+                                    "
+                                    title="Days agreed as working from home or out on an assignment. Not counted as absence."
+                                >
+                                    {{ row.days_elsewhere || '-' }}
                                 </td>
                                 <td
                                     class="tabular px-5 py-3 font-mono text-[12.5px]"

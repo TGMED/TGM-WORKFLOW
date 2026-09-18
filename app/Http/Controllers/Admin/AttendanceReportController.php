@@ -7,7 +7,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\Department;
 use App\Models\Location;
+use App\Models\OutOfOfficeRequest;
 use App\Models\User;
+use App\Support\Workdays;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -38,6 +40,7 @@ class AttendanceReportController extends Controller
         'Employment',
         'Days expected',
         'Days present',
+        'Days out of office',
         'Days absent',
         'Days late',
         'Days excused',
@@ -70,9 +73,10 @@ class AttendanceReportController extends Controller
 
         $totals = $this->totalsFor($ids, $from, $to);
         $expected = $this->expectedDays($from, $to);
+        $elsewhere = $this->elsewhereDays($ids, $from, $to);
 
         $rows = $paginator->through(
-            fn (User $user): array => $this->rowFor($user, $totals, $expected),
+            fn (User $user): array => $this->rowFor($user, $totals, $expected, elsewhere: $elsewhere),
         );
 
         return Inertia::render('admin/AttendanceReport', [
@@ -132,11 +136,15 @@ class AttendanceReportController extends Controller
                     ->orderBy('name')
                     ->orderBy('id')
                     ->chunk(200, function (Collection $users) use ($handle, $from, $to, $expected): void {
-                        $totals = $this->totalsFor($users->pluck('id')->all(), $from, $to);
+                        /** @var array<int, int> $ids */
+                        $ids = $users->pluck('id')->all();
+
+                        $totals = $this->totalsFor($ids, $from, $to);
+                        $elsewhere = $this->elsewhereDays($ids, $from, $to);
 
                         foreach ($users as $user) {
                             fputcsv($handle, $this->csvRow(
-                                $this->rowFor($user, $totals, $expected, 'Y-m-d'),
+                                $this->rowFor($user, $totals, $expected, 'Y-m-d', $elsewhere),
                             ));
                         }
                     });
@@ -174,14 +182,21 @@ class AttendanceReportController extends Controller
      *
      * @param  array<int, array<string, mixed>>  $totals
      * @param  array<int, int>  $expected
+     * @param  array<int, int>  $elsewhere
      * @return array<string, mixed>
      */
-    private function rowFor(User $user, array $totals, array $expected, string $dateFormat = 'j M Y'): array
-    {
+    private function rowFor(
+        User $user,
+        array $totals,
+        array $expected,
+        string $dateFormat = 'j M Y',
+        array $elsewhere = [],
+    ): array {
         $row = $totals[$user->id] ?? [];
         $present = $row['days_present'] ?? 0;
         $late = $row['days_late'] ?? 0;
         $due = $user->location_id === null ? null : ($expected[$user->location_id] ?? null);
+        $away = $elsewhere[$user->id] ?? 0;
 
         return [
             'id' => $user->id,
@@ -197,7 +212,12 @@ class AttendanceReportController extends Controller
             'days_excused' => $row['days_excused'] ?? 0,
             'days_grace' => $row['days_grace'] ?? 0,
             'days_expected' => $due,
-            'days_absent' => $due === null ? null : max(0, $due - $present),
+            'days_elsewhere' => $away,
+            // A day agreed as working from home or out on an assignment is
+            // work, so it is not counted against them here. Nothing else is
+            // deducted: leave still reads as a day not at the desk, which is
+            // how this report has always counted it.
+            'days_absent' => $due === null ? null : max(0, $due - $present - $away),
             'late_minutes' => $row['late_minutes'] ?? 0,
             'worked_minutes' => $row['worked_minutes'] ?? 0,
             'break_minutes' => $row['break_minutes'] ?? 0,
@@ -229,6 +249,7 @@ class AttendanceReportController extends Controller
             $row['is_active'] ? 'Active' : 'Left',
             $row['days_expected'] === null ? '' : (string) $row['days_expected'],
             (string) $row['days_present'],
+            (string) $row['days_elsewhere'],
             $row['days_absent'] === null ? '' : (string) $row['days_absent'],
             (string) $row['days_late'],
             (string) $row['days_excused'],
@@ -358,6 +379,48 @@ class AttendanceReportController extends Controller
                     'open_days' => $rows->whereNull('clocked_out_at')->count(),
                     'last_seen' => $rows->max('work_date'),
                 ];
+            })
+            ->all();
+    }
+
+    /**
+     * Working days each person spent out of the office by agreement, over the
+     * range. Counted from the approved request rather than from attendance,
+     * since the whole point is that there may be no clock-in to count.
+     *
+     * @param  array<int, int>  $ids
+     * @return array<int, int>
+     */
+    private function elsewhereDays(array $ids, Carbon $from, Carbon $to): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        return OutOfOfficeRequest::query()
+            ->approved()
+            ->whereIn('user_id', $ids)
+            ->overlapping($from, $to)
+            ->with('user.location:id,workdays')
+            ->get()
+            ->groupBy('user_id')
+            ->map(function (Collection $requests) use ($from, $to): int {
+                $days = 0;
+
+                foreach ($requests as $away) {
+                    // Only the part of the request that falls inside the
+                    // window counts towards it.
+                    $start = $away->start_date->greaterThan($from) ? $away->start_date : $from;
+                    $end = $away->end_date->lessThan($to) ? $away->end_date : $to;
+
+                    $days += Workdays::countBetween(
+                        $start,
+                        $end,
+                        $away->user->location?->workdayNumbers() ?? [1, 2, 3, 4, 5],
+                    );
+                }
+
+                return $days;
             })
             ->all();
     }

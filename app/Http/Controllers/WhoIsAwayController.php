@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\RequestStatus;
 use App\Models\LeaveRequest;
 use App\Models\Location;
+use App\Models\OutOfOfficeRequest;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -15,6 +16,10 @@ use Inertia\Response;
 /**
  * Who the company is missing, and when they are back. Approved leave only,
  * and without the reason it was asked for: this is a roster, not a record.
+ *
+ * People working from home or out on an assignment are listed separately and
+ * are not counted as away: they are at work, and a colleague looking for them
+ * needs to know that they can be asked.
  */
 class WhoIsAwayController extends Controller
 {
@@ -61,6 +66,10 @@ class WhoIsAwayController extends Controller
                 ->map(fn (LeaveRequest $leave): array => $this->payload($leave, $today))
                 ->values()
                 ->all(),
+            // At work, elsewhere. Kept apart from the away list on purpose:
+            // a day at a client site is not a day off, and a roster that mixed
+            // the two would have people chasing cover nobody needs.
+            'elsewhere' => $this->elsewhere($today, $end, $search, $locationId),
             'stats' => $this->stats($today),
             'locations' => Location::query()
                 ->orderBy('name')
@@ -111,6 +120,55 @@ class WhoIsAwayController extends Controller
     }
 
     /**
+     * People working away from the office over the window.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function elsewhere(Carbon $today, Carbon $end, string $search, string $locationId): array
+    {
+        return OutOfOfficeRequest::query()
+            ->with(['user:id,name,employee_id,department_id,position,location_id', 'user.department:id,name', 'user.location:id,name'])
+            ->approved()
+            ->overlapping($today, $end)
+            ->when($locationId !== '', fn (Builder $q) => $q->whereHas(
+                'user',
+                fn (Builder $u) => $u->where('location_id', $locationId),
+            ))
+            ->when($search !== '', fn (Builder $q) => $q->whereHas(
+                'user',
+                fn (Builder $u) => $u->where('name', 'like', "%{$search}%")
+                    ->orWhere('employee_id', 'like', "%{$search}%")
+                    ->orWhereRelation('department', 'name', 'like', "%{$search}%"),
+            ))
+            ->orderBy('start_date')
+            ->get()
+            ->map(fn (OutOfOfficeRequest $away): array => [
+                'id' => $away->id,
+                'user' => [
+                    'id' => $away->user->id,
+                    'name' => $away->user->name,
+                    'initials' => $away->user->initials,
+                    'employee_id' => $away->user->employee_id,
+                    'department' => $away->user->department?->name,
+                    'position' => $away->user->position,
+                    'location' => $away->user->location?->name,
+                ],
+                'kind' => $away->kind->value,
+                'kind_label' => $away->kind->label(),
+                'kind_tone' => $away->kind->tone(),
+                'range_label' => $away->dateRange(),
+                'days' => $away->days,
+                // Where they are is on the roster; why they are there is not.
+                'destination' => $away->destination,
+                'contact_number' => $away->contact_number,
+                'is_out_now' => $away->start_date->lessThanOrEqualTo($today)
+                    && $away->end_date->greaterThanOrEqualTo($today),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
      * Headline counts, each per person rather than per request so overlapping
      * bookings do not double up.
      *
@@ -129,6 +187,11 @@ class WhoIsAwayController extends Controller
             'pending' => LeaveRequest::query()
                 ->where('status', RequestStatus::Pending->value)
                 ->where('end_date', '>=', $today->toDateString())
+                ->distinct()
+                ->count('user_id'),
+            'working_elsewhere_today' => OutOfOfficeRequest::query()
+                ->approved()
+                ->overlapping($today, $today)
                 ->distinct()
                 ->count('user_id'),
             'active_staff' => User::query()->active()->clocksIn()->count(),

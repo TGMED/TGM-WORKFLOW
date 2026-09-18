@@ -32,6 +32,7 @@ use App\Http\Controllers\LatenessRequestController;
 use App\Http\Controllers\LeaveEvidenceController;
 use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\OnBehalfRequestController;
+use App\Http\Controllers\OutOfOfficeController;
 use App\Http\Controllers\PasswordController;
 use App\Http\Controllers\PayslipController;
 use App\Http\Controllers\Profile\AddressController;
@@ -147,6 +148,11 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
         Route::get('lateness', [LatenessRequestController::class, 'index'])->name('lateness.index');
         Route::post('lateness', [LatenessRequestController::class, 'store'])->name('lateness.store');
         Route::delete('lateness/{lateness}', [LatenessRequestController::class, 'destroy'])->name('lateness.destroy');
+
+        Route::get('out-of-office', [OutOfOfficeController::class, 'index'])->name('out-of-office.index');
+        Route::post('out-of-office', [OutOfOfficeController::class, 'store'])->name('out-of-office.store');
+        Route::delete('out-of-office/{outOfOffice}', [OutOfOfficeController::class, 'destroy'])
+            ->name('out-of-office.destroy');
     });
 
     // Guarded by `approver` rather than the permission directly: a member of
@@ -156,7 +162,7 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
     Route::middleware('approver')->group(function (): void {
         Route::get('approvals', [ApprovalController::class, 'index'])->name('approvals.index');
         Route::post('approvals/{module}/{id}', [ApprovalController::class, 'store'])
-            ->whereIn('module', ['leave', 'lateness'])
+            ->whereIn('module', ['leave', 'lateness', 'out_of_office'])
             ->whereNumber('id')
             ->name('approvals.store');
 
@@ -276,7 +282,7 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
             Route::put('request-settings-lateness-window', [RequestSettingsController::class, 'updateLatenessWindow'])
                 ->name('request-settings.lateness-window');
             Route::put('request-settings/{module}', [RequestSettingsController::class, 'update'])
-                ->whereIn('module', ['leave', 'lateness'])
+                ->whereIn('module', ['leave', 'lateness', 'out_of_office'])
                 ->name('request-settings.update');
 
             Route::post('leave-types', [LeaveTypeController::class, 'store'])->name('leave-types.store');
