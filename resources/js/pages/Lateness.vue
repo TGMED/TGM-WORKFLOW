@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
@@ -39,8 +39,47 @@ const props = defineProps<{
     today_label: string;
     explained_today: boolean;
     approvers_required: number;
+    window: {
+        /** Whether filing is still open today. */
+        open: boolean;
+        closes_at: string | null;
+        closes_at_label: string | null;
+        cutoff_minutes: number;
+    };
     stats: { pending: number; excused: number };
 }>();
+
+// Two separate reasons the form is shut: already filed, or filed too late to
+// count as notice. The page says which rather than greying a button out.
+const canFile = computed(() => !props.explained_today && props.window.open);
+
+const shutReason = computed(() => {
+    if (props.explained_today) {
+        return 'You have already raised today.';
+    }
+
+    if (!props.window.open) {
+        return props.window.closes_at_label
+            ? `Filing closed at ${props.window.closes_at_label} today.`
+            : 'Filing has closed for today.';
+    }
+
+    return null;
+});
+
+const modalSubtitle = computed(() =>
+    props.window.closes_at_label
+        ? `Filed against today, before ${props.window.closes_at_label}. The minutes come from your own clock-in; only the reason is yours to give.`
+        : 'Filed against today, with the minutes taken from your own clock-in. Only the reason is yours to give.',
+);
+
+const lede = computed(() => {
+    const approvals = `Each one needs ${props.approvers_required} approval${props.approvers_required === 1 ? '' : 's'}.`;
+
+    return props.window.closes_at_label
+        ? `Tell your approver ahead of the morning, by ${props.window.closes_at_label}. ${approvals}`
+        : `Tell your approver you will be late. ${approvals}`;
+});
 
 const modalOpen = ref(false);
 const expanded = ref<number | null>(null);
@@ -90,22 +129,34 @@ function withdraw() {
 <template>
     <Head title="Lateness" />
 
-    <AppLayout
-        heading="Lateness"
-        :lede="`Explain a late arrival. Each one needs ${approvers_required} approval${approvers_required === 1 ? '' : 's'}.`"
-    >
+    <AppLayout heading="Lateness" :lede="lede">
         <template #toolbar>
-            <AppButton size="sm" :disabled="explained_today" @click="open()">
-                Explain today
-            </AppButton>
+            <div class="flex items-center gap-3">
+                <p v-if="shutReason" class="text-[12.5px] text-muted">
+                    {{ shutReason }}
+                </p>
+                <p
+                    v-else-if="window.closes_at_label"
+                    class="text-[12.5px] text-muted"
+                >
+                    Closes {{ window.closes_at_label }}
+                </p>
+                <AppButton size="sm" :disabled="!canFile" @click="open()">
+                    Raise for today
+                </AppButton>
+            </div>
         </template>
 
         <div class="space-y-6">
             <Panel
                 v-if="unexplained.length"
-                eyebrow="Needs an explanation"
+                eyebrow="Unexplained"
                 title="You clocked in late today"
-                subtitle="Lateness is explained on the day it happens, so file it before you leave."
+                :subtitle="
+                    window.open
+                        ? 'Filing is still open, so this day can still be raised.'
+                        : 'Filing has closed for today, so this day stands as late.'
+                "
                 flush
             >
                 <ul class="divide-y divide-line-soft">
@@ -126,9 +177,10 @@ function withdraw() {
                         <AppButton
                             variant="secondary"
                             size="sm"
+                            :disabled="!canFile"
                             @click="open()"
                         >
-                            Explain
+                            Raise
                         </AppButton>
                     </li>
                 </ul>
@@ -142,15 +194,15 @@ function withdraw() {
                 <EmptyState
                     v-if="requests.length === 0"
                     title="Nothing filed yet"
-                    message="Explain a late arrival and it goes to your approver, who can excuse it."
+                    message="Say you will be late and it goes to your approver, who can excuse the day."
                 >
                     <template #action>
                         <AppButton
                             size="sm"
-                            :disabled="explained_today"
+                            :disabled="!canFile"
                             @click="open()"
                         >
-                            Explain today
+                            Raise for today
                         </AppButton>
                     </template>
                 </EmptyState>
@@ -244,8 +296,8 @@ function withdraw() {
 
         <ModalShell
             :open="modalOpen"
-            title="Explain a late arrival"
-            subtitle="Filed against today, with the minutes taken from your own clock-in. Only the reason is yours to give."
+            title="Raise a late arrival"
+            :subtitle="modalSubtitle"
             @close="modalOpen = false"
         >
             <form class="space-y-4" @submit.prevent="submit">

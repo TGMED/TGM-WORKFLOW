@@ -8,8 +8,10 @@ use App\Http\Requests\StoreLatenessRequest;
 use App\Models\ApprovalSetting;
 use App\Models\Attendance;
 use App\Models\LatenessRequest;
+use App\Models\RequestSettings;
 use App\Models\User;
 use App\Services\ApprovalService;
+use App\Services\LatenessWindow;
 use App\Services\RequestNotifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,6 +24,7 @@ class LatenessRequestController extends Controller
     public function __construct(
         protected ApprovalService $approvals,
         protected RequestNotifier $notifier,
+        protected LatenessWindow $window,
     ) {}
 
     public function index(Request $request): Response
@@ -48,6 +51,10 @@ class LatenessRequestController extends Controller
             'explained_today' => in_array($today->toDateString(), $explained, true),
             'unexplained' => $this->unexplainedDays($user->id, $today, $explained),
             'approvers_required' => ApprovalSetting::approversRequired(RequestModule::Lateness),
+            // When today's filing closes, so the page can say so plainly
+            // rather than letting somebody write a reason into a form that
+            // will refuse it.
+            'window' => $this->windowPayload($user, $today),
             'stats' => [
                 'pending' => $requests->where('status', RequestStatus::Pending)->count(),
                 'excused' => $requests->where('status', RequestStatus::Approved)->count(),
@@ -108,8 +115,27 @@ class LatenessRequestController extends Controller
     }
 
     /**
-     * Today at the site this person clocks in at. Lateness is explained on the
-     * day it happens, so this is the only date the page deals in.
+     * Today's filing deadline, as the page needs it. A person with no site on
+     * their record has no resumption time to count back from, and the form
+     * stays open for them.
+     *
+     * @return array<string, mixed>
+     */
+    protected function windowPayload(User $user, Carbon $today): array
+    {
+        $closes = $this->window->closesAt($user, $today);
+
+        return [
+            'open' => $this->window->isOpen($user, $today),
+            'closes_at' => $closes?->toIso8601String(),
+            'closes_at_label' => $closes?->format('g:ia'),
+            'cutoff_minutes' => RequestSettings::latenessCutoffMinutes(),
+        ];
+    }
+
+    /**
+     * Today at the site this person clocks in at. Lateness is raised on the
+     * day it falls on, so this is the only date the page deals in.
      */
     protected function today(User $user): Carbon
     {

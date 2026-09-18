@@ -243,6 +243,10 @@ class RequestNotificationTest extends TestCase
         $staff = $this->staff();
         $approver = User::factory()->approver()->create();
 
+        // Ahead of the morning, since that is the only time staff may file
+        // for themselves.
+        Carbon::setTestNow(Carbon::parse('07:00', 'Africa/Lagos'));
+
         $this->actingAs($staff)
             ->post('/lateness', [
                 'work_date' => Carbon::now()->toDateString(),

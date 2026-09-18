@@ -7,9 +7,9 @@ use Illuminate\Support\Carbon;
 /**
  * A lateness explanation filed by an approver for a member of staff.
  *
- * Staff explain themselves on the day, which is the point of the exercise. An
- * approver is usually writing up something from earlier in the week, so this
- * reaches back a fortnight instead.
+ * Staff give notice ahead of the morning, which is the point of the exercise.
+ * An approver is usually writing up something from earlier in the week, so
+ * this reaches back a fortnight instead.
  */
 class StoreLatenessOnBehalfRequest extends StoreLatenessRequest
 {
@@ -48,6 +48,16 @@ class StoreLatenessOnBehalfRequest extends StoreLatenessRequest
             'work_date.before_or_equal' => 'Lateness cannot be explained ahead of the day.',
             'work_date.after_or_equal' => 'That day is too far back to explain now.',
         ];
+    }
+
+    /**
+     * The deadline is for the person who was late, not for the approver
+     * writing them up afterwards. Holding an approver to it would leave a
+     * missed morning with nowhere to be recorded at all.
+     */
+    protected function enforcesDeadline(): bool
+    {
+        return false;
     }
 
     /**

@@ -12,6 +12,7 @@ use App\Models\LatenessRequest;
 use App\Models\LeaveRequest;
 use App\Models\LeaveRestrictedPeriod;
 use App\Models\LeaveType;
+use App\Models\RequestSettings;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -47,6 +48,9 @@ class RequestSettingsController extends Controller
             // A threshold higher than the number of approvers on staff would
             // leave every request stuck, so the page warns about it.
             'approver_count' => $approvers,
+            // How long before the start of work a lateness request must be
+            // in. Stated in minutes; the page offers the round numbers.
+            'lateness_cutoff_minutes' => RequestSettings::latenessCutoffMinutes(),
             'totals' => [
                 'leave_requests' => LeaveRequest::query()->count(),
                 'lateness_requests' => LatenessRequest::query()->count(),
@@ -82,6 +86,37 @@ class RequestSettingsController extends Controller
                 $count,
                 $count === 1 ? '' : 's',
             ),
+        ]);
+    }
+
+    /**
+     * Move the deadline for raising a late arrival. Requests already filed are
+     * untouched: the deadline judges the filing, not the record.
+     */
+    public function updateLatenessWindow(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            // Capped at four hours: beyond that the deadline lands before
+            // anyone is reasonably awake, and a rule nobody can keep is worse
+            // than none. Zero means the request is in by the start of work.
+            'lateness_cutoff_minutes' => ['required', 'integer', 'between:0,240'],
+        ]);
+
+        RequestSettings::current()->update([
+            'lateness_cutoff_minutes' => $validated['lateness_cutoff_minutes'],
+        ]);
+
+        $minutes = (int) $validated['lateness_cutoff_minutes'];
+
+        return back()->with('toast', [
+            'type' => 'success',
+            'message' => $minutes === 0
+                ? 'Lateness must now be raised by the start of work.'
+                : sprintf(
+                    'Lateness must now be raised at least %d minute%s before the start of work.',
+                    $minutes,
+                    $minutes === 1 ? '' : 's',
+                ),
         ]);
     }
 

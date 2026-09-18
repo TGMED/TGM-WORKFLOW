@@ -7,6 +7,7 @@ use App\Enums\RequestStatus;
 use App\Models\Attendance;
 use App\Models\LatenessRequest;
 use App\Models\Location;
+use App\Models\RequestSettings;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -23,6 +24,12 @@ class LatenessRequestTest extends TestCase
         parent::setUp();
 
         $this->location = Location::factory()->create();
+
+        // Lateness is raised ahead of the morning, so every one of these posts
+        // has to happen before filing closes. The site resumes at 9am Lagos
+        // and the default deadline is an hour before that, which puts these
+        // tests at seven o'clock with an hour in hand.
+        Carbon::setTestNow(Carbon::parse('07:00', 'Africa/Lagos'));
     }
 
     private function staff(): User
@@ -165,6 +172,93 @@ class LatenessRequestTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->where('explained_today', true)
                 ->has('unexplained', 0));
+    }
+
+    public function test_lateness_cannot_be_raised_once_filing_has_closed(): void
+    {
+        $staff = $this->staff();
+        $today = Carbon::now()->startOfDay();
+
+        // Half past eight at the site: work starts at nine and the deadline
+        // sat at eight, so this is half an hour too late to count as notice.
+        Carbon::setTestNow(Carbon::parse('08:30', 'Africa/Lagos'));
+
+        $this->actingAs($staff)
+            ->post('/lateness', [
+                'work_date' => $today->toDateString(),
+                'reason' => 'The bridge was closed and traffic is at a standstill.',
+            ])
+            ->assertSessionHasErrors('work_date');
+
+        $this->assertSame(0, LatenessRequest::query()->count());
+    }
+
+    public function test_the_deadline_moves_with_the_setting(): void
+    {
+        $staff = $this->staff();
+        $today = Carbon::now()->startOfDay();
+
+        // Two hours' notice wanted, so seven o'clock is now too late.
+        RequestSettings::current()->update(['lateness_cutoff_minutes' => 120]);
+
+        $this->actingAs($staff)
+            ->post('/lateness', [
+                'work_date' => $today->toDateString(),
+                'reason' => 'The bridge was closed and traffic is at a standstill.',
+            ])
+            ->assertSessionHasErrors('work_date');
+
+        // Back to the hour, and the same post goes through.
+        RequestSettings::current()->update(['lateness_cutoff_minutes' => 60]);
+
+        $this->actingAs($staff)
+            ->post('/lateness', [
+                'work_date' => $today->toDateString(),
+                'reason' => 'The bridge was closed and traffic is at a standstill.',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(1, LatenessRequest::query()->count());
+    }
+
+    public function test_somebody_with_no_site_is_not_held_to_a_deadline(): void
+    {
+        // No location means no resumption time to count back from, so the
+        // form stays open rather than refusing on a deadline nobody can name.
+        $staff = User::factory()->create(['location_id' => null]);
+
+        Carbon::setTestNow(Carbon::parse('11:00', 'Africa/Lagos'));
+
+        $this->actingAs($staff)
+            ->post('/lateness', [
+                'work_date' => Carbon::now()->startOfDay()->toDateString(),
+                'reason' => 'Held up at the clinic with a sick child this morning.',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(1, LatenessRequest::query()->count());
+    }
+
+    public function test_the_page_says_when_filing_closes(): void
+    {
+        $this->actingAs($this->staff())
+            ->get('/lateness')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('window.open', true)
+                ->where('window.cutoff_minutes', 60)
+                ->where('window.closes_at_label', '8:00am'));
+    }
+
+    public function test_the_page_knows_when_filing_has_closed(): void
+    {
+        $staff = $this->staff();
+
+        Carbon::setTestNow(Carbon::parse('08:30', 'Africa/Lagos'));
+
+        $this->actingAs($staff)
+            ->get('/lateness')
+            ->assertInertia(fn ($page) => $page->where('window.open', false));
     }
 
     public function test_staff_can_withdraw_a_pending_explanation(): void

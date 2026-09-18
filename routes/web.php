@@ -273,6 +273,8 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
         // dials all belong to whoever runs the request process.
         Route::middleware('permission:request-settings.manage')->group(function (): void {
             Route::get('request-settings', [RequestSettingsController::class, 'index'])->name('request-settings.index');
+            Route::put('request-settings-lateness-window', [RequestSettingsController::class, 'updateLatenessWindow'])
+                ->name('request-settings.lateness-window');
             Route::put('request-settings/{module}', [RequestSettingsController::class, 'update'])
                 ->whereIn('module', ['leave', 'lateness'])
                 ->name('request-settings.update');

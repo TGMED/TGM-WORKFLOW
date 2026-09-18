@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\LatenessRequest;
 use App\Models\User;
+use App\Services\LatenessWindow;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Carbon;
@@ -23,8 +24,8 @@ class StoreLatenessRequest extends FormRequest
         $today = $this->today()->toDateString();
 
         return [
-            // Lateness is explained on the day it happens: the reason is
-            // freshest then, and it cannot be filed ahead of the morning.
+            // Lateness is raised on the day it falls on, and only that day.
+            // How early in that day is the deadline's business, below.
             'work_date' => ['required', 'date', 'before_or_equal:'.$today, 'after_or_equal:'.$today],
             'reason' => ['required', 'string', 'min:10', 'max:1000'],
         ];
@@ -54,13 +55,55 @@ class StoreLatenessRequest extends FormRequest
                 ->where('work_date', $this->workDate()->toDateString())
                 ->exists();
 
+            // Said before the deadline is: somebody who already filed is not
+            // late with anything, and telling them the window shut would send
+            // them looking for a problem they do not have.
             if ($exists) {
                 $validator->errors()->add(
                     'work_date',
-                    'You have already explained that day.',
+                    'You have already raised that day.',
+                );
+
+                return;
+            }
+
+            if ($this->enforcesDeadline() && ! $this->window()->isOpen($this->staff(), $this->workDate())) {
+                $validator->errors()->add(
+                    'work_date',
+                    $this->missedDeadlineMessage(),
                 );
             }
         });
+    }
+
+    /**
+     * Whether the filing deadline applies. It does to a person filing for
+     * themselves, which is the whole point of asking for notice.
+     */
+    protected function enforcesDeadline(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Said with the time in it: a deadline a person is told about only after
+     * they have missed it should at least say when it was.
+     */
+    protected function missedDeadlineMessage(): string
+    {
+        $closed = $this->window()->closesAt($this->staff(), $this->workDate());
+
+        return $closed === null
+            ? 'Lateness is raised ahead of the start of work.'
+            : sprintf(
+                'Lateness is raised ahead of the start of work. Filing closed at %s today.',
+                $closed->format('g:ia'),
+            );
+    }
+
+    protected function window(): LatenessWindow
+    {
+        return app(LatenessWindow::class);
     }
 
     public function workDate(): Carbon

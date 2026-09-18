@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { reactive, ref } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
 import Panel from '@/components/ui/Panel.vue';
@@ -55,6 +55,7 @@ const props = defineProps<{
     restricted_periods: RestrictedPeriodRow[];
     marital_statuses: string[];
     approver_count: number;
+    lateness_cutoff_minutes: number;
     totals: { leave_requests: number; lateness_requests: number };
 }>();
 
@@ -71,6 +72,47 @@ const drafts = reactive<Record<string, number>>(
 );
 
 const saving = ref<string | null>(null);
+
+// The deadline for raising a late arrival, counted back from the start of work
+// at each site. The round numbers cover what anyone actually sets; the field
+// takes anything up to four hours.
+const cutoffSteps = [0, 30, 60, 90, 120];
+const cutoffDraft = ref(props.lateness_cutoff_minutes);
+const savingCutoff = ref(false);
+
+const cutoffLabel = (minutes: number) =>
+    minutes === 0
+        ? 'Start of work'
+        : minutes % 60 === 0
+          ? `${minutes / 60}h before`
+          : `${minutes}m before`;
+
+// Worked out rather than written, so the example cannot drift from the rule.
+const exampleClose = computed(() => {
+    const at = new Date(2000, 0, 1, 9, 0);
+
+    at.setMinutes(at.getMinutes() - cutoffDraft.value);
+
+    const hour = at.getHours() % 12 || 12;
+    const minute = String(at.getMinutes()).padStart(2, '0');
+
+    return `${hour}:${minute}${at.getHours() < 12 ? 'am' : 'pm'}`;
+});
+
+function saveCutoff() {
+    savingCutoff.value = true;
+
+    router.put(
+        '/admin/request-settings-lateness-window',
+        { lateness_cutoff_minutes: cutoffDraft.value },
+        {
+            preserveScroll: true,
+            onFinish: () => {
+                savingCutoff.value = false;
+            },
+        },
+    );
+}
 
 function save(module: ModuleRow) {
     saving.value = module.value;
@@ -326,8 +368,50 @@ function toggle(type: LeaveTypeRow) {
                                 today, so requests would never clear.
                             </p>
                         </div>
+
                     </div>
                 </div>
+            </Panel>
+
+            <Panel
+                title="Raising a late arrival"
+                subtitle="How long before the start of work a lateness request must be in. Counted back from each site's own resumption time, so a person notifies ahead of the morning rather than accounting for it afterwards."
+            >
+                <div class="flex flex-wrap items-center gap-3">
+                    <div
+                        class="flex items-center gap-1 rounded-xl bg-sunken p-1"
+                    >
+                        <button
+                            v-for="step in cutoffSteps"
+                            :key="step"
+                            type="button"
+                            :class="[
+                                'rounded-lg px-3 py-2 text-[13px] font-semibold transition-all duration-200',
+                                cutoffDraft === step
+                                    ? 'bg-brand text-white'
+                                    : 'text-muted hover:bg-line-soft hover:text-text',
+                            ]"
+                            @click="cutoffDraft = step"
+                        >
+                            {{ cutoffLabel(step) }}
+                        </button>
+                    </div>
+
+                    <AppButton
+                        size="sm"
+                        :disabled="cutoffDraft === lateness_cutoff_minutes"
+                        :loading="savingCutoff"
+                        @click="saveCutoff"
+                    >
+                        Save
+                    </AppButton>
+                </div>
+
+                <p class="mt-3 text-[12.5px] text-muted">
+                    A site resuming at 9:00am closes filing at
+                    {{ exampleClose }}. Anything filed after that is refused and
+                    the day stands as unexplained lateness.
+                </p>
             </Panel>
 
             <Panel

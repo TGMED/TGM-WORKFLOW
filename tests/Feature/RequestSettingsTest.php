@@ -8,6 +8,7 @@ use App\Models\ApprovalSetting;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\Location;
+use App\Models\RequestSettings;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -63,6 +64,38 @@ class RequestSettingsTest extends TestCase
         $this->actingAs($staff)
             ->put('/admin/request-settings/leave', ['approvers_required' => 5])
             ->assertForbidden();
+    }
+
+    public function test_lateness_filing_closes_an_hour_before_work_by_default(): void
+    {
+        $this->assertSame(60, RequestSettings::latenessCutoffMinutes());
+    }
+
+    public function test_super_admins_can_move_the_lateness_deadline(): void
+    {
+        $this->actingAs($this->admin())
+            ->put('/admin/request-settings-lateness-window', ['lateness_cutoff_minutes' => 90])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(90, RequestSettings::latenessCutoffMinutes());
+    }
+
+    public function test_the_lateness_deadline_has_bounds(): void
+    {
+        $this->actingAs($this->admin())
+            ->put('/admin/request-settings-lateness-window', ['lateness_cutoff_minutes' => 600])
+            ->assertSessionHasErrors('lateness_cutoff_minutes');
+
+        $this->assertSame(60, RequestSettings::latenessCutoffMinutes());
+    }
+
+    public function test_staff_cannot_move_the_lateness_deadline(): void
+    {
+        $this->actingAs(User::factory()->create())
+            ->put('/admin/request-settings-lateness-window', ['lateness_cutoff_minutes' => 0])
+            ->assertForbidden();
+
+        $this->assertSame(60, RequestSettings::latenessCutoffMinutes());
     }
 
     public function test_super_admins_can_add_a_leave_type(): void
