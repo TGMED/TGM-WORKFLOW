@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Enums\Permission;
 use App\Models\Role;
 use App\Models\User;
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
@@ -39,6 +40,15 @@ class UpdateStaffRequest extends FormRequest
                 'integer',
                 Rule::exists('teams', 'id')->where('department_id', $this->input('department_id')),
             ],
+            // Who they answer to. Anyone still with the company may manage
+            // anyone else; the line is not confined to a department, because
+            // secondments and dotted lines are ordinary.
+            'manager_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('users', 'id')->whereNull('deleted_at'),
+                Rule::notIn([$staff->id]),
+            ],
             'position' => ['nullable', 'string', 'max:80'],
             'hired_at' => ['nullable', 'date'],
             // A person may hold several roles. The two that come with people
@@ -63,6 +73,30 @@ class UpdateStaffRequest extends FormRequest
         ];
     }
 
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            /** @var User $staff */
+            $staff = $this->route('staff');
+
+            $managerId = $this->input('manager_id');
+
+            if ($managerId === null || $validator->errors()->has('manager_id')) {
+                return;
+            }
+
+            // A loop would leave everyone inside it reporting only to each
+            // other, which no chart can draw and no escalation can climb out
+            // of.
+            if ($staff->wouldReportInACircle((int) $managerId)) {
+                $validator->errors()->add(
+                    'manager_id',
+                    'That person already reports to '.$staff->name.', directly or through somebody else.',
+                );
+            }
+        });
+    }
+
     /**
      * @return array<string, string>
      */
@@ -74,6 +108,8 @@ class UpdateStaffRequest extends FormRequest
             'roles.*.not_in' => 'Heads of department and team leads are named on the departments page, so that the people they are responsible for are named at the same time.',
             'location_id.required' => 'Pick the work location this person clocks in at.',
             'team_id.exists' => 'That team is not in the department chosen.',
+            'manager_id.not_in' => 'Nobody reports to themselves.',
+            'manager_id.exists' => 'Pick a manager who is still with the company.',
         ];
     }
 }

@@ -58,6 +58,7 @@ class StaffExit
             $vacated = $this->assignment->standDown($staff);
 
             $stranded = $this->releaseRequestsWaitingOnThem($staff);
+            $reassigned = $this->passOnTheirReports($staff);
             $cover = $this->coverLeftBehind($staff, $lastDay);
 
             // Their phone should stop buzzing about a job they no longer
@@ -70,7 +71,7 @@ class StaffExit
             DB::table('sessions')->where('user_id', $staff->id)->delete();
 
             return [
-                new StaffExitOutcome($cancelled, $cover->count(), $vacated, $stranded),
+                new StaffExitOutcome($cancelled, $cover->count(), $vacated, $stranded, $reassigned),
                 $cover,
             ];
         });
@@ -81,6 +82,25 @@ class StaffExit
         $this->tellThoseLosingCover($cover, $staff);
 
         return $outcome;
+    }
+
+    /**
+     * Move anyone who reported to them up a rung, to the manager they
+     * themselves reported to.
+     *
+     * Not cleared to nothing: somebody with no manager at all is invisible to
+     * everything that climbs the line, and the person one step further up is
+     * both the likeliest answer and an obvious one to correct. Where the
+     * leaver had no manager either, the reports are left without one and the
+     * people team is told the number so they can be placed.
+     *
+     * @return int People who were reporting to them.
+     */
+    protected function passOnTheirReports(User $staff): int
+    {
+        return User::query()
+            ->where('manager_id', $staff->id)
+            ->update(['manager_id' => $staff->manager_id]);
     }
 
     /**

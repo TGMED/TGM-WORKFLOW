@@ -35,6 +35,13 @@ const props = defineProps<{
         department_id: number | null;
         team: string | null;
         team_id: number | null;
+        manager: string | null;
+        manager_id: number | null;
+        direct_reports: Array<{
+            id: number;
+            name: string;
+            position: string | null;
+        }>;
         position: string | null;
         roles: string[];
         role_labels: string[];
@@ -152,6 +159,7 @@ const props = defineProps<{
     }>;
     departments: Array<{ value: number; label: string }>;
     teams: Array<{ value: number; label: string; department_id: number }>;
+    managers: Array<{ value: number; label: string }>;
     locations: Array<{ value: number; label: string }>;
     exit_reasons: Array<{ value: string; label: string }>;
 }>();
@@ -169,6 +177,7 @@ const form = useForm({
     phone: props.staff.phone ?? '',
     department_id: props.staff.department_id,
     team_id: props.staff.team_id,
+    manager_id: props.staff.manager_id,
     position: props.staff.position ?? '',
     hired_at: props.staff.hired_at ?? '',
     roles: [...props.staff.roles],
@@ -328,6 +337,15 @@ const detailGroups = computed<DetailGroup[]>(() => {
             rows: [
                 row('Department', text(props.staff.department)),
                 row('Team', text(props.staff.team)),
+                row('Reports to', text(props.staff.manager)),
+                row(
+                    'Direct reports',
+                    props.staff.direct_reports.length === 0
+                        ? '—'
+                        : props.staff.direct_reports
+                              .map((report) => report.name)
+                              .join(', '),
+                ),
                 row('Job title', text(props.staff.position)),
                 row(
                     props.staff.role_labels.length === 1 ? 'Role' : 'Roles',
@@ -1073,6 +1091,15 @@ watch(
                         hint="Teams belong to a department. Who leads one is set on the departments page."
                     >
                         <option :value="null">No team</option>
+                    </SelectField>
+                    <SelectField
+                        v-model="form.manager_id"
+                        label="Reports to"
+                        :options="managers"
+                        :error="form.errors.manager_id"
+                        hint="Who this person answers to. Separate from who runs their department, which the departments page sets."
+                    >
+                        <option :value="null">Nobody</option>
                     </SelectField>
                     <TextField
                         v-model="form.position"

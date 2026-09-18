@@ -120,7 +120,7 @@ class StaffController extends Controller
 
     public function show(Request $request, User $staff): Response
     {
-        $staff->load('location', 'roles', 'department', 'team', 'profile');
+        $staff->load('location', 'roles', 'department', 'team', 'profile', 'manager:id,name,position', 'directReports:id,manager_id,name,position');
 
         $timezone = $staff->location !== null
             ? $staff->location->timezone
@@ -151,6 +151,18 @@ class StaffController extends Controller
                 'department_id' => $staff->department_id,
                 'team' => $staff->team?->name,
                 'team_id' => $staff->team_id,
+                'manager_id' => $staff->manager_id,
+                'manager' => $staff->manager?->name,
+                // Named so the people team can see at a glance who would be
+                // left without a manager if this person walked out.
+                'direct_reports' => $staff->directReports
+                    ->map(fn (User $report): array => [
+                        'id' => $report->id,
+                        'name' => $report->name,
+                        'position' => $report->position,
+                    ])
+                    ->values()
+                    ->all(),
                 'position' => $staff->position,
                 'roles' => $staff->roles->sortBy('id')->pluck('slug')->values()->all(),
                 'role_labels' => $staff->roles->sortBy('id')->pluck('name')->values()->all(),
@@ -223,6 +235,7 @@ class StaffController extends Controller
             'locations' => $this->locationOptions(),
             'departments' => Department::options(),
             'teams' => $this->teamOptions(),
+            'managers' => $this->managerOptions($staff),
             'exit_reasons' => ExitReason::options(),
         ]);
     }
@@ -319,6 +332,31 @@ class StaffController extends Controller
                 'label' => $team->name,
                 'department_id' => $team->department_id,
             ])
+            ->all();
+    }
+
+    /**
+     * Who this person could be made to report to: anybody still on staff but
+     * themselves, and nobody who already reports to them, since that would
+     * close a loop the chart cannot draw.
+     *
+     * @return array<int, array{value: int, label: string}>
+     */
+    protected function managerOptions(User $staff): array
+    {
+        return User::query()
+            ->active()
+            ->whereKeyNot($staff->id)
+            ->orderBy('name')
+            ->get(['id', 'name', 'position', 'manager_id'])
+            ->reject(fn (User $candidate): bool => $candidate->managerChain()->contains('id', $staff->id))
+            ->map(fn (User $candidate): array => [
+                'value' => $candidate->id,
+                'label' => $candidate->position === null
+                    ? $candidate->name
+                    : "{$candidate->name} · {$candidate->position}",
+            ])
+            ->values()
             ->all();
     }
 

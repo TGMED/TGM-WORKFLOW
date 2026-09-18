@@ -16,6 +16,7 @@ final readonly class StaffExitOutcome
         public int $coverToReassign,
         public array $jobsVacated = [],
         public int $requestsReleased = 0,
+        public int $reportsReassigned = 0,
     ) {}
 
     /**
@@ -40,6 +41,12 @@ final readonly class StaffExitOutcome
             $parts[] = $this->requestsReleased.' '.
                 ($this->requestsReleased === 1 ? 'request was' : 'requests were').
                 ' waiting on them and has moved on';
+        }
+
+        if ($this->reportsReassigned > 0) {
+            $parts[] = $this->reportsReassigned.' '.
+                ($this->reportsReassigned === 1 ? 'person who reported' : 'people who reported').
+                ' to them now reports one rung up';
         }
 
         if ($this->jobsVacated !== []) {

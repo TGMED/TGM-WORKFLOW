@@ -31,6 +31,7 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  * @property string|null $phone
  * @property int|null $department_id
  * @property int|null $team_id
+ * @property int|null $manager_id
  * @property string|null $position
  * @property Carbon|null $hired_at
  * @property EmploymentStatus $employment_status
@@ -51,6 +52,8 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  * @property-read Location|null $location
  * @property-read Department|null $department
  * @property-read Team|null $team
+ * @property-read User|null $manager
+ * @property-read Collection<int, User> $directReports
  * @property-read Department|null $headedDepartment
  * @property-read Team|null $ledTeam
  * @property-read Collection<int, Role> $roles
@@ -65,6 +68,7 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
     'phone',
     'department_id',
     'team_id',
+    'manager_id',
     'position',
     'hired_at',
     'employment_status',
@@ -156,6 +160,74 @@ class User extends Authenticatable implements AuditableContract
     public function team(): BelongsTo
     {
         return $this->belongsTo(Team::class);
+    }
+
+    /**
+     * Who this person reports to.
+     *
+     * Kept apart from the department head and the team lead, which say who
+     * runs a unit rather than who answers to whom. The two usually agree, and
+     * where they do not it is this one that is right: somebody seconded to
+     * another department still reports to the person who manages them.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function manager(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'manager_id');
+    }
+
+    /**
+     * The people who report to this person.
+     *
+     * @return HasMany<User, $this>
+     */
+    public function directReports(): HasMany
+    {
+        return $this->hasMany(User::class, 'manager_id');
+    }
+
+    /**
+     * The line of management above this person, nearest first. Stops at the
+     * top, and stops dead if the data ever loops, so a bad row cannot hang a
+     * page that walks it.
+     *
+     * @return Collection<int, User>
+     */
+    public function managerChain(int $limit = 20): Collection
+    {
+        /** @var Collection<int, User> $chain */
+        $chain = new Collection;
+        $seen = [$this->id => true];
+
+        $current = $this->manager;
+
+        while ($current !== null && $chain->count() < $limit && ! isset($seen[$current->id])) {
+            $seen[$current->id] = true;
+            $chain->push($current);
+            $current = $current->manager;
+        }
+
+        return $chain;
+    }
+
+    /**
+     * Whether making this person report to that one would close a loop, which
+     * would leave a stretch of the organogram reporting only to itself.
+     */
+    public function wouldReportInACircle(int $managerId): bool
+    {
+        if ($managerId === $this->id) {
+            return true;
+        }
+
+        $manager = self::query()->find($managerId);
+
+        if ($manager === null) {
+            return false;
+        }
+
+        return $manager->managerChain()->contains('id', $this->id);
     }
 
     /**
