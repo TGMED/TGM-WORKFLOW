@@ -2,6 +2,7 @@
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import BrandMark from '@/components/BrandMark.vue';
+import NoticeRail from '@/components/NoticeRail.vue';
 import Avatar from '@/components/ui/Avatar.vue';
 import ToastHost from '@/components/ui/ToastHost.vue';
 import WhatsNewModal from '@/components/WhatsNewModal.vue';
@@ -755,9 +756,19 @@ watch(currentUrl, () => {
                 </button>
             </header>
 
-            <main class="mx-auto w-full max-w-[1240px] p-4 sm:p-6 lg:p-8">
-                <slot />
-            </main>
+            <!-- The page, with the noticeboard alongside it on a screen wide
+                 enough to carry one. Below that width the rail is dropped
+                 rather than stacked: the same notices are a page of their own,
+                 and a column of them above every page would bury the work. -->
+            <div class="flex items-start">
+                <main
+                    class="mx-auto w-full max-w-[1240px] min-w-0 p-4 sm:p-6 lg:p-8"
+                >
+                    <slot />
+                </main>
+
+                <NoticeRail />
+            </div>
         </div>
 
         <ToastHost />

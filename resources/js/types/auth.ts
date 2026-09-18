@@ -81,10 +81,34 @@ export type ClockFlash = {
     distance_meters: number | null;
 };
 
+/** One line on the rail that sits beside every page. */
+export type NoticeboardEvent = {
+    date: string;
+    day_label: string;
+    /** "Today", "Tomorrow", a weekday, or a date. */
+    when: string;
+    kind: 'birthday' | 'anniversary' | 'leave' | 'out_of_office';
+    who: string;
+    label: string;
+};
+
+export type Noticeboard = {
+    announcements: Array<{
+        id: number;
+        title: string;
+        body: string;
+        is_pinned: boolean;
+        published_at: string | null;
+    }>;
+    events: NoticeboardEvent[];
+};
+
 export type SharedProps = {
     name: string;
     auth: Auth;
     pending_approvals: number;
+    /** Null when nobody is signed in. */
+    noticeboard: Noticeboard | null;
     /** Null once this person has read the current release's notes. */
     whats_new: WhatsNewNotes | null;
     flash: {

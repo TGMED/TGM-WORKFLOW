@@ -3,15 +3,20 @@
 namespace App\Http\Middleware;
 
 use App\Enums\Permission;
+use App\Models\Announcement;
 use App\Models\User;
 use App\Services\ApprovalService;
+use App\Services\UpcomingEvents;
 use App\Support\WhatsNew;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
 {
-    public function __construct(protected ApprovalService $approvals) {}
+    public function __construct(
+        protected ApprovalService $approvals,
+        protected UpcomingEvents $events,
+    ) {}
 
     /**
      * The root template that's loaded on the first page visit.
@@ -89,6 +94,29 @@ class HandleInertiaRequests extends Middleware
             'pending_approvals' => fn (): int => $user === null
                 ? 0
                 : $this->approvals->inboxCount($user),
+            // The rail that sits beside every page: the notices in force and
+            // what is coming up. Both are closures, so a page that does not
+            // render the rail never pays for them, and both are cheap enough
+            // to carry on the pages that do.
+            'noticeboard' => fn (): ?array => $user === null ? null : [
+                'announcements' => Announcement::query()
+                    ->live()
+                    ->inReadingOrder()
+                    ->limit(6)
+                    ->get()
+                    ->map(fn (Announcement $announcement): array => [
+                        'id' => $announcement->id,
+                        'title' => $announcement->title,
+                        'body' => $announcement->body,
+                        'is_pinned' => $announcement->is_pinned,
+                        'published_at' => $announcement->published_at?->toIso8601String(),
+                    ])
+                    ->values()
+                    ->all(),
+                'events' => $this->events->forUser($user),
+            ],
+            // Walkthroughs this person has already been shown.
+            'tours_seen' => $user === null ? [] : ($user->tours_seen ?? []),
             // Null once this person has read the current release's notes,
             // which is what keeps the popup to one showing each.
             'whats_new' => fn (): ?array => WhatsNew::forUser($user),
