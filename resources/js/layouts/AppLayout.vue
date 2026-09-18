@@ -91,6 +91,11 @@ const nav: NavItem[] = [
         icon: 'M12 8.5v4m0 3h.01M10.6 3.9 2.5 18a1.5 1.5 0 0 0 1.3 2.3h16.4a1.5 1.5 0 0 0 1.3-2.3L13.4 3.9a1.6 1.6 0 0 0-2.8 0Z',
     },
     {
+        label: 'Organogram',
+        href: '/organogram',
+        icon: 'M9 4.5h6v4H9v-4Zm-6 11h6v4H3v-4Zm12 0h6v4h-6v-4ZM12 8.5v3m0 0H6v4m6-4h6v4',
+    },
+    {
         label: 'Company policy',
         href: '/policies',
         icon: 'M8 3.5h5.5L18.5 8v11a1.5 1.5 0 0 1-1.5 1.5H8A1.5 1.5 0 0 1 6.5 19V5A1.5 1.5 0 0 1 8 3.5Zm5 0V8h4.5M9.5 12.5h5m-5 3h3',

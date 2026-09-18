@@ -36,6 +36,7 @@ use App\Http\Controllers\LatenessRequestController;
 use App\Http\Controllers\LeaveEvidenceController;
 use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\OnBehalfRequestController;
+use App\Http\Controllers\OrganogramController;
 use App\Http\Controllers\OutOfOfficeController;
 use App\Http\Controllers\PasswordController;
 use App\Http\Controllers\PayslipController;
@@ -139,6 +140,10 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
         ->name('recommendations.store');
     Route::delete('recommendations/{recommendation}', [TerminationRecommendationController::class, 'destroy'])
         ->name('recommendations.destroy');
+
+    // Who reports to whom. Open to everybody: the people who most need to
+    // know who to ask are the ones who have just arrived.
+    Route::get('organogram', [OrganogramController::class, 'index'])->name('organogram.index');
 
     // The handbook and the policies under it. Open to everybody who signs in:
     // a rule nobody can look up is not a rule anybody can follow.
