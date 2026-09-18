@@ -2,6 +2,7 @@
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import BrandMark from '@/components/BrandMark.vue';
+import GuidedTour from '@/components/GuidedTour.vue';
 import NoticeRail from '@/components/NoticeRail.vue';
 import Avatar from '@/components/ui/Avatar.vue';
 import ToastHost from '@/components/ui/ToastHost.vue';
@@ -18,6 +19,9 @@ const { appearance, toggle } = useAppearance();
 const { push } = useToasts();
 
 const mobileNavOpen = ref(false);
+
+// The walkthrough for this page, so the help button can start it again.
+const tour = ref<InstanceType<typeof GuidedTour> | null>(null);
 const userMenuOpen = ref(false);
 
 type NavItem = {
@@ -242,6 +246,20 @@ function may(permission: Permission | undefined): boolean {
     );
 }
 
+/**
+ * The handle a walkthrough points at, from the item's own label: "My requests"
+ * becomes "nav-my-requests". Nothing in the nav knows what the tours say.
+ */
+function navAnchor(item: NavItem): string {
+    return (
+        'nav-' +
+        item.label
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/(^-|-$)/g, '')
+    );
+}
+
 function permits(item: NavItem): boolean {
     return (
         may(item.permission) &&
@@ -410,6 +428,7 @@ watch(currentUrl, () => {
                     <div v-if="item.children">
                         <button
                             type="button"
+                            :data-tour="navAnchor(item)"
                             :aria-expanded="isExpanded(item)"
                             :aria-controls="groupPanelId(item)"
                             :class="[
@@ -508,6 +527,7 @@ watch(currentUrl, () => {
                     <Link
                         v-else
                         :href="item.href"
+                        :data-tour="navAnchor(item)"
                         :class="[
                             'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13.5px] font-medium',
                             'transition-all duration-200 ease-out hover:translate-x-0.5',
@@ -729,6 +749,29 @@ watch(currentUrl, () => {
                 <slot name="toolbar" />
 
                 <button
+                    v-if="tour?.hasTour"
+                    type="button"
+                    aria-label="Show me round this page"
+                    title="Show me round this page"
+                    class="grid size-9 place-items-center rounded-lg text-muted transition-colors hover:bg-line-soft hover:text-text"
+                    @click="tour?.start()"
+                >
+                    <svg
+                        class="size-[18px]"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                        stroke-linecap="round"
+                    >
+                        <circle cx="12" cy="12" r="8.5" />
+                        <path
+                            d="M9.8 9.6a2.3 2.3 0 0 1 4.4.8c0 1.5-2.2 1.9-2.2 3.1M12 16.6h.01"
+                        />
+                    </svg>
+                </button>
+
+                <button
                     type="button"
                     :aria-label="`Switch to ${appearance === 'dark' ? 'light' : 'dark'} theme`"
                     class="grid size-9 place-items-center rounded-lg text-muted transition-colors hover:bg-line-soft hover:text-text"
@@ -771,6 +814,7 @@ watch(currentUrl, () => {
             </div>
         </div>
 
+        <GuidedTour ref="tour" />
         <ToastHost />
         <WhatsNewModal />
     </div>

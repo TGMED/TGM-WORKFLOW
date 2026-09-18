@@ -51,6 +51,7 @@ use App\Http\Controllers\ReportEvidenceController;
 use App\Http\Controllers\Settings\NotificationSettingsController;
 use App\Http\Controllers\Settings\PushTokenController;
 use App\Http\Controllers\TerminationRecommendationController;
+use App\Http\Controllers\TourController;
 use App\Http\Controllers\WhatsNewController;
 use App\Http\Controllers\WhoIsAwayController;
 use App\Http\Controllers\WorkLocationController;
@@ -140,6 +141,11 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
         ->name('recommendations.store');
     Route::delete('recommendations/{recommendation}', [TerminationRecommendationController::class, 'destroy'])
         ->name('recommendations.destroy');
+
+    // Which walkthroughs somebody has been shown. Kept on their record so a
+    // tour seen on a laptop does not reappear on a phone.
+    Route::post('tours', [TourController::class, 'store'])->name('tours.store');
+    Route::delete('tours', [TourController::class, 'destroy'])->name('tours.destroy');
 
     // Who reports to whom. Open to everybody: the people who most need to
     // know who to ask are the ones who have just arrived.

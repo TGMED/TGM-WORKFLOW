@@ -431,7 +431,7 @@ const statusPill = computed(() => {
                         </StatusPill>
                     </template>
 
-                    <div class="flex flex-col items-center">
+                    <div data-tour="clock" class="flex flex-col items-center">
                         <PunchDial
                             :timezone="location.timezone"
                             :work-start="location.work_starts_at"

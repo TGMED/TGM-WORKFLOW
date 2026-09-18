@@ -109,6 +109,8 @@ export type SharedProps = {
     pending_approvals: number;
     /** Null when nobody is signed in. */
     noticeboard: Noticeboard | null;
+    /** Walkthroughs this person has already been shown. */
+    tours_seen: string[];
     /** Null once this person has read the current release's notes. */
     whats_new: WhatsNewNotes | null;
     flash: {

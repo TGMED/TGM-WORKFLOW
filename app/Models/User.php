@@ -46,6 +46,7 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  * @property string $password
  * @property string|null $remember_token
  * @property string|null $whats_new_seen
+ * @property array<int, string>|null $tours_seen
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
@@ -114,6 +115,7 @@ class User extends Authenticatable implements AuditableContract
             'exit_reason' => ExitReason::class,
             'exit_date' => 'date',
             'location_id' => 'integer',
+            'tours_seen' => 'array',
             'department_id' => 'integer',
             'team_id' => 'integer',
         ];

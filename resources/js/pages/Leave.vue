@@ -483,6 +483,7 @@ function toggleTrail(row: LeaveRow) {
         <template #toolbar>
             <AppButton
                 size="sm"
+                data-tour="leave-raise"
                 :disabled="balances.length === 0 || supervisors.length === 0"
                 @click="open"
             >
@@ -493,6 +494,7 @@ function toggleTrail(row: LeaveRow) {
         <div class="space-y-6">
             <div
                 v-if="balances.length"
+                data-tour="leave-balances"
                 class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
             >
                 <article
