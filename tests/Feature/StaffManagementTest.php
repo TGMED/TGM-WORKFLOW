@@ -242,7 +242,7 @@ class StaffManagementTest extends TestCase
 
         $this->actingAs($this->admin())
             ->post("/admin/staff/{$staff->id}/exit", [
-                'exit_reason' => ExitReason::Resignation->value,
+                'exit_reason' => ExitReason::ResignationWithNotice->value,
                 'exit_date' => Carbon::now()->toDateString(),
                 'exit_note' => 'Moving to another company.',
             ])
@@ -251,7 +251,7 @@ class StaffManagementTest extends TestCase
         $staff->refresh();
         $this->assertFalse($staff->is_active);
         $this->assertNotNull($staff->deactivated_at);
-        $this->assertSame(ExitReason::Resignation, $staff->exit_reason);
+        $this->assertSame(ExitReason::ResignationWithNotice, $staff->exit_reason);
         $this->assertSame('Moving to another company.', $staff->exit_note);
         $this->assertTrue($staff->hasExited());
 
@@ -281,7 +281,7 @@ class StaffManagementTest extends TestCase
         $admin = $this->admin();
 
         $this->actingAs($admin)->post("/admin/staff/{$admin->id}/exit", [
-            'exit_reason' => ExitReason::Resignation->value,
+            'exit_reason' => ExitReason::ResignationWithNotice->value,
             'exit_date' => Carbon::now()->toDateString(),
         ]);
 
@@ -304,4 +304,5 @@ class StaffManagementTest extends TestCase
             ->get('/admin/staff?location=none')
             ->assertOk();
     }
+
 }

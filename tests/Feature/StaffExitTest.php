@@ -58,7 +58,7 @@ class StaffExitTest extends TestCase
     {
         app(StaffExit::class)->record(
             $staff,
-            ExitReason::Resignation,
+            ExitReason::ResignationWithNotice,
             $lastDay ?? Carbon::now(),
             null,
         );
@@ -111,7 +111,7 @@ class StaffExitTest extends TestCase
 
         $outcome = app(StaffExit::class)->record(
             $staff,
-            ExitReason::Resignation,
+            ExitReason::ResignationWithNotice,
             Carbon::now(),
             null,
         );
@@ -183,7 +183,7 @@ class StaffExitTest extends TestCase
 
         $outcome = app(StaffExit::class)->record(
             $head,
-            ExitReason::Resignation,
+            ExitReason::ResignationWithNotice,
             Carbon::now(),
             null,
         );
@@ -237,7 +237,7 @@ class StaffExitTest extends TestCase
 
         $outcome = app(StaffExit::class)->record(
             $head,
-            ExitReason::Resignation,
+            ExitReason::ResignationWithNotice,
             Carbon::now(),
             null,
         );
@@ -340,7 +340,7 @@ class StaffExitTest extends TestCase
         $this->assertSame(1, $props['stats']['days_present']);
         $this->assertSame(1, $props['stats']['days_late']);
         $this->assertTrue($props['staff']['has_exited']);
-        $this->assertSame('resignation', $props['staff']['exit_reason']);
+        $this->assertSame('resignation_with_notice', $props['staff']['exit_reason']);
     }
 
     public function test_an_approved_explanation_stops_the_day_counting_as_late(): void

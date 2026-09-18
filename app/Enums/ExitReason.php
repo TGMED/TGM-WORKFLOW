@@ -8,7 +8,8 @@ namespace App\Enums;
  */
 enum ExitReason: string
 {
-    case Resignation = 'resignation';
+    case ResignationWithNotice = 'resignation_with_notice';
+    case ResignationWithoutNotice = 'resignation_without_notice';
     case EndOfContract = 'end_of_contract';
     case Redundancy = 'redundancy';
     case Dismissal = 'dismissal';
@@ -18,7 +19,8 @@ enum ExitReason: string
     public function label(): string
     {
         return match ($this) {
-            self::Resignation => 'Resigned',
+            self::ResignationWithNotice => 'Resigned with notice',
+            self::ResignationWithoutNotice => 'Resigned without notice',
             self::EndOfContract => 'Contract ended',
             self::Redundancy => 'Made redundant',
             self::Dismissal => 'Dismissed',
