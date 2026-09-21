@@ -159,6 +159,10 @@ return [
                     'audience' => ['staff', 'admins'],
                     'description' => 'A day out of the office still goes to your team lead and head of department first, and then to an administrator. It is only agreed once an administrator has approved it.',
                 ],
+                [
+                    'title' => 'Every list is a table you can page through',
+                    'description' => 'Lists that used to run on as stacked cards, from your leave and approvals to the noticeboard, are now tables with headed columns. Every list pages the same way, and you can choose to see 10, 25, 50 or 100 rows at a time.',
+                ],
             ],
             'fixes' => [
                 [
