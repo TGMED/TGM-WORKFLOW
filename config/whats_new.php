@@ -16,6 +16,12 @@ return [
     | shows to everybody exactly once. `features` are things that are new,
     | `fixes` are things that used to go wrong and no longer do.
     |
+    | A note that only concerns some people carries an `audience`: a list
+    | of permission values (`payroll.manage`), or `staff` (anyone who clocks
+    | in), `approvers`, `heads` (of a department) or `admins`. Matching any
+    | one entry is enough; a note without an audience is for everybody, and
+    | a release with nothing left for somebody is not shown to them at all.
+    |
     */
 
     'title' => "What's new",
@@ -33,18 +39,22 @@ return [
                 ],
                 [
                     'title' => 'Pay rates set person by person',
+                    'audience' => ['payroll.manage'],
                     'description' => 'Payroll can put an individual on their own rates rather than the grade they sit in, for the cases where the grade does not fit.',
                 ],
                 [
                     'title' => 'Every leave request in one register',
+                    'audience' => ['leave.register'],
                     'description' => 'The people team now has a register of every request in the company, whatever state it is in, with who raised it, who decided it and when.',
                 ],
                 [
                     'title' => 'A declined request comes back to you',
+                    'audience' => ['staff'],
                     'description' => 'Leave that is turned down no longer simply ends. It returns to you with the reason it was declined, to amend and send again.',
                 ],
                 [
                     'title' => 'Approvals skip your own line',
+                    'audience' => ['approvers'],
                     'description' => 'A head of department no longer waits on themselves. Where you would have been your own approver, the request goes straight to the next person in the chain.',
                 ],
                 [
@@ -53,30 +63,37 @@ return [
                 ],
                 [
                     'title' => 'Notices and what is coming, beside every page',
+                    'audience' => ['staff'],
                     'description' => 'Company notices and the things booked ahead of you now sit alongside whatever page you are on, rather than only on the dashboard. Notices also have a page of their own.',
                 ],
                 [
                     'title' => "A person's whole record on one page",
+                    'audience' => ['staff.manage'],
                     'description' => 'Everything held about somebody, employment, pay, leave, attendance and documents, now reads as one page rather than a set of tabs to hunt through.',
                 ],
                 [
                     'title' => 'Terminations go through HR',
+                    'audience' => ['heads', 'staff.manage'],
                     'description' => 'A head of department can put a termination to the people team rather than arranging it off the system. What is recorded includes why the person left and whether a resignation came with notice, and leavers drop out of the company figures.',
                 ],
                 [
                     'title' => 'The handbook, and what counts as an offence',
+                    'audience' => ['staff', 'policies.manage'],
                     'description' => 'The staff handbook is published where anybody can read it, together with the disciplinary policy: what counts as an offence, and what follows from it.',
                 ],
                 [
                     'title' => 'Working out of the office',
+                    'audience' => ['staff'],
                     'description' => 'Say that you are working somewhere other than your site for the day. It is not leave, and it does not come off your allowance.',
                 ],
                 [
                     'title' => 'Ask before you are late',
+                    'audience' => ['staff'],
                     'description' => 'A late arrival can now be raised the evening before rather than on the morning it happens.',
                 ],
                 [
                     'title' => 'Requests nobody has decided get chased',
+                    'audience' => ['approvers'],
                     'description' => 'An approver who has left a request sitting is reminded about it, so nothing waits indefinitely on somebody who forgot.',
                 ],
                 [
@@ -85,22 +102,27 @@ return [
                 ],
                 [
                     'title' => 'What is owed to the pension administrator',
+                    'audience' => ['payroll.manage'],
                     'description' => 'Payroll can work out what goes to the pension administrator each month, per person and in total.',
                 ],
                 [
                     'title' => 'Work anniversaries',
+                    'audience' => ['staff'],
                     'description' => 'We write to you on the anniversary of your first day, as we already do on your birthday.',
                 ],
                 [
                     'title' => 'The attendance report as a spreadsheet',
+                    'audience' => ['attendance.report'],
                     'description' => 'The attendance report can now leave as a spreadsheet, carrying the same filters you had on screen.',
                 ],
                 [
                     'title' => 'Payslips as a PDF',
+                    'audience' => ['staff', 'payroll.manage'],
                     'description' => 'Any payslip can now be downloaded as a PDF, for when you need a copy to send rather than print.',
                 ],
                 [
                     'title' => 'One year of leave at a time',
+                    'audience' => ['staff'],
                     'description' => 'The leave page shows a single year, with a switcher for the others. Your balance, the tally and the list of requests now all answer for the same twelve months, and the list can be narrowed by status and type.',
                 ],
                 [
@@ -111,6 +133,7 @@ return [
             'fixes' => [
                 [
                     'title' => 'Admins are kept to the admin side',
+                    'audience' => ['admins'],
                     'description' => 'Administrators are no longer sent to staff pages they have nothing on: their own payslips, profile, the noticeboard, the chart and the handbook. Each has an admin counterpart, and the sidebar now only offers that one. Their dashboard no longer repeats what the admin console already shows, and the announcements page in the admin area lists every notice, drafts included, rather than the staff noticeboard.',
                 ],
                 [
@@ -119,6 +142,7 @@ return [
                 ],
                 [
                     'title' => 'The department warning opens on the right people',
+                    'audience' => ['staff.manage'],
                     'description' => 'The banner saying some people are in no department now opens the staff list narrowed to exactly those people, rather than the whole company.',
                 ],
                 [
@@ -133,14 +157,17 @@ return [
             'features' => [
                 [
                     'title' => 'A sidebar you can find things in',
+                    'audience' => ['admin.dashboard'],
                     'description' => 'The administration pages now sit in groups — People, Attendance, Finance and System — rather than one long run. A group opens on the page you are on, and stays shut if you would rather it were.',
                 ],
                 [
                     'title' => 'Cover reaches whoever you named',
+                    'audience' => ['staff'],
                     'description' => 'Anyone can be asked to hold your desk while you are away. Being named now reaches them even where they have not finished their own profile, so your leave is no longer held up by somebody else\'s paperwork.',
                 ],
                 [
                     'title' => 'Leave for somebody who owes cover',
+                    'audience' => ['staff'],
                     'description' => 'Agreeing to cover a colleague still stops you booking those same days off yourself. An approver filing on your behalf is now the way through that, as it already was for a closed period.',
                 ],
             ],
@@ -152,10 +179,12 @@ return [
             'features' => [
                 [
                     'title' => 'Import from a spreadsheet',
+                    'audience' => ['data.import'],
                     'description' => 'Administrators can now load sites, staff, HR records, salaries and past attendance in bulk from a CSV. Every sheet comes with a template and a reference, and a file is checked and reported on before anything is written.',
                 ],
                 [
                     'title' => 'Payslips',
+                    'audience' => ['staff'],
                     'description' => 'Your pay, month by month, with every line of it shown: what you earned, what came off, and what reached your account. Each one prints on its own if you need a copy.',
                 ],
                 [
@@ -164,6 +193,7 @@ return [
                 ],
                 [
                     'title' => 'Leave is counted in working days',
+                    'audience' => ['staff'],
                     'description' => 'It always was, but the pages now say so. Your allowance and everything booked against it are working days at your site: weekends and non-working days are never deducted.',
                 ],
             ],
@@ -175,6 +205,7 @@ return [
             'features' => [
                 [
                     'title' => 'Requests raised for you',
+                    'audience' => ['staff'],
                     'description' => 'An approver can now file leave or lateness on behalf of someone who cannot get to the app. It still runs the usual approval chain, and it still belongs to the person it is for.',
                 ],
                 [
@@ -191,10 +222,12 @@ return [
                 ],
                 [
                     'title' => 'Birthday greetings',
+                    'audience' => ['staff'],
                     'description' => 'We will write to you on your birthday. Nobody else is told; it is your day to share if you want to.',
                 ],
                 [
                     'title' => 'Restricted periods',
+                    'audience' => ['staff', 'request-settings.manage'],
                     'description' => 'The business can close a stretch of the calendar to leave — a stock count, a year-end close. The leave form says so before you book, and administrators can let certain marital statuses or types of leave through.',
                 ],
                 [

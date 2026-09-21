@@ -19,7 +19,7 @@ class WhatsNewController extends Controller
         WhatsNew::markSeen($request->user());
 
         return Inertia::render('WhatsNew', [
-            'releases' => WhatsNew::releases(),
+            'releases' => WhatsNew::releases($request->user()),
         ]);
     }
 
