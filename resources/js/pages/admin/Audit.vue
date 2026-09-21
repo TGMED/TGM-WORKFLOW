@@ -8,6 +8,7 @@ import Panel from '@/components/ui/Panel.vue';
 import SelectField from '@/components/ui/SelectField.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import TextField from '@/components/ui/TextField.vue';
+import { currentPerPage } from '@/composables/usePaginated';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dateTime } from '@/lib/format';
 
@@ -37,6 +38,7 @@ type AuditRow = {
 const props = defineProps<{
     audits: {
         data: AuditRow[];
+        per_page: number;
         links: Array<{ url: string | null; label: string; active: boolean }>;
         from: number | null;
         to: number | null;
@@ -66,6 +68,7 @@ function applyFilters() {
     router.get(
         '/admin/audit',
         {
+            per_page: currentPerPage(),
             event: event.value || undefined,
             type: type.value || undefined,
             user: actor.value || undefined,
@@ -148,133 +151,199 @@ function clear() {
                 :subtitle="`${audits.total} entr${audits.total === 1 ? 'y' : 'ies'}`"
                 flush
             >
-                <EmptyState
-                    v-if="audits.data.length === 0"
-                    title="Nothing recorded yet"
-                    message="Changes to staff, roles, sites, leave types and requests will appear here."
-                />
-
-                <div v-else class="divide-y divide-line-soft">
-                    <div
-                        v-for="row in audits.data"
-                        :key="row.id"
-                        class="px-5 py-4"
-                    >
-                        <button
-                            type="button"
-                            class="flex w-full items-start gap-3 text-left"
-                            @click="
-                                expanded = expanded === row.id ? null : row.id
-                            "
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[860px] text-[13.5px]">
+                        <thead
+                            class="border-b border-line-soft text-left text-[12px] text-faint"
                         >
-                            <Avatar
-                                :initials="initialsOf(row.actor)"
-                                :name="row.actor ?? 'System'"
-                                size="sm"
-                                class="mt-0.5 shrink-0"
-                            />
-
-                            <div class="min-w-0 flex-1">
-                                <div class="flex flex-wrap items-center gap-2">
-                                    <StatusPill :tone="row.event_tone">
-                                        {{ row.event_label }}
-                                    </StatusPill>
-                                    <span
-                                        class="text-[13.5px] font-medium text-text"
+                            <tr>
+                                <th class="px-5 py-3 font-medium">Who</th>
+                                <th class="px-5 py-3 font-medium">Event</th>
+                                <th class="px-5 py-3 font-medium">Record</th>
+                                <th class="px-5 py-3 font-medium">When</th>
+                                <th class="px-5 py-3 text-right font-medium">
+                                    Fields
+                                </th>
+                                <th class="px-5 py-3"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line-soft">
+                            <tr v-if="audits.data.length === 0">
+                                <td colspan="6">
+                                    <EmptyState
+                                        title="Nothing recorded yet"
+                                        message="Changes to staff, roles, sites, leave types and requests will appear here."
+                                    />
+                                </td>
+                            </tr>
+                            <template v-for="row in audits.data" :key="row.id">
+                                <tr
+                                    class="cursor-pointer transition-colors hover:bg-sunken/40"
+                                    @click="
+                                        expanded =
+                                            expanded === row.id ? null : row.id
+                                    "
+                                >
+                                    <td class="px-5 py-3.5">
+                                        <div class="flex items-center gap-3">
+                                            <Avatar
+                                                :initials="
+                                                    initialsOf(row.actor)
+                                                "
+                                                :name="row.actor ?? 'System'"
+                                                size="sm"
+                                            />
+                                            <span class="font-medium">
+                                                {{ row.actor ?? 'System' }}
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td class="px-5 py-3.5">
+                                        <StatusPill :tone="row.event_tone">
+                                            {{ row.event_label }}
+                                        </StatusPill>
+                                    </td>
+                                    <td class="px-5 py-3.5">
+                                        <p class="font-medium">
+                                            {{ row.type_label }}
+                                        </p>
+                                        <p class="text-[12.5px] text-muted">
+                                            {{ row.subject }}
+                                        </p>
+                                    </td>
+                                    <td
+                                        class="px-5 py-3.5 text-[12.5px] whitespace-nowrap text-muted"
                                     >
-                                        {{ row.type_label }}
-                                    </span>
-                                    <span class="text-[13.5px] text-muted">
-                                        {{ row.subject }}
-                                    </span>
-                                </div>
-
-                                <p class="mt-1 text-[12.5px] text-faint">
-                                    {{ row.actor ?? 'System' }}
-                                    <template v-if="row.created_at">
-                                        · {{ dateTime(row.created_at) }}
-                                    </template>
-                                    <template v-if="row.changes.length">
-                                        · {{ row.changes.length }} field(s)
-                                        changed
-                                    </template>
-                                </p>
-                            </div>
-
-                            <svg
-                                class="mt-1 size-4 shrink-0 text-faint transition-transform duration-200"
-                                :class="expanded === row.id && 'rotate-180'"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="1.7"
-                                aria-hidden="true"
-                            >
-                                <path
-                                    d="m6 9 6 6 6-6"
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                />
-                            </svg>
-                        </button>
-
-                        <div v-if="expanded === row.id" class="mt-3 pl-11">
-                            <div
-                                v-if="row.changes.length"
-                                class="overflow-x-auto rounded-xl border border-line"
-                            >
-                                <table class="w-full text-left text-[12.5px]">
-                                    <thead
-                                        class="bg-panel-raised text-faint uppercase"
+                                        {{
+                                            row.created_at
+                                                ? dateTime(row.created_at)
+                                                : '-'
+                                        }}
+                                    </td>
+                                    <td
+                                        class="tabular px-5 py-3.5 text-right font-mono text-muted"
                                     >
-                                        <tr>
-                                            <th class="px-3.5 py-2 font-medium">
-                                                Field
-                                            </th>
-                                            <th class="px-3.5 py-2 font-medium">
-                                                Was
-                                            </th>
-                                            <th class="px-3.5 py-2 font-medium">
-                                                Became
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-line-soft">
-                                        <tr
-                                            v-for="change in row.changes"
-                                            :key="change.field"
+                                        {{ row.changes.length }}
+                                    </td>
+                                    <td class="px-5 py-3.5 text-right">
+                                        <svg
+                                            class="inline size-4 text-faint transition-transform duration-200"
+                                            :class="
+                                                expanded === row.id &&
+                                                'rotate-180'
+                                            "
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="1.7"
+                                            aria-hidden="true"
                                         >
-                                            <td class="px-3.5 py-2 text-muted">
-                                                {{ change.label }}
-                                            </td>
-                                            <td class="px-3.5 py-2 text-faint">
-                                                {{ change.from ?? '—' }}
-                                            </td>
-                                            <td class="px-3.5 py-2 text-text">
-                                                {{ change.to ?? '—' }}
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                            <p v-else class="text-[12.5px] text-faint">
-                                No field values were recorded for this entry.
-                            </p>
+                                            <path
+                                                d="m6 9 6 6 6-6"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                            />
+                                        </svg>
+                                    </td>
+                                </tr>
 
-                            <p class="mt-2 text-[12px] text-faint">
-                                <template v-if="row.ip_address">
-                                    From {{ row.ip_address }}
-                                </template>
-                                <template v-if="row.url">
-                                    · {{ row.url }}
-                                </template>
-                            </p>
-                        </div>
-                    </div>
+                                <tr v-if="expanded === row.id">
+                                    <td
+                                        colspan="6"
+                                        class="bg-sunken/40 px-5 py-4"
+                                    >
+                                        <div>
+                                            <div
+                                                v-if="row.changes.length"
+                                                class="overflow-x-auto rounded-xl border border-line"
+                                            >
+                                                <table
+                                                    class="w-full text-left text-[12.5px]"
+                                                >
+                                                    <thead
+                                                        class="bg-panel-raised text-faint uppercase"
+                                                    >
+                                                        <tr>
+                                                            <th
+                                                                class="px-3.5 py-2 font-medium"
+                                                            >
+                                                                Field
+                                                            </th>
+                                                            <th
+                                                                class="px-3.5 py-2 font-medium"
+                                                            >
+                                                                Was
+                                                            </th>
+                                                            <th
+                                                                class="px-3.5 py-2 font-medium"
+                                                            >
+                                                                Became
+                                                            </th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody
+                                                        class="divide-y divide-line-soft"
+                                                    >
+                                                        <tr
+                                                            v-for="change in row.changes"
+                                                            :key="change.field"
+                                                        >
+                                                            <td
+                                                                class="px-3.5 py-2 text-muted"
+                                                            >
+                                                                {{
+                                                                    change.label
+                                                                }}
+                                                            </td>
+                                                            <td
+                                                                class="px-3.5 py-2 text-faint"
+                                                            >
+                                                                {{
+                                                                    change.from ??
+                                                                    '—'
+                                                                }}
+                                                            </td>
+                                                            <td
+                                                                class="px-3.5 py-2 text-text"
+                                                            >
+                                                                {{
+                                                                    change.to ??
+                                                                    '—'
+                                                                }}
+                                                            </td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                            <p
+                                                v-else
+                                                class="text-[12.5px] text-faint"
+                                            >
+                                                No field values were recorded
+                                                for this entry.
+                                            </p>
+
+                                            <p
+                                                class="mt-2 text-[12px] text-faint"
+                                            >
+                                                <template v-if="row.ip_address">
+                                                    From {{ row.ip_address }}
+                                                </template>
+                                                <template v-if="row.url">
+                                                    · {{ row.url }}
+                                                </template>
+                                            </p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
                 </div>
 
                 <Pagination
                     :links="audits.links"
+                    :per-page="audits.per_page"
                     :from="audits.from"
                     :to="audits.to"
                     :total="audits.total"

@@ -6,12 +6,14 @@ import Avatar from '@/components/ui/Avatar.vue';
 import CheckboxGroupField from '@/components/ui/CheckboxGroupField.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
+import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
 import SelectField from '@/components/ui/SelectField.vue';
 import StatTile from '@/components/ui/StatTile.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import TextareaField from '@/components/ui/TextareaField.vue';
 import TextField from '@/components/ui/TextField.vue';
+import { usePaginated } from '@/composables/usePaginated';
 import AppLayout from '@/layouts/AppLayout.vue';
 import {
     attendanceTone,
@@ -483,6 +485,9 @@ watch(
         }
     },
 );
+
+const dayPages = usePaginated(() => props.attendances);
+const attemptPages = usePaginated(() => props.attempts);
 </script>
 
 <template>
@@ -822,12 +827,9 @@ watch(
                         </div>
 
                         <Panel v-if="tab === 'days'" flush>
-                            <div
-                                v-if="attendances.length"
-                                class="max-h-[520px] overflow-auto"
-                            >
+                            <div class="overflow-x-auto">
                                 <table class="w-full min-w-[600px] text-left">
-                                    <thead class="sticky top-0 bg-panel">
+                                    <thead>
                                         <tr class="border-b border-line-soft">
                                             <th
                                                 class="eyebrow px-5 py-3 font-medium"
@@ -857,8 +859,16 @@ watch(
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-line-soft">
+                                        <tr v-if="!attendances.length">
+                                            <td colspan="5">
+                                                <EmptyState
+                                                    title="No attendance yet"
+                                                    message="Once this staff member clocks in, their days will appear here."
+                                                />
+                                            </td>
+                                        </tr>
                                         <tr
-                                            v-for="record in attendances"
+                                            v-for="record in dayPages.paged"
                                             :key="record.id"
                                             class="transition-colors hover:bg-line-soft/40"
                                         >
@@ -938,99 +948,157 @@ watch(
                                 </table>
                             </div>
 
-                            <EmptyState
-                                v-else
-                                title="No attendance yet"
-                                message="Once this staff member clocks in, their days will appear here."
+                            <Pagination
+                                v-model:page="dayPages.page"
+                                v-model:per-page="dayPages.perPage"
+                                :last-page="dayPages.lastPage"
+                                :from="dayPages.from"
+                                :to="dayPages.to"
+                                :total="dayPages.total"
                             />
                         </Panel>
 
                         <Panel v-else flush>
-                            <ul
-                                v-if="attempts.length"
-                                class="max-h-[520px] divide-y divide-line-soft overflow-auto"
-                            >
-                                <li
-                                    v-for="attempt in attempts"
-                                    :key="attempt.id"
-                                    class="flex flex-wrap items-start gap-x-4 gap-y-2 px-5 py-3.5 transition-colors hover:bg-line-soft/40"
-                                >
-                                    <div class="min-w-0 flex-1">
-                                        <div
-                                            class="flex flex-wrap items-center gap-2"
-                                        >
-                                            <StatusPill
-                                                :tone="
-                                                    resultTone(attempt.result)
-                                                "
+                            <div class="overflow-x-auto">
+                                <table class="w-full min-w-[760px] text-left">
+                                    <thead>
+                                        <tr class="border-b border-line-soft">
+                                            <th
+                                                class="eyebrow px-5 py-3 font-medium"
                                             >
-                                                {{ attempt.result_label }}
-                                            </StatusPill>
-                                            <span
-                                                class="text-[13px] font-medium"
+                                                Result
+                                            </th>
+                                            <th
+                                                class="eyebrow px-5 py-3 font-medium"
+                                            >
+                                                Attempt
+                                            </th>
+                                            <th
+                                                class="eyebrow px-5 py-3 font-medium"
+                                            >
+                                                Detail
+                                            </th>
+                                            <th
+                                                class="eyebrow px-5 py-3 font-medium"
+                                            >
+                                                When
+                                            </th>
+                                            <th
+                                                class="eyebrow px-5 py-3 text-right font-medium"
+                                            >
+                                                Distance
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-line-soft">
+                                        <tr v-if="!attempts.length">
+                                            <td colspan="5">
+                                                <EmptyState
+                                                    title="No punch attempts"
+                                                    message="Accepted and rejected clock attempts both land here, with the coordinates that were submitted."
+                                                />
+                                            </td>
+                                        </tr>
+                                        <tr
+                                            v-for="attempt in attemptPages.paged"
+                                            :key="attempt.id"
+                                            class="align-top transition-colors hover:bg-line-soft/40"
+                                        >
+                                            <td class="px-5 py-3">
+                                                <StatusPill
+                                                    :tone="
+                                                        resultTone(
+                                                            attempt.result,
+                                                        )
+                                                    "
+                                                >
+                                                    {{ attempt.result_label }}
+                                                </StatusPill>
+                                            </td>
+                                            <td
+                                                class="px-5 py-3 text-[13px] font-medium"
                                             >
                                                 {{ attempt.type_label }}
-                                            </span>
-                                        </div>
-                                        <p
-                                            v-if="attempt.message"
-                                            class="mt-1 text-[12.5px] leading-snug text-muted"
-                                        >
-                                            {{ attempt.message }}
-                                        </p>
-                                        <p
-                                            v-if="attempt.latitude !== null"
-                                            class="tabular mt-1 font-mono text-[11px] text-faint"
-                                        >
-                                            {{ attempt.latitude?.toFixed(5) }},
-                                            {{ attempt.longitude?.toFixed(5) }}
-                                            <span v-if="attempt.ip_address">
-                                                · {{ attempt.ip_address }}
-                                            </span>
-                                        </p>
-                                    </div>
-
-                                    <div class="text-right">
-                                        <p
-                                            class="tabular font-mono text-[12px] text-muted"
-                                        >
-                                            {{ dateTime(attempt.created_at) }}
-                                        </p>
-                                        <p
-                                            class="tabular mt-0.5 font-mono text-[11px] text-faint"
-                                        >
-                                            <template
-                                                v-if="
-                                                    attempt.distance_meters !==
-                                                    null
-                                                "
+                                            </td>
+                                            <td class="px-5 py-3">
+                                                <p
+                                                    class="text-[12.5px] leading-snug text-muted"
+                                                >
+                                                    {{ attempt.message ?? '-' }}
+                                                </p>
+                                                <p
+                                                    v-if="
+                                                        attempt.latitude !==
+                                                        null
+                                                    "
+                                                    class="tabular mt-1 font-mono text-[11px] text-faint"
+                                                >
+                                                    {{
+                                                        attempt.latitude?.toFixed(
+                                                            5,
+                                                        )
+                                                    }},
+                                                    {{
+                                                        attempt.longitude?.toFixed(
+                                                            5,
+                                                        )
+                                                    }}
+                                                    <span
+                                                        v-if="
+                                                            attempt.ip_address
+                                                        "
+                                                    >
+                                                        ·
+                                                        {{ attempt.ip_address }}
+                                                    </span>
+                                                </p>
+                                            </td>
+                                            <td
+                                                class="tabular px-5 py-3 font-mono text-[12px] whitespace-nowrap text-muted"
                                             >
                                                 {{
-                                                    distance(
-                                                        attempt.distance_meters,
-                                                    )
+                                                    dateTime(attempt.created_at)
                                                 }}
-                                                out
-                                            </template>
-                                            <template
-                                                v-if="
-                                                    attempt.accuracy_meters !==
-                                                    null
-                                                "
+                                            </td>
+                                            <td
+                                                class="tabular px-5 py-3 text-right font-mono text-[11.5px] whitespace-nowrap text-faint"
                                             >
-                                                · ±{{
-                                                    attempt.accuracy_meters
-                                                }}m
-                                            </template>
-                                        </p>
-                                    </div>
-                                </li>
-                            </ul>
+                                                <template
+                                                    v-if="
+                                                        attempt.distance_meters !==
+                                                        null
+                                                    "
+                                                >
+                                                    {{
+                                                        distance(
+                                                            attempt.distance_meters,
+                                                        )
+                                                    }}
+                                                    out
+                                                </template>
+                                                <template
+                                                    v-if="
+                                                        attempt.accuracy_meters !==
+                                                        null
+                                                    "
+                                                >
+                                                    · ±{{
+                                                        attempt.accuracy_meters
+                                                    }}m
+                                                </template>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
 
-                            <EmptyState
-                                v-else
-                                title="No punch attempts"
-                                message="Accepted and rejected clock attempts both land here, with the coordinates that were submitted."
+                            <Pagination
+                                v-model:page="attemptPages.page"
+                                v-model:per-page="attemptPages.perPage"
+                                :last-page="attemptPages.lastPage"
+                                :from="attemptPages.from"
+                                :to="attemptPages.to"
+                                :total="attemptPages.total"
                             />
                         </Panel>
                     </template>

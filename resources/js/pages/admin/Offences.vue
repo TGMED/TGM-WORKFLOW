@@ -4,11 +4,13 @@ import { ref } from 'vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
+import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
 import SelectField from '@/components/ui/SelectField.vue';
 import StatTile from '@/components/ui/StatTile.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import TextField from '@/components/ui/TextField.vue';
+import { usePaginated } from '@/composables/usePaginated';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 type Tone = 'signal' | 'brass' | 'alert' | 'beacon' | 'neutral';
@@ -43,7 +45,7 @@ type OffenceRow = {
     ladder: Rung[];
 };
 
-defineProps<{
+const props = defineProps<{
     offences: OffenceRow[];
     severities: Array<{ value: string; label: string; description: string }>;
     actions: Array<{ value: string; label: string; ends_employment: boolean }>;
@@ -135,6 +137,8 @@ function toggle(offence: OffenceRow) {
 const occurrenceLabel = (n: number) =>
     ({ 1: 'First time', 2: 'Second time', 3: 'Third time' })[n] ??
     `${n}th time`;
+
+const pages = usePaginated(() => props.offences);
 </script>
 
 <template>
@@ -166,134 +170,169 @@ const occurrenceLabel = (n: number) =>
             </div>
 
             <Panel flush title="The register">
-                <EmptyState
-                    v-if="offences.length === 0"
-                    title="Nothing on the register"
-                    message="Write out what the handbook treats as an offence, and what follows each one."
-                >
-                    <template #action>
-                        <AppButton size="sm" @click="open(null)">
-                            Add an offence
-                        </AppButton>
-                    </template>
-                </EmptyState>
-
-                <ul v-else class="divide-y divide-line-soft">
-                    <li
-                        v-for="offence in offences"
-                        :key="offence.id"
-                        class="px-5 py-4"
-                        :class="offence.is_active ? '' : 'opacity-70'"
-                    >
-                        <div
-                            class="flex flex-wrap items-start justify-between gap-3"
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[900px] text-[13.5px]">
+                        <thead
+                            class="border-b border-line-soft text-left text-[12px] text-faint"
                         >
-                            <div class="min-w-0">
-                                <div class="flex flex-wrap items-center gap-2">
-                                    <span
-                                        v-if="offence.code"
-                                        class="tabular rounded-md bg-sunken px-1.5 py-0.5 font-mono text-[11.5px] text-muted"
+                            <tr>
+                                <th class="px-5 py-3 font-medium">Offence</th>
+                                <th class="px-5 py-3 font-medium">Severity</th>
+                                <th class="px-5 py-3 font-medium">
+                                    What follows
+                                </th>
+                                <th class="px-5 py-3 font-medium">Source</th>
+                                <th class="px-5 py-3"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line-soft">
+                            <tr v-if="offences.length === 0">
+                                <td colspan="5">
+                                    <EmptyState
+                                        title="Nothing on the register"
+                                        message="Write out what the handbook treats as an offence, and what follows each one."
                                     >
-                                        {{ offence.code }}
-                                    </span>
+                                        <template #action>
+                                            <AppButton
+                                                size="sm"
+                                                @click="open(null)"
+                                            >
+                                                Add an offence
+                                            </AppButton>
+                                        </template>
+                                    </EmptyState>
+                                </td>
+                            </tr>
+                            <tr
+                                v-for="offence in pages.paged"
+                                :key="offence.id"
+                                :class="[
+                                    'align-top transition-colors hover:bg-sunken/40',
+                                    !offence.is_active && 'opacity-70',
+                                ]"
+                            >
+                                <td class="px-5 py-3.5">
                                     <p
-                                        class="text-[14px] font-semibold tracking-tight"
+                                        class="flex flex-wrap items-center gap-2 font-medium"
                                     >
+                                        <span
+                                            v-if="offence.code"
+                                            class="tabular rounded-md bg-sunken px-1.5 py-0.5 font-mono text-[11.5px] font-normal text-muted"
+                                        >
+                                            {{ offence.code }}
+                                        </span>
                                         {{ offence.title }}
                                     </p>
-                                    <StatusPill :tone="offence.severity_tone">
-                                        {{ offence.severity_label }}
-                                    </StatusPill>
-                                    <StatusPill
-                                        v-if="!offence.is_active"
-                                        tone="neutral"
+                                    <p
+                                        v-if="offence.description"
+                                        class="mt-0.5 max-w-[22rem] text-[12.5px] leading-relaxed text-muted"
                                     >
-                                        Off the register
-                                    </StatusPill>
-                                </div>
-
-                                <p
-                                    v-if="offence.description"
-                                    class="mt-1 max-w-prose text-[13px] leading-relaxed text-muted"
-                                >
-                                    {{ offence.description }}
-                                </p>
-
-                                <p class="mt-1.5 text-[12px]">
+                                        {{ offence.description }}
+                                    </p>
+                                </td>
+                                <td class="px-5 py-3.5">
+                                    <div
+                                        class="flex flex-col items-start gap-1"
+                                    >
+                                        <StatusPill
+                                            :tone="offence.severity_tone"
+                                        >
+                                            {{ offence.severity_label }}
+                                        </StatusPill>
+                                        <StatusPill
+                                            v-if="!offence.is_active"
+                                            tone="neutral"
+                                        >
+                                            Off the register
+                                        </StatusPill>
+                                    </div>
+                                </td>
+                                <td class="px-5 py-3.5">
+                                    <ol
+                                        v-if="offence.ladder.length"
+                                        class="space-y-1"
+                                    >
+                                        <li
+                                            v-for="rung in offence.ladder"
+                                            :key="rung.occurrence"
+                                            class="text-[12.5px]"
+                                        >
+                                            <span class="text-faint">
+                                                {{ rung.occurrence_label }}:
+                                            </span>
+                                            <span
+                                                class="font-medium"
+                                                :class="
+                                                    rung.ends_employment
+                                                        ? 'text-alert'
+                                                        : 'text-text'
+                                                "
+                                            >
+                                                {{ rung.action_label }}
+                                            </span>
+                                            <span
+                                                v-if="rung.notes"
+                                                class="block text-[12px] text-faint"
+                                            >
+                                                {{ rung.notes }}
+                                            </span>
+                                        </li>
+                                    </ol>
+                                    <p v-else class="text-[12.5px] text-brass">
+                                        No ladder written
+                                    </p>
+                                </td>
+                                <td class="px-5 py-3.5 text-[12.5px]">
                                     <span
                                         v-if="offence.policy"
-                                        class="text-faint"
+                                        class="text-muted"
                                     >
-                                        From {{ offence.policy.title }}
+                                        {{ offence.policy.title }}
                                         <template v-if="offence.policy.version">
                                             (v{{ offence.policy.version }})
                                         </template>
                                     </span>
                                     <span v-else class="text-brass">
-                                        Not tied to a policy document
+                                        No policy document
                                     </span>
-                                </p>
-                            </div>
+                                </td>
+                                <td class="px-5 py-3.5">
+                                    <div
+                                        class="flex items-center justify-end gap-1"
+                                    >
+                                        <AppButton
+                                            size="sm"
+                                            variant="secondary"
+                                            @click="open(offence)"
+                                        >
+                                            Edit
+                                        </AppButton>
+                                        <AppButton
+                                            size="sm"
+                                            variant="ghost"
+                                            @click="toggle(offence)"
+                                        >
+                                            {{
+                                                offence.is_active
+                                                    ? 'Retire'
+                                                    : 'Put back'
+                                            }}
+                                        </AppButton>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
 
-                            <div class="flex shrink-0 items-center gap-2">
-                                <AppButton
-                                    size="sm"
-                                    variant="secondary"
-                                    @click="open(offence)"
-                                >
-                                    Edit
-                                </AppButton>
-                                <AppButton
-                                    size="sm"
-                                    variant="ghost"
-                                    @click="toggle(offence)"
-                                >
-                                    {{
-                                        offence.is_active
-                                            ? 'Retire'
-                                            : 'Put back'
-                                    }}
-                                </AppButton>
-                            </div>
-                        </div>
-
-                        <ol
-                            v-if="offence.ladder.length"
-                            class="mt-3 flex flex-wrap gap-2"
-                        >
-                            <li
-                                v-for="rung in offence.ladder"
-                                :key="rung.occurrence"
-                                class="rounded-xl border border-line-soft px-3 py-2"
-                            >
-                                <p class="text-[11.5px] text-faint">
-                                    {{ rung.occurrence_label }}
-                                </p>
-                                <p
-                                    class="text-[13px] font-medium"
-                                    :class="
-                                        rung.ends_employment
-                                            ? 'text-alert'
-                                            : 'text-text'
-                                    "
-                                >
-                                    {{ rung.action_label }}
-                                </p>
-                                <p
-                                    v-if="rung.notes"
-                                    class="mt-0.5 max-w-[240px] text-[12px] text-faint"
-                                >
-                                    {{ rung.notes }}
-                                </p>
-                            </li>
-                        </ol>
-
-                        <p v-else class="mt-3 text-[12.5px] text-brass">
-                            No ladder written, so the policy says nothing about
-                            what follows this.
-                        </p>
-                    </li>
-                </ul>
+                <Pagination
+                    v-model:page="pages.page"
+                    v-model:per-page="pages.perPage"
+                    :last-page="pages.lastPage"
+                    :from="pages.from"
+                    :to="pages.to"
+                    :total="pages.total"
+                />
             </Panel>
         </div>
 

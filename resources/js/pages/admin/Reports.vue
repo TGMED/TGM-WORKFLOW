@@ -10,6 +10,7 @@ import SelectField from '@/components/ui/SelectField.vue';
 import StatTile from '@/components/ui/StatTile.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import TextareaField from '@/components/ui/TextareaField.vue';
+import { currentPerPage } from '@/composables/usePaginated';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dateTime, fullDate } from '@/lib/format';
 import type { ReportCategoryOption, ReportStatusTone } from '@/types';
@@ -48,6 +49,7 @@ type ReportRow = {
 const props = defineProps<{
     reports: {
         data: ReportRow[];
+        per_page: number;
         links: Array<{ url: string | null; label: string; active: boolean }>;
         from: number | null;
         to: number | null;
@@ -100,7 +102,11 @@ const needsNote = computed(
 watch([status, category], () => {
     router.get(
         '/admin/reports',
-        { status: status.value, category: category.value },
+        {
+            status: status.value,
+            category: category.value,
+            per_page: currentPerPage(),
+        },
         { preserveState: true, preserveScroll: true, replace: true },
     );
 });
@@ -172,76 +178,91 @@ function save() {
                     </div>
                 </template>
 
-                <EmptyState
-                    v-if="reports.data.length === 0"
-                    title="Nothing here"
-                    message="No report matches this filter. An empty open list is the one to hope for."
-                />
-
-                <ul v-else class="divide-y divide-line-soft">
-                    <li
-                        v-for="row in reports.data"
-                        :key="row.id"
-                        class="cursor-pointer px-5 py-4 transition-colors hover:bg-sunken/40"
-                        @click="view(row)"
-                    >
-                        <div
-                            class="flex flex-wrap items-start justify-between gap-3"
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[860px] text-[13.5px]">
+                        <thead
+                            class="border-b border-line-soft text-left text-[12px] text-faint"
                         >
-                            <div class="min-w-0">
-                                <p
-                                    class="flex items-center gap-2 text-[14px] font-semibold tracking-tight"
-                                >
-                                    <span class="truncate">
-                                        {{ row.subject }}
-                                    </span>
-                                    <StatusPill
-                                        v-if="row.urgent && row.open"
-                                        tone="alert"
+                            <tr>
+                                <th class="px-5 py-3 font-medium">Subject</th>
+                                <th class="px-5 py-3 font-medium">Category</th>
+                                <th class="px-5 py-3 font-medium">
+                                    Reported by
+                                </th>
+                                <th class="px-5 py-3 font-medium">About</th>
+                                <th class="px-5 py-3 font-medium">Filed</th>
+                                <th class="px-5 py-3 font-medium">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line-soft">
+                            <tr v-if="reports.data.length === 0">
+                                <td colspan="6">
+                                    <EmptyState
+                                        title="Nothing here"
+                                        message="No report matches this filter. An empty open list is the one to hope for."
+                                    />
+                                </td>
+                            </tr>
+                            <tr
+                                v-for="row in reports.data"
+                                :key="row.id"
+                                class="cursor-pointer transition-colors hover:bg-sunken/40"
+                                @click="view(row)"
+                            >
+                                <td class="px-5 py-3.5">
+                                    <p
+                                        class="flex items-center gap-2 font-medium"
                                     >
-                                        Priority
-                                    </StatusPill>
-                                </p>
-
-                                <p class="mt-0.5 text-[12.5px] text-muted">
-                                    {{ row.category_label }} ·
+                                        <span class="truncate">
+                                            {{ row.subject }}
+                                        </span>
+                                        <StatusPill
+                                            v-if="row.urgent && row.open"
+                                            tone="alert"
+                                        >
+                                            Priority
+                                        </StatusPill>
+                                    </p>
+                                    <p
+                                        class="max-w-[24rem] truncate text-[12px] text-faint"
+                                        :title="row.excerpt"
+                                    >
+                                        {{ row.excerpt }}
+                                    </p>
+                                </td>
+                                <td class="px-5 py-3.5 text-muted">
+                                    {{ row.category_label }}
+                                </td>
+                                <td class="px-5 py-3.5 text-muted">
                                     {{
                                         row.reporter?.name ?? 'Former employee'
                                     }}
-                                    <template v-if="row.against">
-                                        · about {{ row.against }}
-                                    </template>
-                                </p>
-
-                                <p
-                                    class="mt-1.5 max-w-prose text-[13px] leading-relaxed text-faint"
+                                </td>
+                                <td class="px-5 py-3.5 text-muted">
+                                    {{ row.against ?? '-' }}
+                                </td>
+                                <td
+                                    class="px-5 py-3.5 text-[12.5px] whitespace-nowrap text-muted"
                                 >
-                                    {{ row.excerpt }}
-                                </p>
-                            </div>
-
-                            <div
-                                class="flex shrink-0 flex-col items-end gap-1.5"
-                            >
-                                <StatusPill :tone="row.status_tone" dot>
-                                    {{ row.status_label }}
-                                </StatusPill>
-                                <span class="text-[12px] text-faint">
                                     {{ dateTime(row.created_at) }}
-                                </span>
-                            </div>
-                        </div>
-                    </li>
-                </ul>
-
-                <div v-if="reports.data.length" class="px-5 py-4">
-                    <Pagination
-                        :links="reports.links"
-                        :from="reports.from"
-                        :to="reports.to"
-                        :total="reports.total"
-                    />
+                                </td>
+                                <td class="px-5 py-3.5">
+                                    <StatusPill :tone="row.status_tone" dot>
+                                        {{ row.status_label }}
+                                    </StatusPill>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
+
+                <Pagination
+                    :links="reports.links"
+                    :per-page="reports.per_page"
+                    :from="reports.from"
+                    :to="reports.to"
+                    :total="reports.total"
+                />
             </Panel>
         </div>
 

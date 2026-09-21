@@ -4,10 +4,12 @@ import { ref, watch } from 'vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
+import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
 import SelectField from '@/components/ui/SelectField.vue';
 import StatTile from '@/components/ui/StatTile.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
+import { usePaginated } from '@/composables/usePaginated';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dateTime } from '@/lib/format';
 
@@ -89,6 +91,8 @@ function submit() {
         },
     });
 }
+
+const pages = usePaginated(() => props.recommendations);
 </script>
 
 <template>
@@ -118,127 +122,152 @@ function submit() {
             </SelectField>
 
             <Panel flush>
-                <EmptyState
-                    v-if="recommendations.length === 0"
-                    title="Nothing here"
-                    message="No cases match this filter."
-                />
-
-                <ul v-else class="divide-y divide-line-soft">
-                    <li
-                        v-for="row in recommendations"
-                        :key="row.id"
-                        class="px-5 py-5"
-                    >
-                        <div
-                            class="flex flex-wrap items-start justify-between gap-3"
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[980px] text-[13.5px]">
+                        <thead
+                            class="border-b border-line-soft text-left text-[12px] text-faint"
                         >
-                            <div class="min-w-0">
-                                <div class="flex flex-wrap items-center gap-2">
+                            <tr>
+                                <th class="px-5 py-3 font-medium">Subject</th>
+                                <th class="px-5 py-3 font-medium">Offence</th>
+                                <th class="px-5 py-3 font-medium">Grounds</th>
+                                <th class="px-5 py-3 font-medium">Raised</th>
+                                <th class="px-5 py-3 font-medium">Status</th>
+                                <th class="px-5 py-3"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line-soft">
+                            <tr v-if="recommendations.length === 0">
+                                <td colspan="6">
+                                    <EmptyState
+                                        title="Nothing here"
+                                        message="No cases match this filter."
+                                    />
+                                </td>
+                            </tr>
+                            <tr
+                                v-for="row in pages.paged"
+                                :key="row.id"
+                                class="align-top transition-colors hover:bg-sunken/40"
+                            >
+                                <td class="px-5 py-3.5">
                                     <Link
                                         :href="`/admin/staff/${row.subject.id}`"
-                                        class="text-[14.5px] font-semibold tracking-tight hover:underline"
+                                        class="font-medium hover:underline"
                                     >
                                         {{ row.subject.name }}
                                     </Link>
+                                    <p class="text-[12px] text-faint">
+                                        {{
+                                            [
+                                                row.subject.position,
+                                                row.subject.department,
+                                            ]
+                                                .filter(Boolean)
+                                                .join(' · ')
+                                        }}
+                                    </p>
+                                </td>
+                                <td class="px-5 py-3.5 text-[12.5px]">
+                                    <StatusPill
+                                        v-if="row.offence"
+                                        :tone="row.offence.severity_tone"
+                                    >
+                                        {{ row.offence.title }}
+                                    </StatusPill>
+                                    <span v-else class="text-brass">
+                                        No offence cited
+                                    </span>
+                                    <p class="mt-1 text-faint">
+                                        Occurrence {{ row.occurrence }}
+                                    </p>
+                                    <p
+                                        v-if="row.policy_says"
+                                        :class="
+                                            row.policy_agrees
+                                                ? 'text-muted'
+                                                : 'text-brass'
+                                        "
+                                    >
+                                        Policy says:
+                                        {{ row.policy_says.toLowerCase() }}
+                                        <template v-if="!row.policy_agrees">
+                                            — this asks for more than the
+                                            handbook sets out
+                                        </template>
+                                    </p>
+                                    <p
+                                        v-if="row.offence?.policy"
+                                        class="text-faint"
+                                    >
+                                        From {{ row.offence.policy }}
+                                    </p>
+                                </td>
+                                <td class="px-5 py-3.5">
+                                    <p
+                                        class="max-w-[24rem] text-[12.5px] leading-relaxed text-muted"
+                                    >
+                                        {{ row.grounds }}
+                                    </p>
+                                    <p
+                                        v-if="row.hr_note"
+                                        class="mt-2 max-w-[24rem] text-[12.5px] text-faint"
+                                    >
+                                        <span class="font-medium">
+                                            {{ row.decided_by ?? 'HR' }}
+                                            {{ row.status_label.toLowerCase() }}
+                                            this:
+                                        </span>
+                                        {{ row.hr_note }}
+                                    </p>
+                                </td>
+                                <td
+                                    class="px-5 py-3.5 text-[12.5px] text-muted"
+                                >
+                                    <p>{{ row.raised_by.name }}</p>
+                                    <p class="text-faint">
+                                        {{ dateTime(row.created_at) }}
+                                    </p>
+                                </td>
+                                <td class="px-5 py-3.5">
                                     <StatusPill :tone="row.status_tone" dot>
                                         {{ row.status_label }}
                                     </StatusPill>
-                                </div>
+                                </td>
+                                <td class="px-5 py-3.5">
+                                    <div
+                                        v-if="row.status === 'pending'"
+                                        class="flex items-center justify-end gap-2"
+                                    >
+                                        <AppButton
+                                            size="sm"
+                                            variant="secondary"
+                                            @click="answer(row, 'declined')"
+                                        >
+                                            Decline
+                                        </AppButton>
+                                        <AppButton
+                                            size="sm"
+                                            variant="danger"
+                                            @click="answer(row, 'accepted')"
+                                        >
+                                            Accept
+                                        </AppButton>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
 
-                                <p class="mt-0.5 text-[12.5px] text-muted">
-                                    {{
-                                        [
-                                            row.subject.position,
-                                            row.subject.department,
-                                        ]
-                                            .filter(Boolean)
-                                            .join(' · ')
-                                    }}
-                                </p>
-
-                                <p class="mt-1 text-[12.5px] text-faint">
-                                    Raised by {{ row.raised_by.name }} on
-                                    {{ dateTime(row.created_at) }}
-                                </p>
-                            </div>
-
-                            <div
-                                v-if="row.status === 'pending'"
-                                class="flex shrink-0 items-center gap-2"
-                            >
-                                <AppButton
-                                    size="sm"
-                                    variant="secondary"
-                                    @click="answer(row, 'declined')"
-                                >
-                                    Decline
-                                </AppButton>
-                                <AppButton
-                                    size="sm"
-                                    variant="danger"
-                                    @click="answer(row, 'accepted')"
-                                >
-                                    Accept
-                                </AppButton>
-                            </div>
-                        </div>
-
-                        <div
-                            class="mt-3 flex flex-wrap items-center gap-2 text-[12.5px]"
-                        >
-                            <StatusPill
-                                v-if="row.offence"
-                                :tone="row.offence.severity_tone"
-                            >
-                                {{ row.offence.title }}
-                            </StatusPill>
-                            <span v-else class="text-brass">
-                                No offence cited
-                            </span>
-
-                            <span class="text-faint">
-                                Occurrence {{ row.occurrence }}
-                            </span>
-
-                            <span
-                                v-if="row.policy_says"
-                                :class="
-                                    row.policy_agrees
-                                        ? 'text-muted'
-                                        : 'text-brass'
-                                "
-                            >
-                                Policy says: {{ row.policy_says.toLowerCase() }}
-                                <template v-if="!row.policy_agrees">
-                                    — this asks for more than the handbook sets
-                                    out
-                                </template>
-                            </span>
-
-                            <span v-if="row.offence?.policy" class="text-faint">
-                                From {{ row.offence.policy }}
-                            </span>
-                        </div>
-
-                        <p
-                            class="mt-3 max-w-prose rounded-xl bg-sunken/60 px-3 py-2 text-[13px] leading-relaxed text-muted"
-                        >
-                            {{ row.grounds }}
-                        </p>
-
-                        <p
-                            v-if="row.hr_note"
-                            class="mt-2 max-w-prose text-[12.5px] text-faint"
-                        >
-                            <span class="font-medium">
-                                {{ row.decided_by ?? 'HR' }}
-                                {{ row.status_label.toLowerCase() }} this:
-                            </span>
-                            {{ row.hr_note }}
-                        </p>
-                    </li>
-                </ul>
+                <Pagination
+                    v-model:page="pages.page"
+                    v-model:per-page="pages.perPage"
+                    :last-page="pages.lastPage"
+                    :from="pages.from"
+                    :to="pages.to"
+                    :total="pages.total"
+                />
             </Panel>
         </div>
 

@@ -5,10 +5,12 @@ import GeofenceMap from '@/components/GeofenceMap.vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
+import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
 import SelectField from '@/components/ui/SelectField.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import TextField from '@/components/ui/TextField.vue';
+import { usePaginated } from '@/composables/usePaginated';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { clockToMinutes, minutesToClock } from '@/lib/format';
 
@@ -166,6 +168,8 @@ const totals = computed(() => ({
     active: props.locations.filter((l) => l.is_active).length,
     staff: props.locations.reduce((sum, l) => sum + l.active_staff_count, 0),
 }));
+
+const pages = usePaginated(() => props.locations);
 </script>
 
 <template>
@@ -219,136 +223,167 @@ const totals = computed(() => ({
                 </Link>
             </div>
 
-            <div
-                v-if="locations.length"
-                class="stagger grid gap-4 lg:grid-cols-2"
-            >
-                <article
-                    v-for="location in locations"
-                    :key="location.id"
-                    :class="[
-                        'overflow-hidden rounded-2xl border bg-panel shadow-panel transition-colors',
-                        location.is_active
-                            ? 'border-line hover:border-faint/50'
-                            : 'border-line opacity-70',
-                    ]"
-                >
-                    <div class="flex items-start justify-between gap-4 p-5">
-                        <div class="min-w-0">
-                            <div class="flex flex-wrap items-center gap-1.5">
-                                <h2
-                                    class="truncate font-display text-[17px] font-semibold tracking-tight"
+            <Panel flush>
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[1000px] text-[13.5px]">
+                        <thead
+                            class="border-b border-line-soft text-left text-[12px] text-faint"
+                        >
+                            <tr>
+                                <th class="px-5 py-3 font-medium">Site</th>
+                                <th class="px-5 py-3 font-medium">Hours</th>
+                                <th class="px-5 py-3 font-medium">Geofence</th>
+                                <th class="px-5 py-3 text-right font-medium">
+                                    Staff
+                                </th>
+                                <th class="px-5 py-3 text-right font-medium">
+                                    In today
+                                </th>
+                                <th class="px-5 py-3 text-right font-medium">
+                                    Late today
+                                </th>
+                                <th class="px-5 py-3"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line-soft">
+                            <tr v-if="locations.length === 0">
+                                <td colspan="7">
+                                    <EmptyState
+                                        title="No locations yet"
+                                        message="Add the site your team clocks in at. Staff pick from these as their site, and every punch is measured against the one they chose."
+                                    >
+                                        <template #action>
+                                            <AppButton @click="open(null)">
+                                                Add the first location
+                                            </AppButton>
+                                        </template>
+                                    </EmptyState>
+                                </td>
+                            </tr>
+                            <tr
+                                v-for="location in pages.paged"
+                                :key="location.id"
+                                :class="[
+                                    'align-top transition-colors hover:bg-sunken/40',
+                                    !location.is_active && 'opacity-70',
+                                ]"
+                            >
+                                <td class="px-5 py-3.5">
+                                    <p class="font-medium">
+                                        {{ location.name }}
+                                    </p>
+                                    <p
+                                        class="max-w-[20rem] text-[12px] leading-snug text-faint"
+                                    >
+                                        {{ fullAddress(location) }}
+                                    </p>
+                                    <div
+                                        class="mt-1 flex flex-wrap items-center gap-1.5"
+                                    >
+                                        <StatusPill
+                                            v-if="!location.is_active"
+                                            tone="neutral"
+                                        >
+                                            Retired
+                                        </StatusPill>
+                                        <StatusPill
+                                            v-else-if="
+                                                !location.has_coordinates
+                                            "
+                                            tone="alert"
+                                        >
+                                            No pin set
+                                        </StatusPill>
+                                        <StatusPill
+                                            v-if="
+                                                location.is_active &&
+                                                !location.accepts_signups
+                                            "
+                                            tone="brass"
+                                        >
+                                            Not offered to staff
+                                        </StatusPill>
+                                    </div>
+                                </td>
+                                <td
+                                    class="tabular px-5 py-3.5 font-mono text-[12px] whitespace-nowrap text-muted"
                                 >
-                                    {{ location.name }}
-                                </h2>
-                                <StatusPill
-                                    v-if="!location.is_active"
-                                    tone="neutral"
+                                    <p>
+                                        {{ location.work_starts_at }}–{{
+                                            location.work_ends_at
+                                        }}
+                                    </p>
+                                    <p class="text-faint">
+                                        {{ location.grace_minutes }}m grace ·
+                                        {{
+                                            location.break_minutes > 0
+                                                ? `${location.break_minutes}m break`
+                                                : 'no break'
+                                        }}
+                                    </p>
+                                </td>
+                                <td
+                                    class="tabular px-5 py-3.5 font-mono text-[12px] text-muted"
                                 >
-                                    Retired
-                                </StatusPill>
-                                <StatusPill
-                                    v-else-if="!location.has_coordinates"
-                                    tone="alert"
+                                    {{ location.radius_meters }}m radius
+                                </td>
+                                <td
+                                    class="tabular px-5 py-3.5 text-right font-mono font-semibold"
                                 >
-                                    No pin set
-                                </StatusPill>
-                                <StatusPill
-                                    v-if="
-                                        location.is_active &&
-                                        !location.accepts_signups
+                                    {{ location.active_staff_count }}
+                                </td>
+                                <td
+                                    class="tabular px-5 py-3.5 text-right font-mono font-semibold text-signal"
+                                >
+                                    {{ location.today.clocked_in }}
+                                </td>
+                                <td
+                                    class="tabular px-5 py-3.5 text-right font-mono font-semibold"
+                                    :class="
+                                        location.today.late > 0
+                                            ? 'text-brass'
+                                            : 'text-text'
                                     "
-                                    tone="brass"
                                 >
-                                    Not offered to staff
-                                </StatusPill>
-                            </div>
+                                    {{ location.today.late }}
+                                </td>
+                                <td class="px-5 py-3.5">
+                                    <div
+                                        class="flex items-center justify-end gap-1"
+                                    >
+                                        <AppButton
+                                            size="sm"
+                                            variant="secondary"
+                                            @click="open(location)"
+                                        >
+                                            Edit
+                                        </AppButton>
+                                        <AppButton
+                                            size="sm"
+                                            variant="ghost"
+                                            @click="confirming = location"
+                                        >
+                                            {{
+                                                location.is_active
+                                                    ? 'Retire'
+                                                    : 'Restore'
+                                            }}
+                                        </AppButton>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
 
-                            <p class="mt-1 text-[13px] leading-snug text-muted">
-                                {{ fullAddress(location) }}
-                            </p>
-
-                            <p
-                                class="tabular mt-2 font-mono text-[11.5px] text-faint"
-                            >
-                                {{ location.work_starts_at }}–{{
-                                    location.work_ends_at
-                                }}
-                                · {{ location.grace_minutes }}m grace ·
-                                {{
-                                    location.break_minutes > 0
-                                        ? `${location.break_minutes}m break`
-                                        : 'no break'
-                                }}
-                                · {{ location.radius_meters }}m radius
-                            </p>
-                        </div>
-
-                        <div class="flex shrink-0 items-center gap-1">
-                            <AppButton
-                                size="sm"
-                                variant="secondary"
-                                @click="open(location)"
-                            >
-                                Edit
-                            </AppButton>
-                            <AppButton
-                                size="sm"
-                                variant="ghost"
-                                @click="confirming = location"
-                            >
-                                {{ location.is_active ? 'Retire' : 'Restore' }}
-                            </AppButton>
-                        </div>
-                    </div>
-
-                    <dl
-                        class="grid grid-cols-3 divide-x divide-line-soft border-t border-line-soft bg-sunken/40"
-                    >
-                        <div class="px-5 py-3">
-                            <dt class="eyebrow">Staff</dt>
-                            <dd
-                                class="tabular mt-1 font-mono text-[18px] font-semibold"
-                            >
-                                {{ location.active_staff_count }}
-                            </dd>
-                        </div>
-                        <div class="px-5 py-3">
-                            <dt class="eyebrow">In today</dt>
-                            <dd
-                                class="tabular mt-1 font-mono text-[18px] font-semibold text-signal"
-                            >
-                                {{ location.today.clocked_in }}
-                            </dd>
-                        </div>
-                        <div class="px-5 py-3">
-                            <dt class="eyebrow">Late today</dt>
-                            <dd
-                                class="tabular mt-1 font-mono text-[18px] font-semibold"
-                                :class="
-                                    location.today.late > 0
-                                        ? 'text-brass'
-                                        : 'text-text'
-                                "
-                            >
-                                {{ location.today.late }}
-                            </dd>
-                        </div>
-                    </dl>
-                </article>
-            </div>
-
-            <Panel v-else flush>
-                <EmptyState
-                    title="No locations yet"
-                    message="Add the site your team clocks in at. Staff pick from these as their site, and every punch is measured against the one they chose."
-                >
-                    <template #action>
-                        <AppButton @click="open(null)">
-                            Add the first location
-                        </AppButton>
-                    </template>
-                </EmptyState>
+                <Pagination
+                    v-model:page="pages.page"
+                    v-model:per-page="pages.perPage"
+                    :last-page="pages.lastPage"
+                    :from="pages.from"
+                    :to="pages.to"
+                    :total="pages.total"
+                />
             </Panel>
         </div>
 

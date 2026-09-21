@@ -2,8 +2,10 @@
 import { Head, Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
+import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
+import { usePaginated } from '@/composables/usePaginated';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { ImportSummary } from '@/types';
 
@@ -26,6 +28,8 @@ const byKey = computed(
 function dependencyLabels(sheet: ImportSummary): string[] {
     return sheet.depends_on.map((key) => byKey.value.get(key) ?? key);
 }
+
+const pages = usePaginated(() => numbered.value);
 </script>
 
 <template>
@@ -36,102 +40,119 @@ function dependencyLabels(sheet: ImportSummary): string[] {
         lede="Load records in bulk from a spreadsheet. Every sheet has a template and a reference to fill it in against."
     >
         <div class="space-y-5">
-            <EmptyState
-                v-if="imports.length === 0"
-                title="No sheets are yours to import"
-                message="Importing a sheet needs the same permission as editing those records by hand. Ask an administrator for the one you need."
-            />
-
-            <template v-else>
-                <Panel
-                    eyebrow="Running order"
-                    title="Work down the list"
-                    subtitle="Later sheets point at records the earlier ones create. A staff row cannot name a site that is not on file yet."
-                    flush
-                >
-                    <ol class="divide-y divide-line-soft">
-                        <li v-for="sheet in numbered" :key="sheet.key">
-                            <Link
-                                :href="`/admin/imports/${sheet.key}`"
-                                class="flex items-start gap-4 px-5 py-4 transition-colors hover:bg-line-soft"
+            <Panel
+                eyebrow="Running order"
+                title="Work down the list"
+                subtitle="Later sheets point at records the earlier ones create. A staff row cannot name a site that is not on file yet."
+                flush
+            >
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[720px] text-[13.5px]">
+                        <thead
+                            class="border-b border-line-soft text-left text-[12px] text-faint"
+                        >
+                            <tr>
+                                <th class="px-5 py-3 font-medium">Step</th>
+                                <th class="px-5 py-3 font-medium">Sheet</th>
+                                <th class="px-5 py-3 font-medium">Columns</th>
+                                <th class="px-5 py-3 font-medium">
+                                    Import first
+                                </th>
+                                <th class="px-5 py-3"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line-soft">
+                            <tr v-if="imports.length === 0">
+                                <td colspan="5">
+                                    <EmptyState
+                                        title="No sheets are yours to import"
+                                        message="Importing a sheet needs the same permission as editing those records by hand. Ask an administrator for the one you need."
+                                    />
+                                </td>
+                            </tr>
+                            <tr
+                                v-for="sheet in pages.paged"
+                                :key="sheet.key"
+                                class="align-top transition-colors hover:bg-sunken/40"
                             >
-                                <span
-                                    class="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg border border-line bg-sunken text-[12px] font-semibold text-muted tabular-nums"
-                                >
-                                    {{ sheet.step }}
-                                </span>
-
-                                <div class="min-w-0 flex-1">
-                                    <div
-                                        class="flex flex-wrap items-center gap-2"
+                                <td class="px-5 py-3.5">
+                                    <span
+                                        class="grid size-7 place-items-center rounded-lg border border-line bg-sunken text-[12px] font-semibold text-muted tabular-nums"
                                     >
-                                        <span
-                                            class="font-display text-[15px] font-semibold tracking-tight"
-                                        >
-                                            {{ sheet.label }}
-                                        </span>
-                                        <StatusPill tone="neutral">
-                                            {{ sheet.column_count }} columns
-                                        </StatusPill>
-                                    </div>
-
+                                        {{ sheet.step }}
+                                    </span>
+                                </td>
+                                <td class="px-5 py-3.5">
+                                    <Link
+                                        :href="`/admin/imports/${sheet.key}`"
+                                        class="font-medium hover:underline"
+                                    >
+                                        {{ sheet.label }}
+                                    </Link>
                                     <p
-                                        class="mt-1 text-[13px] leading-relaxed text-muted"
+                                        class="max-w-[28rem] text-[12.5px] leading-relaxed text-muted"
                                     >
                                         {{ sheet.description }}
                                     </p>
-
-                                    <p
-                                        v-if="sheet.depends_on.length > 0"
-                                        class="mt-1.5 text-[12.5px] text-faint"
-                                    >
-                                        Import
-                                        {{
-                                            dependencyLabels(sheet).join(
-                                                ' and ',
-                                            )
-                                        }}
-                                        first.
-                                    </p>
-                                </div>
-
-                                <svg
-                                    class="mt-1.5 size-4 shrink-0 text-faint"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    stroke-width="1.8"
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    aria-hidden="true"
+                                </td>
+                                <td class="px-5 py-3.5">
+                                    <StatusPill tone="neutral">
+                                        {{ sheet.column_count }} columns
+                                    </StatusPill>
+                                </td>
+                                <td
+                                    class="px-5 py-3.5 text-[12.5px] text-faint"
                                 >
-                                    <path d="m9 6 6 6-6 6" />
-                                </svg>
-                            </Link>
-                        </li>
-                    </ol>
-                </Panel>
+                                    {{
+                                        sheet.depends_on.length > 0
+                                            ? dependencyLabels(sheet).join(
+                                                  ' and ',
+                                              )
+                                            : '-'
+                                    }}
+                                </td>
+                                <td class="px-5 py-3.5 text-right">
+                                    <Link
+                                        :href="`/admin/imports/${sheet.key}`"
+                                        class="text-[12.5px] font-medium text-beacon hover:underline"
+                                    >
+                                        Open
+                                    </Link>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
 
-                <Panel
-                    eyebrow="Every sheet"
-                    title="How a file is read"
-                    subtitle="These hold for all of them, and are repeated on each reference file."
-                >
-                    <ul class="space-y-2.5">
-                        <li
-                            v-for="convention in conventions"
-                            :key="convention"
-                            class="flex gap-2.5 text-[13px] leading-relaxed text-muted"
-                        >
-                            <span
-                                class="mt-[7px] size-1 shrink-0 rounded-full bg-faint"
-                                aria-hidden="true"
-                            />
-                            {{ convention }}
-                        </li>
-                    </ul>
-                </Panel>
-            </template>
+                <Pagination
+                    v-model:page="pages.page"
+                    v-model:per-page="pages.perPage"
+                    :last-page="pages.lastPage"
+                    :from="pages.from"
+                    :to="pages.to"
+                    :total="pages.total"
+                />
+            </Panel>
+
+            <Panel
+                eyebrow="Every sheet"
+                title="How a file is read"
+                subtitle="These hold for all of them, and are repeated on each reference file."
+            >
+                <ul class="space-y-2.5">
+                    <li
+                        v-for="convention in conventions"
+                        :key="convention"
+                        class="flex gap-2.5 text-[13px] leading-relaxed text-muted"
+                    >
+                        <span
+                            class="mt-[7px] size-1 shrink-0 rounded-full bg-faint"
+                            aria-hidden="true"
+                        />
+                        {{ convention }}
+                    </li>
+                </ul>
+            </Panel>
         </div>
     </AppLayout>
 </template>

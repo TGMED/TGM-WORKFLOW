@@ -3,9 +3,11 @@ import { Head, router, useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
+import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import TextField from '@/components/ui/TextField.vue';
+import { usePaginated } from '@/composables/usePaginated';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 type RoleRow = {
@@ -121,6 +123,8 @@ function labelFor(value: string): string {
 
     return value;
 }
+
+const pages = usePaginated(() => props.roles);
 </script>
 
 <template>
@@ -138,95 +142,122 @@ function labelFor(value: string): string {
             <Panel
                 title="Roles"
                 :subtitle="`${roles.length} role(s). Super admins hold every permission and cannot be narrowed.`"
+                flush
             >
-                <div class="grid gap-4 lg:grid-cols-2">
-                    <article
-                        v-for="role in roles"
-                        :key="role.id"
-                        class="rounded-2xl border border-line bg-panel p-5 shadow-panel"
-                    >
-                        <div class="flex items-start justify-between gap-3">
-                            <div class="min-w-0">
-                                <p
-                                    class="truncate font-display text-[15px] font-semibold tracking-tight"
-                                >
-                                    {{ role.name }}
-                                </p>
-                                <p
-                                    v-if="role.description"
-                                    class="mt-0.5 text-[12.5px] text-muted"
-                                >
-                                    {{ role.description }}
-                                </p>
-                            </div>
-                            <StatusPill
-                                :tone="role.is_system ? 'brass' : 'neutral'"
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[860px] text-[13.5px]">
+                        <thead
+                            class="border-b border-line-soft text-left text-[12px] text-faint"
+                        >
+                            <tr>
+                                <th class="px-5 py-3 font-medium">Role</th>
+                                <th class="px-5 py-3 font-medium">Type</th>
+                                <th class="px-5 py-3 text-right font-medium">
+                                    People
+                                </th>
+                                <th class="px-5 py-3 font-medium">
+                                    Permissions
+                                </th>
+                                <th class="px-5 py-3"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line-soft">
+                            <tr
+                                v-for="role in pages.paged"
+                                :key="role.id"
+                                class="align-top transition-colors hover:bg-sunken/40"
                             >
-                                {{ role.is_system ? 'System' : 'Custom' }}
-                            </StatusPill>
-                        </div>
-
-                        <div class="mt-4 flex items-baseline gap-4">
-                            <span class="text-[12.5px] text-muted">
-                                <span
-                                    class="tabular font-display text-lg font-semibold text-text"
+                                <td class="px-5 py-3.5">
+                                    <p class="font-medium">{{ role.name }}</p>
+                                    <p
+                                        v-if="role.description"
+                                        class="max-w-[18rem] text-[12px] text-faint"
+                                    >
+                                        {{ role.description }}
+                                    </p>
+                                </td>
+                                <td class="px-5 py-3.5">
+                                    <StatusPill
+                                        :tone="
+                                            role.is_system ? 'brass' : 'neutral'
+                                        "
+                                    >
+                                        {{
+                                            role.is_system ? 'System' : 'Custom'
+                                        }}
+                                    </StatusPill>
+                                </td>
+                                <td
+                                    class="tabular px-5 py-3.5 text-right font-mono"
                                 >
                                     {{ role.users_count }}
-                                </span>
-                                on this role
-                            </span>
-                            <span class="text-[12.5px] text-muted">
-                                <span
-                                    class="tabular font-display text-lg font-semibold text-text"
-                                >
-                                    {{ role.permissions.length }}
-                                </span>
-                                of {{ totalPermissions }} permissions
-                            </span>
-                        </div>
-
-                        <div
-                            v-if="role.holds_everything"
-                            class="mt-3 rounded-xl bg-brass-soft px-3 py-2 text-[12.5px] text-brass"
-                        >
-                            Holds every permission, including any added later.
-                        </div>
-                        <div
-                            v-else-if="role.permissions.length"
-                            class="mt-3 flex flex-wrap gap-1.5"
-                        >
-                            <span
-                                v-for="permission in role.permissions"
-                                :key="permission"
-                                class="rounded-lg bg-line-soft px-2 py-1 text-[11.5px] text-muted"
-                            >
-                                {{ labelFor(permission) }}
-                            </span>
-                        </div>
-                        <p v-else class="mt-3 text-[12.5px] text-faint">
-                            May sign in and raise their own requests, nothing
-                            more.
-                        </p>
-
-                        <div class="mt-4 flex items-center gap-2">
-                            <AppButton
-                                variant="ghost"
-                                size="sm"
-                                @click="open(role)"
-                            >
-                                Edit
-                            </AppButton>
-                            <AppButton
-                                v-if="!role.is_system"
-                                variant="ghost"
-                                size="sm"
-                                @click="deleting = role"
-                            >
-                                Delete
-                            </AppButton>
-                        </div>
-                    </article>
+                                </td>
+                                <td class="px-5 py-3.5">
+                                    <p
+                                        v-if="role.holds_everything"
+                                        class="text-[12.5px] text-brass"
+                                    >
+                                        Every permission, including any added
+                                        later.
+                                    </p>
+                                    <template
+                                        v-else-if="role.permissions.length"
+                                    >
+                                        <p class="text-[12px] text-faint">
+                                            {{ role.permissions.length }} of
+                                            {{ totalPermissions }}
+                                        </p>
+                                        <div
+                                            class="mt-1 flex max-w-[28rem] flex-wrap gap-1.5"
+                                        >
+                                            <span
+                                                v-for="permission in role.permissions"
+                                                :key="permission"
+                                                class="rounded-lg bg-line-soft px-2 py-1 text-[11.5px] text-muted"
+                                            >
+                                                {{ labelFor(permission) }}
+                                            </span>
+                                        </div>
+                                    </template>
+                                    <p v-else class="text-[12.5px] text-faint">
+                                        May sign in and raise their own
+                                        requests, nothing more.
+                                    </p>
+                                </td>
+                                <td class="px-5 py-3.5">
+                                    <div
+                                        class="flex items-center justify-end gap-1"
+                                    >
+                                        <AppButton
+                                            variant="ghost"
+                                            size="sm"
+                                            @click="open(role)"
+                                        >
+                                            Edit
+                                        </AppButton>
+                                        <AppButton
+                                            v-if="!role.is_system"
+                                            variant="ghost"
+                                            size="sm"
+                                            @click="deleting = role"
+                                        >
+                                            Delete
+                                        </AppButton>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
+
+                <Pagination
+                    v-model:page="pages.page"
+                    v-model:per-page="pages.perPage"
+                    :last-page="pages.lastPage"
+                    :from="pages.from"
+                    :to="pages.to"
+                    :total="pages.total"
+                />
             </Panel>
         </div>
 

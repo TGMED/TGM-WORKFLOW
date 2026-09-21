@@ -4,9 +4,11 @@ import { ref } from 'vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
+import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
 import StatTile from '@/components/ui/StatTile.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
+import { usePaginated } from '@/composables/usePaginated';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { amount, dateTime } from '@/lib/format';
 import type { PayrollStatusTone, PayslipLine } from '@/types';
@@ -79,6 +81,8 @@ function finalise() {
         },
     );
 }
+
+const pages = usePaginated(() => props.payslips, { perPage: 15 });
 </script>
 
 <template>
@@ -163,102 +167,171 @@ function finalise() {
                 :subtitle="`Employer pension on top: ${amount(totals.employer_pension)}`"
                 flush
             >
-                <EmptyState
-                    v-if="payslips.length === 0"
-                    title="Nothing in this run"
-                    message="Nobody active has a salary on file. Set salaries, then rebuild."
-                />
-
-                <ul v-else class="divide-y divide-line-soft">
-                    <li v-for="slip in payslips" :key="slip.id">
-                        <button
-                            type="button"
-                            class="flex w-full items-center justify-between gap-4 px-5 py-3.5 text-left transition-colors hover:bg-sunken/40"
-                            @click="
-                                expanded = expanded === slip.id ? null : slip.id
-                            "
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[640px] text-[13.5px]">
+                        <thead
+                            class="border-b border-line-soft text-left text-[12px] text-faint"
                         >
-                            <div class="min-w-0">
-                                <p class="text-[13.5px] font-medium">
-                                    {{ slip.user.name }}
-                                </p>
-                                <p class="text-[12px] text-faint">
-                                    {{ slip.user.employee_id ?? '—' }}
-                                    <template v-if="slip.user.department">
-                                        · {{ slip.user.department }}
-                                    </template>
-                                </p>
-                            </div>
-
-                            <div class="flex shrink-0 items-center gap-6">
-                                <span
-                                    class="tabular hidden font-mono text-[13px] text-muted sm:inline"
+                            <tr>
+                                <th class="px-5 py-3 font-medium">Person</th>
+                                <th class="px-5 py-3 text-right font-medium">
+                                    Gross
+                                </th>
+                                <th class="px-5 py-3 text-right font-medium">
+                                    Deductions
+                                </th>
+                                <th class="px-5 py-3 text-right font-medium">
+                                    Net
+                                </th>
+                                <th class="px-5 py-3"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line-soft">
+                            <tr v-if="payslips.length === 0">
+                                <td colspan="5">
+                                    <EmptyState
+                                        title="Nothing in this run"
+                                        message="Nobody active has a salary on file. Set salaries, then rebuild."
+                                    />
+                                </td>
+                            </tr>
+                            <template
+                                v-for="slip in pages.paged"
+                                :key="slip.id"
+                            >
+                                <tr
+                                    class="cursor-pointer transition-colors hover:bg-sunken/40"
+                                    @click="
+                                        expanded =
+                                            expanded === slip.id
+                                                ? null
+                                                : slip.id
+                                    "
                                 >
-                                    {{ amount(slip.gross_pay) }}
-                                </span>
-                                <span
-                                    class="tabular hidden font-mono text-[13px] text-muted sm:inline"
-                                >
-                                    −{{ amount(slip.total_deductions) }}
-                                </span>
-                                <span
-                                    class="tabular font-mono text-[13.5px] font-semibold"
-                                >
-                                    {{ amount(slip.net_pay) }}
-                                </span>
-                            </div>
-                        </button>
-
-                        <div
-                            v-if="expanded === slip.id"
-                            class="grid gap-5 bg-sunken/40 px-5 py-4 sm:grid-cols-2"
-                        >
-                            <div>
-                                <p class="eyebrow">Earnings</p>
-                                <ul class="mt-2 space-y-1.5">
-                                    <li
-                                        v-for="line in slip.earnings"
-                                        :key="line.label"
-                                        class="flex justify-between gap-4 text-[12.5px]"
-                                    >
-                                        <span class="text-muted">
-                                            {{ line.label }}
-                                        </span>
-                                        <span class="tabular font-mono">
-                                            {{ amount(line.amount) }}
-                                        </span>
-                                    </li>
-                                </ul>
-                            </div>
-
-                            <div>
-                                <p class="eyebrow">Deductions</p>
-                                <ul class="mt-2 space-y-1.5">
-                                    <li
-                                        v-for="line in slip.deductions"
-                                        :key="line.label"
-                                        class="text-[12.5px]"
-                                    >
-                                        <div class="flex justify-between gap-4">
-                                            <span class="text-muted">
-                                                {{ line.label }}
-                                            </span>
-                                            <span class="tabular font-mono">
-                                                {{ amount(line.amount) }}
-                                            </span>
-                                        </div>
-                                        <p
-                                            v-if="line.basis"
-                                            class="text-[11.5px] text-faint"
-                                        >
-                                            {{ line.basis }}
+                                    <td class="px-5 py-3.5">
+                                        <p class="font-medium">
+                                            {{ slip.user.name }}
                                         </p>
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
-                    </li>
-                </ul>
+                                        <p class="text-[12px] text-faint">
+                                            {{ slip.user.employee_id ?? '—' }}
+                                            <template
+                                                v-if="slip.user.department"
+                                            >
+                                                · {{ slip.user.department }}
+                                            </template>
+                                        </p>
+                                    </td>
+                                    <td
+                                        class="tabular px-5 py-3.5 text-right font-mono text-muted"
+                                    >
+                                        {{ amount(slip.gross_pay) }}
+                                    </td>
+                                    <td
+                                        class="tabular px-5 py-3.5 text-right font-mono text-muted"
+                                    >
+                                        −{{ amount(slip.total_deductions) }}
+                                    </td>
+                                    <td
+                                        class="tabular px-5 py-3.5 text-right font-mono font-semibold"
+                                    >
+                                        {{ amount(slip.net_pay) }}
+                                    </td>
+                                    <td
+                                        class="px-5 py-3.5 text-right text-[12.5px] font-medium text-muted"
+                                    >
+                                        {{
+                                            expanded === slip.id
+                                                ? 'Hide'
+                                                : 'Breakdown'
+                                        }}
+                                    </td>
+                                </tr>
+
+                                <tr v-if="expanded === slip.id">
+                                    <td
+                                        colspan="5"
+                                        class="bg-sunken/40 px-5 py-4"
+                                    >
+                                        <div class="grid gap-5 sm:grid-cols-2">
+                                            <div>
+                                                <p class="eyebrow">Earnings</p>
+                                                <ul class="mt-2 space-y-1.5">
+                                                    <li
+                                                        v-for="line in slip.earnings"
+                                                        :key="line.label"
+                                                        class="flex justify-between gap-4 text-[12.5px]"
+                                                    >
+                                                        <span
+                                                            class="text-muted"
+                                                        >
+                                                            {{ line.label }}
+                                                        </span>
+                                                        <span
+                                                            class="tabular font-mono"
+                                                        >
+                                                            {{
+                                                                amount(
+                                                                    line.amount,
+                                                                )
+                                                            }}
+                                                        </span>
+                                                    </li>
+                                                </ul>
+                                            </div>
+
+                                            <div>
+                                                <p class="eyebrow">
+                                                    Deductions
+                                                </p>
+                                                <ul class="mt-2 space-y-1.5">
+                                                    <li
+                                                        v-for="line in slip.deductions"
+                                                        :key="line.label"
+                                                        class="text-[12.5px]"
+                                                    >
+                                                        <div
+                                                            class="flex justify-between gap-4"
+                                                        >
+                                                            <span
+                                                                class="text-muted"
+                                                            >
+                                                                {{ line.label }}
+                                                            </span>
+                                                            <span
+                                                                class="tabular font-mono"
+                                                            >
+                                                                {{
+                                                                    amount(
+                                                                        line.amount,
+                                                                    )
+                                                                }}
+                                                            </span>
+                                                        </div>
+                                                        <p
+                                                            v-if="line.basis"
+                                                            class="text-[11.5px] text-faint"
+                                                        >
+                                                            {{ line.basis }}
+                                                        </p>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+
+                <Pagination
+                    v-model:page="pages.page"
+                    v-model:per-page="pages.perPage"
+                    :last-page="pages.lastPage"
+                    :from="pages.from"
+                    :to="pages.to"
+                    :total="pages.total"
+                />
             </Panel>
         </div>
 

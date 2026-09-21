@@ -5,11 +5,13 @@ import RateFields from '@/components/payroll/RateFields.vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
+import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
 import SelectField from '@/components/ui/SelectField.vue';
 import StatTile from '@/components/ui/StatTile.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import TextField from '@/components/ui/TextField.vue';
+import { usePaginated } from '@/composables/usePaginated';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { amount, money } from '@/lib/format';
 import type { PayrollRunRow, PayrollSettings, PayrollStaffRow } from '@/types';
@@ -220,6 +222,12 @@ function saveRules() {
 function deleteRun(run: PayrollRunRow) {
     router.delete(`/admin/payroll/${run.id}`, { preserveScroll: true });
 }
+
+const runPages = usePaginated(() => props.runs);
+const staffPages = usePaginated(() => visibleStaff.value, {
+    perPage: 15,
+    resetOn: () => search.value,
+});
 </script>
 
 <template>
@@ -310,61 +318,109 @@ function deleteRun(run: PayrollRunRow) {
                     under Salaries first.
                 </div>
 
-                <EmptyState
-                    v-if="runs.length === 0"
-                    title="No payroll has been run"
-                    message="Pick a month above and draft it. Nothing is visible to staff until you finalise it."
+                <div class="mt-2 overflow-x-auto">
+                    <table class="w-full min-w-[760px] text-[13.5px]">
+                        <thead
+                            class="border-b border-line-soft text-left text-[12px] text-faint"
+                        >
+                            <tr>
+                                <th class="px-5 py-3 font-medium">Month</th>
+                                <th class="px-5 py-3 font-medium">Status</th>
+                                <th class="px-5 py-3 text-right font-medium">
+                                    People
+                                </th>
+                                <th class="px-5 py-3 text-right font-medium">
+                                    Gross
+                                </th>
+                                <th class="px-5 py-3 text-right font-medium">
+                                    Net
+                                </th>
+                                <th class="px-5 py-3 font-medium">
+                                    Signed off by
+                                </th>
+                                <th class="px-5 py-3"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line-soft">
+                            <tr v-if="runs.length === 0">
+                                <td colspan="7">
+                                    <EmptyState
+                                        title="No payroll has been run"
+                                        message="Pick a month above and draft it. Nothing is visible to staff until you finalise it."
+                                    />
+                                </td>
+                            </tr>
+                            <tr
+                                v-for="run in runPages.paged"
+                                :key="run.id"
+                                class="transition-colors hover:bg-sunken/40"
+                            >
+                                <td class="px-5 py-3.5 font-medium">
+                                    {{ run.period_label }}
+                                </td>
+                                <td class="px-5 py-3.5">
+                                    <StatusPill :tone="run.status_tone" dot>
+                                        {{ run.status_label }}
+                                    </StatusPill>
+                                </td>
+                                <td
+                                    class="tabular px-5 py-3.5 text-right font-mono"
+                                >
+                                    {{ run.headcount }}
+                                </td>
+                                <td
+                                    class="tabular px-5 py-3.5 text-right font-mono text-muted"
+                                >
+                                    {{
+                                        money(
+                                            run.gross_total,
+                                            settings.currency,
+                                        )
+                                    }}
+                                </td>
+                                <td
+                                    class="tabular px-5 py-3.5 text-right font-mono font-semibold"
+                                >
+                                    {{
+                                        money(run.net_total, settings.currency)
+                                    }}
+                                </td>
+                                <td class="px-5 py-3.5 text-muted">
+                                    {{ run.finalised_by ?? '-' }}
+                                </td>
+                                <td class="px-5 py-3.5">
+                                    <div
+                                        class="flex items-center justify-end gap-2"
+                                    >
+                                        <Link
+                                            :href="`/admin/payroll/${run.id}`"
+                                            class="text-[12.5px] font-medium text-beacon hover:underline"
+                                        >
+                                            Open
+                                        </Link>
+                                        <AppButton
+                                            v-if="run.is_draft"
+                                            variant="ghost"
+                                            size="sm"
+                                            @click="deleteRun(run)"
+                                        >
+                                            Delete draft
+                                        </AppButton>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <Pagination
+                    v-model:page="runPages.page"
+                    v-model:per-page="runPages.perPage"
+                    :last-page="runPages.lastPage"
+                    :from="runPages.from"
+                    :to="runPages.to"
+                    :total="runPages.total"
                 />
-
-                <ul v-else class="mt-2 divide-y divide-line-soft">
-                    <li
-                        v-for="run in runs"
-                        :key="run.id"
-                        class="flex flex-wrap items-center justify-between gap-3 px-5 py-4"
-                    >
-                        <div class="min-w-0">
-                            <p
-                                class="flex items-center gap-2 text-[14px] font-semibold tracking-tight"
-                            >
-                                {{ run.period_label }}
-                                <StatusPill :tone="run.status_tone" dot>
-                                    {{ run.status_label }}
-                                </StatusPill>
-                            </p>
-                            <p class="mt-0.5 text-[12.5px] text-muted">
-                                {{ run.headcount }}
-                                {{ run.headcount === 1 ? 'person' : 'people' }}
-                                · gross
-                                {{ money(run.gross_total, settings.currency) }}
-                                · net
-                                {{ money(run.net_total, settings.currency) }}
-                            </p>
-                            <p
-                                v-if="run.finalised_by"
-                                class="mt-0.5 text-[12px] text-faint"
-                            >
-                                Signed off by {{ run.finalised_by }}
-                            </p>
-                        </div>
-
-                        <div class="flex shrink-0 items-center gap-2">
-                            <Link
-                                :href="`/admin/payroll/${run.id}`"
-                                class="text-[12.5px] font-medium text-beacon hover:underline"
-                            >
-                                Open
-                            </Link>
-                            <AppButton
-                                v-if="run.is_draft"
-                                variant="ghost"
-                                size="sm"
-                                @click="deleteRun(run)"
-                            >
-                                Delete draft
-                            </AppButton>
-                        </div>
-                    </li>
-                </ul>
             </Panel>
 
             <!-- Salaries -->
@@ -397,8 +453,20 @@ function deleteRun(run: PayrollRunRow) {
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-line-soft">
+                            <tr v-if="visibleStaff.length === 0">
+                                <td colspan="6">
+                                    <EmptyState
+                                        :title="
+                                            search
+                                                ? 'Nobody matches that search'
+                                                : 'No staff yet'
+                                        "
+                                        message="Active staff appear here so their annual package can be set."
+                                    />
+                                </td>
+                            </tr>
                             <tr
-                                v-for="person in visibleStaff"
+                                v-for="person in staffPages.paged"
                                 :key="person.id"
                                 class="transition-colors hover:bg-sunken/40"
                             >
@@ -486,6 +554,15 @@ function deleteRun(run: PayrollRunRow) {
                         </tbody>
                     </table>
                 </div>
+
+                <Pagination
+                    v-model:page="staffPages.page"
+                    v-model:per-page="staffPages.perPage"
+                    :last-page="staffPages.lastPage"
+                    :from="staffPages.from"
+                    :to="staffPages.to"
+                    :total="staffPages.total"
+                />
             </Panel>
 
             <!-- Rules -->

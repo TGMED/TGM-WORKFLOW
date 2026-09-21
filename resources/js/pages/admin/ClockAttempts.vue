@@ -8,6 +8,7 @@ import Panel from '@/components/ui/Panel.vue';
 import SelectField from '@/components/ui/SelectField.vue';
 import StatTile from '@/components/ui/StatTile.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
+import { currentPerPage } from '@/composables/usePaginated';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dateTime, distance } from '@/lib/format';
 
@@ -37,6 +38,7 @@ type Attempt = {
 const props = defineProps<{
     attempts: {
         data: Attempt[];
+        per_page: number;
         links: Array<{ url: string | null; label: string; active: boolean }>;
         from: number | null;
         to: number | null;
@@ -72,6 +74,7 @@ function applyFilters(immediate = false) {
         router.get(
             '/admin/clock-attempts',
             {
+                per_page: currentPerPage(),
                 search: search.value || undefined,
                 result: result.value === 'all' ? undefined : result.value,
                 range: range.value,
@@ -183,101 +186,127 @@ function mapLink(attempt: Attempt): string | null {
             </div>
 
             <Panel flush>
-                <ul
-                    v-if="attempts.data.length"
-                    class="divide-y divide-line-soft"
-                >
-                    <li
-                        v-for="attempt in attempts.data"
-                        :key="attempt.id"
-                        class="flex flex-wrap items-start gap-x-4 gap-y-3 px-5 py-4 transition-colors hover:bg-line-soft/40"
-                    >
-                        <Link
-                            :href="`/admin/staff/${attempt.user.id}`"
-                            class="flex min-w-[200px] flex-1 items-start gap-3"
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[900px] text-[13.5px]">
+                        <thead
+                            class="border-b border-line-soft text-left text-[12px] text-faint"
                         >
-                            <Avatar
-                                :initials="attempt.user.initials"
-                                :name="attempt.user.name"
-                                size="sm"
-                            />
-                            <span class="min-w-0">
-                                <span
-                                    class="block truncate text-[13.5px] font-medium"
-                                >
-                                    {{ attempt.user.name }}
-                                </span>
-                                <span
-                                    class="block truncate text-[11.5px] text-faint"
-                                >
-                                    {{
-                                        attempt.user.employee_id ??
-                                        attempt.user.department ??
-                                        '-'
-                                    }}
-                                </span>
-                            </span>
-                        </Link>
-
-                        <div class="min-w-[220px] flex-[2]">
-                            <div class="flex flex-wrap items-center gap-2">
-                                <StatusPill :tone="resultTone(attempt.result)">
-                                    {{ attempt.result_label }}
-                                </StatusPill>
-                                <span
-                                    class="text-[12.5px] font-medium text-muted"
-                                >
+                            <tr>
+                                <th class="px-5 py-3 font-medium">Person</th>
+                                <th class="px-5 py-3 font-medium">Result</th>
+                                <th class="px-5 py-3 font-medium">Attempt</th>
+                                <th class="px-5 py-3 font-medium">Detail</th>
+                                <th class="px-5 py-3 font-medium">When</th>
+                                <th class="px-5 py-3 text-right font-medium">
+                                    Distance
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line-soft">
+                            <tr v-if="attempts.data.length === 0">
+                                <td colspan="6">
+                                    <EmptyState
+                                        title="No attempts in this window"
+                                        message="Widen the date range or clear the outcome filter to see more of the log."
+                                    />
+                                </td>
+                            </tr>
+                            <tr
+                                v-for="attempt in attempts.data"
+                                :key="attempt.id"
+                                class="transition-colors hover:bg-sunken/40"
+                            >
+                                <td class="px-5 py-3.5">
+                                    <Link
+                                        :href="`/admin/staff/${attempt.user.id}`"
+                                        class="flex items-center gap-3"
+                                    >
+                                        <Avatar
+                                            :initials="attempt.user.initials"
+                                            :name="attempt.user.name"
+                                            size="sm"
+                                        />
+                                        <span class="min-w-0">
+                                            <span
+                                                class="block truncate font-medium"
+                                            >
+                                                {{ attempt.user.name }}
+                                            </span>
+                                            <span
+                                                class="block truncate text-[11.5px] text-faint"
+                                            >
+                                                {{
+                                                    attempt.user.employee_id ??
+                                                    attempt.user.department ??
+                                                    '-'
+                                                }}
+                                            </span>
+                                        </span>
+                                    </Link>
+                                </td>
+                                <td class="px-5 py-3.5">
+                                    <StatusPill
+                                        :tone="resultTone(attempt.result)"
+                                    >
+                                        {{ attempt.result_label }}
+                                    </StatusPill>
+                                </td>
+                                <td class="px-5 py-3.5 font-medium text-muted">
                                     {{ attempt.type_label }}
-                                </span>
-                            </div>
-                            <p
-                                v-if="attempt.message"
-                                class="mt-1 text-[12.5px] leading-snug text-muted"
-                            >
-                                {{ attempt.message }}
-                            </p>
-                        </div>
-
-                        <div class="text-right">
-                            <p class="tabular font-mono text-[12px] text-muted">
-                                {{ dateTime(attempt.created_at) }}
-                            </p>
-                            <p
-                                class="tabular mt-0.5 font-mono text-[11px] text-faint"
-                            >
-                                <template
-                                    v-if="attempt.distance_meters !== null"
+                                </td>
+                                <td
+                                    class="px-5 py-3.5 text-[12.5px] leading-snug text-muted"
                                 >
-                                    {{ distance(attempt.distance_meters) }} out
-                                </template>
-                                <template v-else>No fix</template>
-                                <template
-                                    v-if="attempt.accuracy_meters !== null"
+                                    {{ attempt.message ?? '-' }}
+                                </td>
+                                <td
+                                    class="tabular px-5 py-3.5 font-mono text-[12px] whitespace-nowrap text-muted"
                                 >
-                                    · ±{{ attempt.accuracy_meters }}m
-                                </template>
-                            </p>
-                            <a
-                                v-if="mapLink(attempt)"
-                                :href="mapLink(attempt)!"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="mt-1 inline-block font-mono text-[11px] text-beacon transition-opacity hover:opacity-75"
-                            >
-                                View on map
-                            </a>
-                        </div>
-                    </li>
-                </ul>
-
-                <EmptyState
-                    v-else
-                    title="No attempts in this window"
-                    message="Widen the date range or clear the outcome filter to see more of the log."
-                />
+                                    {{ dateTime(attempt.created_at) }}
+                                </td>
+                                <td
+                                    class="tabular px-5 py-3.5 text-right font-mono text-[11.5px] whitespace-nowrap text-faint"
+                                >
+                                    <p>
+                                        <template
+                                            v-if="
+                                                attempt.distance_meters !== null
+                                            "
+                                        >
+                                            {{
+                                                distance(
+                                                    attempt.distance_meters,
+                                                )
+                                            }}
+                                            out
+                                        </template>
+                                        <template v-else>No fix</template>
+                                        <template
+                                            v-if="
+                                                attempt.accuracy_meters !== null
+                                            "
+                                        >
+                                            · ±{{ attempt.accuracy_meters }}m
+                                        </template>
+                                    </p>
+                                    <a
+                                        v-if="mapLink(attempt)"
+                                        :href="mapLink(attempt)!"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        class="mt-1 inline-block text-beacon transition-opacity hover:opacity-75"
+                                    >
+                                        View on map
+                                    </a>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
 
                 <Pagination
                     :links="attempts.links"
+                    :per-page="attempts.per_page"
                     :from="attempts.from"
                     :to="attempts.to"
                     :total="attempts.total"

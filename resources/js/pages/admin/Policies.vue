@@ -4,11 +4,13 @@ import { computed, ref } from 'vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
+import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
 import SelectField from '@/components/ui/SelectField.vue';
 import StatTile from '@/components/ui/StatTile.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import TextField from '@/components/ui/TextField.vue';
+import { usePaginated } from '@/composables/usePaginated';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 type PolicyRow = {
@@ -111,6 +113,8 @@ function restore(policy: PolicyRow) {
         { preserveScroll: true },
     );
 }
+
+const pages = usePaginated(() => props.policies);
 </script>
 
 <template>
@@ -141,41 +145,88 @@ function restore(policy: PolicyRow) {
             </div>
 
             <Panel flush title="Everything published">
-                <EmptyState
-                    v-if="policies.length === 0"
-                    title="Nothing published yet"
-                    message="Publish the handbook and staff can read it from their own policy page."
-                >
-                    <template #action>
-                        <AppButton size="sm" @click="open()">
-                            Publish a policy
-                        </AppButton>
-                    </template>
-                </EmptyState>
-
-                <ul v-else class="divide-y divide-line-soft">
-                    <li
-                        v-for="policy in policies"
-                        :key="policy.id"
-                        class="px-5 py-4"
-                        :class="policy.is_active ? '' : 'opacity-70'"
-                    >
-                        <div
-                            class="flex flex-wrap items-start justify-between gap-3"
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[860px] text-[13.5px]">
+                        <thead
+                            class="border-b border-line-soft text-left text-[12px] text-faint"
                         >
-                            <div class="min-w-0">
-                                <div class="flex flex-wrap items-center gap-2">
-                                    <p
-                                        class="text-[14px] font-semibold tracking-tight"
+                            <tr>
+                                <th class="px-5 py-3 font-medium">Policy</th>
+                                <th class="px-5 py-3 font-medium">Category</th>
+                                <th class="px-5 py-3 font-medium">File</th>
+                                <th class="px-5 py-3 font-medium">Status</th>
+                                <th class="px-5 py-3"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line-soft">
+                            <tr v-if="policies.length === 0">
+                                <td colspan="5">
+                                    <EmptyState
+                                        title="Nothing published yet"
+                                        message="Publish the handbook and staff can read it from their own policy page."
                                     >
+                                        <template #action>
+                                            <AppButton
+                                                size="sm"
+                                                @click="open()"
+                                            >
+                                                Publish a policy
+                                            </AppButton>
+                                        </template>
+                                    </EmptyState>
+                                </td>
+                            </tr>
+                            <tr
+                                v-for="policy in pages.paged"
+                                :key="policy.id"
+                                :class="[
+                                    'align-top transition-colors hover:bg-sunken/40',
+                                    !policy.is_active && 'opacity-70',
+                                ]"
+                            >
+                                <td class="px-5 py-3.5">
+                                    <p class="font-medium">
                                         {{ policy.title }}
+                                        <span
+                                            v-if="policy.version"
+                                            class="ml-1 text-[12px] font-normal text-faint"
+                                        >
+                                            v{{ policy.version }}
+                                        </span>
                                     </p>
-                                    <span
-                                        v-if="policy.version"
-                                        class="text-[12px] text-faint"
+                                    <p
+                                        v-if="policy.summary"
+                                        class="max-w-[24rem] text-[12.5px] leading-relaxed text-faint"
                                     >
-                                        v{{ policy.version }}
-                                    </span>
+                                        {{ policy.summary }}
+                                    </p>
+                                    <p
+                                        v-if="policy.supersedes"
+                                        class="mt-0.5 text-[12px] text-faint"
+                                    >
+                                        Replaces
+                                        {{ policy.supersedes.title }}
+                                        <template
+                                            v-if="policy.supersedes.version"
+                                        >
+                                            (v{{ policy.supersedes.version }})
+                                        </template>
+                                    </p>
+                                </td>
+                                <td class="px-5 py-3.5 text-muted">
+                                    {{ policy.category_label }}
+                                </td>
+                                <td
+                                    class="px-5 py-3.5 text-[12.5px] text-muted"
+                                >
+                                    <p class="max-w-[14rem] truncate">
+                                        {{ policy.file_name }}
+                                    </p>
+                                    <p class="text-faint">
+                                        {{ policy.size_label }}
+                                    </p>
+                                </td>
+                                <td class="px-5 py-3.5">
                                     <StatusPill
                                         :tone="
                                             policy.in_force
@@ -194,61 +245,50 @@ function restore(policy: PolicyRow) {
                                                   : 'Retired'
                                         }}
                                     </StatusPill>
-                                </div>
+                                </td>
+                                <td class="px-5 py-3.5">
+                                    <div
+                                        class="flex items-center justify-end gap-2"
+                                    >
+                                        <a
+                                            :href="`/admin/policies/${policy.id}/file`"
+                                            target="_blank"
+                                            rel="noopener"
+                                            class="text-[13px] font-medium text-muted hover:text-text"
+                                        >
+                                            Open
+                                        </a>
+                                        <AppButton
+                                            v-if="policy.is_active"
+                                            size="sm"
+                                            variant="ghost"
+                                            @click="retiring = policy"
+                                        >
+                                            Retire
+                                        </AppButton>
+                                        <AppButton
+                                            v-else
+                                            size="sm"
+                                            variant="secondary"
+                                            @click="restore(policy)"
+                                        >
+                                            Put back
+                                        </AppButton>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
 
-                                <p class="mt-0.5 text-[12.5px] text-muted">
-                                    {{ policy.category_label }} ·
-                                    {{ policy.file_name }} ·
-                                    {{ policy.size_label }}
-                                </p>
-
-                                <p
-                                    v-if="policy.summary"
-                                    class="mt-1.5 max-w-prose text-[13px] leading-relaxed text-faint"
-                                >
-                                    {{ policy.summary }}
-                                </p>
-
-                                <p
-                                    v-if="policy.supersedes"
-                                    class="mt-1.5 text-[12px] text-faint"
-                                >
-                                    Replaces {{ policy.supersedes.title }}
-                                    <template v-if="policy.supersedes.version">
-                                        (v{{ policy.supersedes.version }})
-                                    </template>
-                                </p>
-                            </div>
-
-                            <div class="flex shrink-0 items-center gap-2">
-                                <a
-                                    :href="`/admin/policies/${policy.id}/file`"
-                                    target="_blank"
-                                    rel="noopener"
-                                    class="text-[13px] font-medium text-muted hover:text-text"
-                                >
-                                    Open
-                                </a>
-                                <AppButton
-                                    v-if="policy.is_active"
-                                    size="sm"
-                                    variant="ghost"
-                                    @click="retiring = policy"
-                                >
-                                    Retire
-                                </AppButton>
-                                <AppButton
-                                    v-else
-                                    size="sm"
-                                    variant="secondary"
-                                    @click="restore(policy)"
-                                >
-                                    Put back
-                                </AppButton>
-                            </div>
-                        </div>
-                    </li>
-                </ul>
+                <Pagination
+                    v-model:page="pages.page"
+                    v-model:per-page="pages.perPage"
+                    :last-page="pages.lastPage"
+                    :from="pages.from"
+                    :to="pages.to"
+                    :total="pages.total"
+                />
             </Panel>
         </div>
 

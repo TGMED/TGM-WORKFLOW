@@ -4,10 +4,13 @@ import { computed, ref } from 'vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
+import Pagination from '@/components/ui/Pagination.vue';
+import Panel from '@/components/ui/Panel.vue';
 import PeoplePicker from '@/components/ui/PeoplePicker.vue';
 import SelectField from '@/components/ui/SelectField.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import TextField from '@/components/ui/TextField.vue';
+import { usePaginated } from '@/composables/usePaginated';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 type Person = {
@@ -184,6 +187,10 @@ const totals = computed(() => ({
     headed: props.departments.filter((d) => d.head).length,
     teams: props.departments.reduce((sum, d) => sum + d.teams.length, 0),
 }));
+
+const pages = usePaginated(() => props.departments);
+/** The department whose teams are open under its row. */
+const openTeams = ref<number | null>(null);
 </script>
 
 <template>
@@ -246,149 +253,212 @@ const totals = computed(() => ({
                 </Link>
             </div>
 
-            <div v-if="departments.length" class="stagger space-y-4">
-                <article
-                    v-for="department in departments"
-                    :key="department.id"
-                    :class="[
-                        'overflow-hidden rounded-2xl border bg-panel shadow-panel',
-                        department.is_active
-                            ? 'border-line'
-                            : 'border-line-soft opacity-70',
-                    ]"
-                >
-                    <header
-                        class="flex flex-wrap items-start justify-between gap-4 border-b border-line-soft px-5 py-4"
-                    >
-                        <div class="min-w-0">
-                            <div class="flex items-center gap-2">
-                                <h2
-                                    class="truncate font-display text-[17px] font-semibold tracking-tight"
-                                >
-                                    {{ department.name }}
-                                </h2>
-                                <StatusPill
-                                    v-if="!department.is_active"
-                                    tone="neutral"
-                                >
-                                    Inactive
-                                </StatusPill>
-                            </div>
-                            <p
-                                v-if="department.description"
-                                class="mt-0.5 text-[13px] text-muted"
-                            >
-                                {{ department.description }}
-                            </p>
-                            <p class="mt-1 text-[13px] text-faint">
-                                <template v-if="department.head">
-                                    Headed by
-                                    <span class="text-muted">{{
-                                        department.head.name
-                                    }}</span>
-                                </template>
-                                <template v-else>
-                                    <span class="text-brass"
-                                        >No head named</span
-                                    >
-                                </template>
-                                ·
-                                {{ department.members.length }}
-                                {{
-                                    department.members.length === 1
-                                        ? 'person'
-                                        : 'people'
-                                }}
-                            </p>
-                        </div>
-
-                        <div class="flex shrink-0 items-center gap-1">
-                            <AppButton
-                                size="sm"
-                                variant="ghost"
-                                @click="openTeam(department, null)"
-                            >
-                                Add team
-                            </AppButton>
-                            <AppButton
-                                size="sm"
-                                variant="secondary"
-                                @click="openDepartment(department)"
-                            >
-                                Edit
-                            </AppButton>
-                            <AppButton
-                                size="sm"
-                                variant="ghost"
-                                @click="removing = department"
-                            >
-                                Remove
-                            </AppButton>
-                        </div>
-                    </header>
-
-                    <div
-                        v-if="department.teams.length"
-                        class="divide-y divide-line-soft"
-                    >
-                        <div
-                            v-for="team in department.teams"
-                            :key="team.id"
-                            class="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5"
+            <Panel flush>
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[860px] text-[13.5px]">
+                        <thead
+                            class="border-b border-line-soft text-left text-[12px] text-faint"
                         >
-                            <div class="min-w-0">
-                                <p class="text-[13.5px] font-medium">
-                                    {{ team.name }}
-                                </p>
-                                <p class="text-[12.5px] text-faint">
-                                    <template v-if="team.lead">
-                                        Led by {{ team.lead.name }}
-                                    </template>
-                                    <template v-else>
-                                        <span class="text-brass"
-                                            >No lead named</span
+                            <tr>
+                                <th class="px-5 py-3 font-medium">
+                                    Department
+                                </th>
+                                <th class="px-5 py-3 font-medium">Head</th>
+                                <th class="px-5 py-3 text-right font-medium">
+                                    People
+                                </th>
+                                <th class="px-5 py-3 font-medium">Teams</th>
+                                <th class="px-5 py-3"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line-soft">
+                            <tr v-if="departments.length === 0">
+                                <td colspan="5">
+                                    <EmptyState
+                                        title="No departments yet"
+                                        message="A department is what gives a head somebody to be responsible for, and what the dashboards count against."
+                                    />
+                                </td>
+                            </tr>
+                            <template
+                                v-for="department in pages.paged"
+                                :key="department.id"
+                            >
+                                <tr
+                                    :class="[
+                                        'transition-colors hover:bg-sunken/40',
+                                        !department.is_active && 'opacity-70',
+                                    ]"
+                                >
+                                    <td class="px-5 py-3.5">
+                                        <p
+                                            class="flex items-center gap-2 font-medium"
                                         >
-                                    </template>
-                                    ·
-                                    {{ team.members.length }}
-                                    {{
-                                        team.members.length === 1
-                                            ? 'member'
-                                            : 'members'
-                                    }}
-                                </p>
-                            </div>
-                            <div class="flex shrink-0 items-center gap-1">
-                                <AppButton
-                                    size="sm"
-                                    variant="ghost"
-                                    @click="openTeam(department, team)"
-                                >
-                                    Edit
-                                </AppButton>
-                                <AppButton
-                                    size="sm"
-                                    variant="ghost"
-                                    @click="disbanding = team"
-                                >
-                                    Disband
-                                </AppButton>
-                            </div>
-                        </div>
-                    </div>
+                                            {{ department.name }}
+                                            <StatusPill
+                                                v-if="!department.is_active"
+                                                tone="neutral"
+                                            >
+                                                Inactive
+                                            </StatusPill>
+                                        </p>
+                                        <p
+                                            v-if="department.description"
+                                            class="max-w-[22rem] truncate text-[12px] text-faint"
+                                            :title="department.description"
+                                        >
+                                            {{ department.description }}
+                                        </p>
+                                    </td>
+                                    <td class="px-5 py-3.5">
+                                        <span
+                                            v-if="department.head"
+                                            class="text-muted"
+                                        >
+                                            {{ department.head.name }}
+                                        </span>
+                                        <span v-else class="text-brass">
+                                            No head named
+                                        </span>
+                                    </td>
+                                    <td
+                                        class="tabular px-5 py-3.5 text-right font-mono"
+                                    >
+                                        {{ department.members.length }}
+                                    </td>
+                                    <td class="px-5 py-3.5">
+                                        <button
+                                            v-if="department.teams.length"
+                                            type="button"
+                                            class="text-[12.5px] font-medium text-muted transition-colors hover:text-text"
+                                            @click="
+                                                openTeams =
+                                                    openTeams === department.id
+                                                        ? null
+                                                        : department.id
+                                            "
+                                        >
+                                            {{ department.teams.length }}
+                                            {{
+                                                department.teams.length === 1
+                                                    ? 'team'
+                                                    : 'teams'
+                                            }}
+                                            ·
+                                            {{
+                                                openTeams === department.id
+                                                    ? 'hide'
+                                                    : 'show'
+                                            }}
+                                        </button>
+                                        <span
+                                            v-else
+                                            class="text-[12.5px] text-faint"
+                                        >
+                                            None
+                                        </span>
+                                    </td>
+                                    <td class="px-5 py-3.5">
+                                        <div
+                                            class="flex items-center justify-end gap-1"
+                                        >
+                                            <AppButton
+                                                size="sm"
+                                                variant="ghost"
+                                                @click="
+                                                    openTeam(department, null)
+                                                "
+                                            >
+                                                Add team
+                                            </AppButton>
+                                            <AppButton
+                                                size="sm"
+                                                variant="secondary"
+                                                @click="
+                                                    openDepartment(department)
+                                                "
+                                            >
+                                                Edit
+                                            </AppButton>
+                                            <AppButton
+                                                size="sm"
+                                                variant="ghost"
+                                                @click="removing = department"
+                                            >
+                                                Remove
+                                            </AppButton>
+                                        </div>
+                                    </td>
+                                </tr>
 
-                    <p v-else class="px-5 py-4 text-[13px] text-faint">
-                        No teams yet. A department does not need any — teams are
-                        for when one head is too far from the day to day.
-                    </p>
-                </article>
-            </div>
+                                <!-- Teams open under the department they
+                                     belong to. -->
+                                <tr
+                                    v-for="team in openTeams === department.id
+                                        ? department.teams
+                                        : []"
+                                    :key="`team-${team.id}`"
+                                    class="bg-sunken/40"
+                                >
+                                    <td class="py-3 pr-5 pl-10">
+                                        <p class="font-medium">
+                                            {{ team.name }}
+                                        </p>
+                                    </td>
+                                    <td class="px-5 py-3 text-[12.5px]">
+                                        <span
+                                            v-if="team.lead"
+                                            class="text-muted"
+                                        >
+                                            Led by {{ team.lead.name }}
+                                        </span>
+                                        <span v-else class="text-brass">
+                                            No lead named
+                                        </span>
+                                    </td>
+                                    <td
+                                        class="tabular px-5 py-3 text-right font-mono text-[12.5px]"
+                                    >
+                                        {{ team.members.length }}
+                                    </td>
+                                    <td class="px-5 py-3"></td>
+                                    <td class="px-5 py-3">
+                                        <div
+                                            class="flex items-center justify-end gap-1"
+                                        >
+                                            <AppButton
+                                                size="sm"
+                                                variant="ghost"
+                                                @click="
+                                                    openTeam(department, team)
+                                                "
+                                            >
+                                                Edit
+                                            </AppButton>
+                                            <AppButton
+                                                size="sm"
+                                                variant="ghost"
+                                                @click="disbanding = team"
+                                            >
+                                                Disband
+                                            </AppButton>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
 
-            <EmptyState
-                v-else
-                title="No departments yet"
-                message="A department is what gives a head somebody to be responsible for, and what the dashboards count against."
-            />
+                <Pagination
+                    v-model:page="pages.page"
+                    v-model:per-page="pages.perPage"
+                    :last-page="pages.lastPage"
+                    :from="pages.from"
+                    :to="pages.to"
+                    :total="pages.total"
+                />
+            </Panel>
         </div>
 
         <!-- Creating or editing a department. -->

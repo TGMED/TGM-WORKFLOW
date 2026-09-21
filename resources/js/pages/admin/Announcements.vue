@@ -4,10 +4,12 @@ import { computed, ref } from 'vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
+import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import TextareaField from '@/components/ui/TextareaField.vue';
 import TextField from '@/components/ui/TextField.vue';
+import { usePaginated } from '@/composables/usePaginated';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { relative, shortDate } from '@/lib/format';
 import type { AnnouncementState, AnnouncementRow } from '@/types';
@@ -114,6 +116,9 @@ function submit() {
 function remove(row: AnnouncementRow) {
     router.delete(`/admin/announcements/${row.id}`, { preserveScroll: true });
 }
+
+const livePages = usePaginated(() => live.value);
+const restPages = usePaginated(() => rest.value);
 </script>
 
 <template>
@@ -131,133 +136,224 @@ function remove(row: AnnouncementRow) {
                 :subtitle="`Everyone active — ${audience} ${audience === 1 ? 'person' : 'people'} — is written to when a notice first goes up.`"
                 flush
             >
-                <EmptyState
-                    v-if="live.length === 0"
-                    title="Nothing live"
-                    message="Notices you publish appear on everyone's dashboard and land in their inbox."
-                >
-                    <template #action>
-                        <AppButton size="sm" @click="compose">
-                            Write a notice
-                        </AppButton>
-                    </template>
-                </EmptyState>
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[760px] text-[13.5px]">
+                        <thead
+                            class="border-b border-line-soft text-left text-[12px] text-faint"
+                        >
+                            <tr>
+                                <th class="px-5 py-3 font-medium">Notice</th>
+                                <th class="px-5 py-3 font-medium">Status</th>
+                                <th class="px-5 py-3 font-medium">Author</th>
+                                <th class="px-5 py-3 font-medium">Timing</th>
+                                <th class="px-5 py-3"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line-soft">
+                            <tr v-if="live.length === 0">
+                                <td colspan="5">
+                                    <EmptyState
+                                        title="Nothing live"
+                                        message="Notices you publish appear on everyone's dashboard and land in their inbox."
+                                    >
+                                        <template #action>
+                                            <AppButton
+                                                size="sm"
+                                                @click="compose"
+                                            >
+                                                Write a notice
+                                            </AppButton>
+                                        </template>
+                                    </EmptyState>
+                                </td>
+                            </tr>
+                            <tr
+                                v-for="row in livePages.paged"
+                                :key="row.id"
+                                class="transition-colors hover:bg-sunken/40"
+                            >
+                                <td class="px-5 py-3.5">
+                                    <p class="font-medium">
+                                        {{ row.title }}
+                                    </p>
+                                    <p
+                                        class="max-w-[26rem] truncate text-[12px] text-faint"
+                                        :title="row.excerpt"
+                                    >
+                                        {{ row.excerpt }}
+                                    </p>
+                                </td>
+                                <td class="px-5 py-3.5">
+                                    <StatusPill
+                                        v-if="row.is_pinned"
+                                        tone="beacon"
+                                    >
+                                        Pinned
+                                    </StatusPill>
+                                    <StatusPill v-else tone="signal">
+                                        Live
+                                    </StatusPill>
+                                </td>
+                                <td class="px-5 py-3.5 text-muted">
+                                    {{ row.author ?? 'A former administrator' }}
+                                </td>
+                                <td
+                                    class="px-5 py-3.5 text-[12.5px] text-muted"
+                                >
+                                    <p>
+                                        Up
+                                        {{
+                                            relative(
+                                                row.notified_at ??
+                                                    row.created_at,
+                                            )
+                                        }}
+                                    </p>
+                                    <p v-if="row.expires_at" class="text-faint">
+                                        Comes down
+                                        {{ shortDate(row.expires_at) }}
+                                    </p>
+                                    <p
+                                        v-if="!row.notified_at"
+                                        class="text-faint"
+                                    >
+                                        Not sent
+                                    </p>
+                                </td>
+                                <td class="px-5 py-3.5">
+                                    <div class="flex justify-end gap-1">
+                                        <AppButton
+                                            size="sm"
+                                            variant="ghost"
+                                            @click="edit(row)"
+                                        >
+                                            Edit
+                                        </AppButton>
+                                        <AppButton
+                                            size="sm"
+                                            variant="ghost"
+                                            @click="remove(row)"
+                                        >
+                                            Delete
+                                        </AppButton>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
 
-                <ul v-else class="divide-y divide-line-soft">
-                    <li
-                        v-for="row in live"
-                        :key="row.id"
-                        class="flex items-start gap-4 px-5 py-4"
-                    >
-                        <div class="min-w-0 flex-1">
-                            <p
-                                class="flex flex-wrap items-center gap-2 text-[14px] font-semibold tracking-tight"
-                            >
-                                {{ row.title }}
-                                <StatusPill v-if="row.is_pinned" tone="beacon">
-                                    Pinned
-                                </StatusPill>
-                            </p>
-                            <p class="mt-0.5 text-[13px] text-muted">
-                                {{ row.excerpt }}
-                            </p>
-                            <p class="mt-1 text-[12px] text-faint">
-                                {{ row.author ?? 'A former administrator' }} ·
-                                up
-                                {{
-                                    relative(row.notified_at ?? row.created_at)
-                                }}
-                                <template v-if="row.expires_at">
-                                    · comes down
-                                    {{ shortDate(row.expires_at) }}
-                                </template>
-                                <template v-if="!row.notified_at">
-                                    · not sent
-                                </template>
-                            </p>
-                        </div>
-
-                        <div class="flex shrink-0 gap-1">
-                            <AppButton
-                                size="sm"
-                                variant="ghost"
-                                @click="edit(row)"
-                            >
-                                Edit
-                            </AppButton>
-                            <AppButton
-                                size="sm"
-                                variant="ghost"
-                                @click="remove(row)"
-                            >
-                                Delete
-                            </AppButton>
-                        </div>
-                    </li>
-                </ul>
+                <Pagination
+                    v-model:page="livePages.page"
+                    v-model:per-page="livePages.perPage"
+                    :last-page="livePages.lastPage"
+                    :from="livePages.from"
+                    :to="livePages.to"
+                    :total="livePages.total"
+                />
             </Panel>
 
             <Panel
-                v-if="rest.length"
                 eyebrow="Not on the dashboard"
                 title="Drafts, scheduled and expired"
                 flush
             >
-                <ul class="divide-y divide-line-soft">
-                    <li
-                        v-for="row in rest"
-                        :key="row.id"
-                        class="flex items-start gap-4 px-5 py-4"
-                    >
-                        <div class="min-w-0 flex-1">
-                            <p
-                                class="flex flex-wrap items-center gap-2 text-[14px] font-semibold tracking-tight"
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[760px] text-[13.5px]">
+                        <thead
+                            class="border-b border-line-soft text-left text-[12px] text-faint"
+                        >
+                            <tr>
+                                <th class="px-5 py-3 font-medium">Notice</th>
+                                <th class="px-5 py-3 font-medium">Status</th>
+                                <th class="px-5 py-3 font-medium">Author</th>
+                                <th class="px-5 py-3 font-medium">Timing</th>
+                                <th class="px-5 py-3"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line-soft">
+                            <tr v-if="rest.length === 0">
+                                <td colspan="5">
+                                    <EmptyState
+                                        :title="'Nothing waiting'"
+                                        message="Drafts, notices scheduled for later and ones that have come down are kept here."
+                                    />
+                                </td>
+                            </tr>
+                            <tr
+                                v-for="row in restPages.paged"
+                                :key="row.id"
+                                class="transition-colors hover:bg-sunken/40"
                             >
-                                {{ row.title }}
-                                <StatusPill :tone="tones[row.state]">
-                                    {{ labels[row.state] }}
-                                </StatusPill>
-                            </p>
-                            <p class="mt-0.5 text-[13px] text-muted">
-                                {{ row.excerpt }}
-                            </p>
-                            <p class="mt-1 text-[12px] text-faint">
-                                {{ row.author ?? 'A former administrator' }}
-                                <template v-if="row.state === 'scheduled'">
-                                    · goes up
-                                    {{ shortDate(row.published_at) }}
-                                </template>
-                                <template v-else-if="row.state === 'expired'">
-                                    · came down
-                                    {{ shortDate(row.expires_at) }}
-                                </template>
-                                <template v-else>
-                                    · written {{ relative(row.created_at) }}
-                                </template>
-                                <template v-if="row.notified_at">
-                                    · already sent
-                                </template>
-                            </p>
-                        </div>
+                                <td class="px-5 py-3.5">
+                                    <p class="font-medium">{{ row.title }}</p>
+                                    <p
+                                        class="max-w-[26rem] truncate text-[12px] text-faint"
+                                        :title="row.excerpt"
+                                    >
+                                        {{ row.excerpt }}
+                                    </p>
+                                </td>
+                                <td class="px-5 py-3.5">
+                                    <StatusPill :tone="tones[row.state]">
+                                        {{ labels[row.state] }}
+                                    </StatusPill>
+                                </td>
+                                <td class="px-5 py-3.5 text-muted">
+                                    {{ row.author ?? 'A former administrator' }}
+                                </td>
+                                <td
+                                    class="px-5 py-3.5 text-[12.5px] text-muted"
+                                >
+                                    <p v-if="row.state === 'scheduled'">
+                                        Goes up
+                                        {{ shortDate(row.published_at) }}
+                                    </p>
+                                    <p v-else-if="row.state === 'expired'">
+                                        Came down
+                                        {{ shortDate(row.expires_at) }}
+                                    </p>
+                                    <p v-else>
+                                        Written {{ relative(row.created_at) }}
+                                    </p>
+                                    <p
+                                        v-if="row.notified_at"
+                                        class="text-faint"
+                                    >
+                                        Already sent
+                                    </p>
+                                </td>
+                                <td class="px-5 py-3.5">
+                                    <div class="flex justify-end gap-1">
+                                        <AppButton
+                                            size="sm"
+                                            variant="ghost"
+                                            @click="edit(row)"
+                                        >
+                                            Edit
+                                        </AppButton>
+                                        <AppButton
+                                            size="sm"
+                                            variant="ghost"
+                                            @click="remove(row)"
+                                        >
+                                            Delete
+                                        </AppButton>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
 
-                        <div class="flex shrink-0 gap-1">
-                            <AppButton
-                                size="sm"
-                                variant="ghost"
-                                @click="edit(row)"
-                            >
-                                Edit
-                            </AppButton>
-                            <AppButton
-                                size="sm"
-                                variant="ghost"
-                                @click="remove(row)"
-                            >
-                                Delete
-                            </AppButton>
-                        </div>
-                    </li>
-                </ul>
+                <Pagination
+                    v-model:page="restPages.page"
+                    v-model:per-page="restPages.perPage"
+                    :last-page="restPages.lastPage"
+                    :from="restPages.from"
+                    :to="restPages.to"
+                    :total="restPages.total"
+                />
             </Panel>
         </div>
 
