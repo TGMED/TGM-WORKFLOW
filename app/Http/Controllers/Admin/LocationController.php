@@ -44,7 +44,7 @@ class LocationController extends Controller
 
         return back()->with('toast', [
             'type' => 'success',
-            'message' => "{$location->name} has been added. Staff can now pick it at signup.",
+            'message' => "{$location->name} has been added. Staff can now pick it as their site.",
         ]);
     }
 

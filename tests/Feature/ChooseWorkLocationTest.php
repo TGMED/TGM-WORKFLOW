@@ -17,45 +17,6 @@ class ChooseWorkLocationTest extends TestCase
     /**
      * @return array<string, mixed>
      */
-    private function signup(array $overrides = []): array
-    {
-        return array_merge([
-            'name' => 'Amara Nwosu',
-            'email' => 'amara@tgm.test',
-            'password' => 'Correct-Horse-Battery-9',
-            'password_confirmation' => 'Correct-Horse-Battery-9',
-        ], $overrides);
-    }
-
-    public function test_someone_can_sign_up_before_any_location_exists(): void
-    {
-        $this->assertSame(0, Location::query()->count());
-
-        $this->post('/register', $this->signup())->assertRedirect('/dashboard');
-
-        $user = User::query()->where('email', 'amara@tgm.test')->firstOrFail();
-
-        $this->assertNull($user->location_id);
-        $this->assertTrue($user->is_active);
-        $this->assertAuthenticatedAs($user);
-    }
-
-    public function test_the_signup_page_renders_with_no_locations(): void
-    {
-        $this->get('/register')->assertOk();
-    }
-
-    public function test_someone_can_sign_up_and_skip_the_location(): void
-    {
-        Location::factory()->create();
-
-        $this->post('/register', $this->signup())->assertRedirect('/dashboard');
-
-        $this->assertNull(
-            User::query()->where('email', 'amara@tgm.test')->firstOrFail()->location_id,
-        );
-    }
-
     public function test_a_user_without_a_location_still_cannot_clock_in(): void
     {
         $user = User::factory()->create(['location_id' => null]);
@@ -174,5 +135,18 @@ class ChooseWorkLocationTest extends TestCase
         $this->actingAs($admin)
             ->post('/work-location', ['location_id' => $location->id])
             ->assertForbidden();
+    }
+
+    public function test_there_is_no_sign_up(): void
+    {
+        $this->get('/register')->assertNotFound();
+        $this->post('/register', [
+            'name' => 'Amara Nwosu',
+            'email' => 'amara@tgm.test',
+            'password' => 'Correct-Horse-Battery-9',
+            'password_confirmation' => 'Correct-Horse-Battery-9',
+        ])->assertNotFound();
+
+        $this->assertSame(0, User::query()->where('email', 'amara@tgm.test')->count());
     }
 }

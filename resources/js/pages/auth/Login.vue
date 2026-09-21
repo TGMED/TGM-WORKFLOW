@@ -103,14 +103,8 @@ function submit() {
         </form>
 
         <p class="mt-8 text-sm text-muted">
-            New here?
-            <Link
-                href="/register"
-                class="font-medium text-beacon transition-opacity hover:opacity-75"
-            >
-                Create an account
-            </Link>
-            and pick your work location.
+            New here? Your account is set up by the people team. Ask them if you
+            have not heard from us yet.
         </p>
     </AuthLayout>
 </template>

@@ -74,7 +74,7 @@ class LocationImporter extends BaseImporter
             ImportColumn::make('workdays', 'The days this site works, as ISO day numbers separated by semicolons.', '1;2;3;4;5', format: 'Day numbers 1-7'),
             ImportColumn::make('timezone', 'The site\'s own timezone, which its working day is read in.', 'Africa/Lagos', format: 'IANA timezone name'),
             ImportColumn::boolean('is_active', 'Whether the site is in use.'),
-            ImportColumn::boolean('accepts_signups', 'Whether somebody signing up may choose this site.'),
+            ImportColumn::boolean('accepts_signups', 'Whether staff may choose this site as their own.'),
         ];
     }
 

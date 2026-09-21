@@ -260,7 +260,7 @@ const totals = computed(() => ({
                                     "
                                     tone="brass"
                                 >
-                                    Closed to signups
+                                    Not offered to staff
                                 </StatusPill>
                             </div>
 
@@ -341,7 +341,7 @@ const totals = computed(() => ({
             <Panel v-else flush>
                 <EmptyState
                     title="No locations yet"
-                    message="Add the site your team clocks in at. Staff pick from these when they sign up, and every punch is measured against the one they chose."
+                    message="Add the site your team clocks in at. Staff pick from these as their site, and every punch is measured against the one they chose."
                 >
                     <template #action>
                         <AppButton @click="open(null)">
@@ -383,7 +383,7 @@ const totals = computed(() => ({
                     placeholder="1 Adeola Odeku Street, Victoria Island"
                     required
                     :error="form.errors.address"
-                    hint="Shown to staff on the signup form, so make it recognisable."
+                    hint="Shown to staff when they pick their site, so make it recognisable."
                 />
 
                 <div>
@@ -575,11 +575,11 @@ const totals = computed(() => ({
                     />
                     <span class="min-w-0">
                         <span class="block text-[13px] font-medium">
-                            Offer this location at signup
+                            Offer this location to staff
                         </span>
                         <span class="mt-0.5 block text-[12px] text-muted">
-                            Turn off to keep the site running for existing staff
-                            while hiding it from new registrations.
+                            Turn off to keep the site running for the staff
+                            already on it while nobody else can choose it.
                         </span>
                     </span>
                 </label>
@@ -615,7 +615,7 @@ const totals = computed(() => ({
                     <span class="font-medium text-text">{{
                         confirming?.name
                     }}</span>
-                    will be hidden from signup and its
+                    will no longer be offered to staff and its
                     {{ confirming?.active_staff_count }} staff will not be able
                     to clock in until they are moved to another site. All
                     history is kept.
