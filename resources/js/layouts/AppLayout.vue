@@ -33,6 +33,7 @@ type NavItem = {
     permission?: Permission;
     staffOnly?: boolean;
     approverOnly?: boolean;
+    headOnly?: boolean;
     badge?: () => number;
     // A group heads a set of related pages and is not a destination itself.
     children?: NavItem[];
@@ -97,6 +98,7 @@ const nav: NavItem[] = [
             {
                 label: 'Recommendations',
                 href: '/recommendations',
+                headOnly: true,
                 icon: 'M12 8.5v4m0 3h.01M10.6 3.9 2.5 18a1.5 1.5 0 0 0 1.3 2.3h16.4a1.5 1.5 0 0 0 1.3-2.3L13.4 3.9a1.6 1.6 0 0 0-2.8 0Z',
             },
         ],
@@ -302,7 +304,8 @@ function permits(item: NavItem): boolean {
     return (
         may(item.permission) &&
         (!item.staffOnly || Boolean(user.value?.clocks_in)) &&
-        (!item.approverOnly || Boolean(user.value?.can_use_approvals))
+        (!item.approverOnly || Boolean(user.value?.can_use_approvals)) &&
+        (!item.headOnly || Boolean(user.value?.heads_department))
     );
 }
 

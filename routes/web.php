@@ -140,9 +140,9 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
         Route::get('payslips/{payslip}/pdf', [PayslipController::class, 'pdf'])->name('payslips.pdf');
     });
 
-    // Putting it to the people team that somebody should be let go. Guarded
-    // in the form request rather than by middleware: who may raise one depends
-    // on who answers to them, which no role can express.
+    // Putting it to the people team that somebody should be let go. Heads of
+    // department only for now, checked in the controller and form request
+    // since headship comes from the department rather than a permission.
     Route::get('recommendations', [TerminationRecommendationController::class, 'index'])
         ->name('recommendations.index');
     Route::post('recommendations', [TerminationRecommendationController::class, 'store'])

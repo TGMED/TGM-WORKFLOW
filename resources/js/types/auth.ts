@@ -59,6 +59,7 @@ export type AuthUser = {
     permissions: Permission[];
     can_approve: boolean;
     can_use_approvals: boolean;
+    heads_department: boolean;
     clocks_in: boolean;
     is_active: boolean;
     profile_complete: boolean;

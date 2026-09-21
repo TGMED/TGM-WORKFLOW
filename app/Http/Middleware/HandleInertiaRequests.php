@@ -79,6 +79,7 @@ class HandleInertiaRequests extends Middleware
                     ),
                     'can_approve' => $user->canApprove(),
                     'can_use_approvals' => $user->usesApprovals(),
+                    'heads_department' => $user->headsADepartment(),
                     'clocks_in' => $user->clocksIn(),
                     'is_active' => $user->is_active,
                     // The nav hides everything but the profile while this is

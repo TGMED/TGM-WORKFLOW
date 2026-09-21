@@ -32,6 +32,8 @@ class TerminationRecommendationController extends Controller
     {
         $user = $request->user();
 
+        abort_unless($user->headsADepartment(), 403);
+
         $mine = TerminationRecommendation::query()
             ->with(['subject:id,name,position', 'offence:id,code,title', 'decidedBy:id,name'])
             ->where('raised_by_id', $user->id)

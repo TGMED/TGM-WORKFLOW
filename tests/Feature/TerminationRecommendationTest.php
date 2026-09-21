@@ -39,6 +39,15 @@ class TerminationRecommendationTest extends TestCase
         ]);
     }
 
+    private function departmentHead(): User
+    {
+        $department = Department::factory()->create();
+        $head = $this->staff(['department_id' => $department->id]);
+        $department->update(['head_user_id' => $head->id]);
+
+        return $head->refresh();
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -57,7 +66,7 @@ class TerminationRecommendationTest extends TestCase
         Notification::fake();
 
         $hr = User::factory()->superAdmin()->create();
-        $manager = $this->staff();
+        $manager = $this->departmentHead();
         $junior = $this->staff(['manager_id' => $manager->id]);
 
         $this->actingAs($manager)
@@ -71,6 +80,20 @@ class TerminationRecommendationTest extends TestCase
         $this->assertSame(RecommendationStatus::Pending, $recommendation->status);
 
         Notification::assertSentTo($hr, TerminationRecommended::class);
+    }
+
+    public function test_a_manager_who_heads_no_department_cannot_raise_one_for_now(): void
+    {
+        $manager = $this->staff();
+        $junior = $this->staff(['manager_id' => $manager->id]);
+
+        $this->actingAs($manager)->get('/recommendations')->assertForbidden();
+
+        $this->actingAs($manager)
+            ->post('/recommendations', $this->payload($junior))
+            ->assertForbidden();
+
+        $this->assertSame(0, TerminationRecommendation::query()->count());
     }
 
     public function test_a_head_of_department_can_raise_one_about_their_own_people(): void
@@ -95,7 +118,7 @@ class TerminationRecommendationTest extends TestCase
     {
         User::factory()->superAdmin()->create();
 
-        $manager = $this->staff();
+        $manager = $this->departmentHead();
         $this->staff(['manager_id' => $manager->id]);
         $stranger = $this->staff();
 
@@ -118,7 +141,7 @@ class TerminationRecommendationTest extends TestCase
 
     public function test_the_case_has_to_be_set_out_properly(): void
     {
-        $manager = $this->staff();
+        $manager = $this->departmentHead();
         $junior = $this->staff(['manager_id' => $manager->id]);
 
         $this->actingAs($manager)
@@ -131,7 +154,7 @@ class TerminationRecommendationTest extends TestCase
         Notification::fake();
         User::factory()->superAdmin()->create();
 
-        $manager = $this->staff();
+        $manager = $this->departmentHead();
         $junior = $this->staff(['manager_id' => $manager->id]);
 
         $this->actingAs($manager)->post('/recommendations', $this->payload($junior));

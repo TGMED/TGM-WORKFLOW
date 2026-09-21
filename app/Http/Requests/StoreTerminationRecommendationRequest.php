@@ -12,9 +12,9 @@ class StoreTerminationRecommendationRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        // Only somebody with people answering to them can raise one at all.
-        // Which of those people is checked below, where the message can say so.
-        return ($this->user()?->peopleAnsweringToMe() ?? []) !== [];
+        // Heads of department only, for now. Which of their people is checked
+        // below, where the message can say so.
+        return $this->user()?->headsADepartment() ?? false;
     }
 
     /**
