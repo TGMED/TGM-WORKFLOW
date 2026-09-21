@@ -62,6 +62,13 @@ class PayrollController extends Controller
         // Everybody who draws pay, with their salary where one is on file.
         // The ones without are the point of the list: an empty salary is how
         // somebody quietly goes unpaid for a month.
+        // Who is on their own rates, so the list can say so per person
+        // rather than the page having to ask once per row.
+        $personal = PayrollSettings::query()
+            ->whereNotNull('user_id')
+            ->get()
+            ->keyBy('user_id');
+
         $staff = User::query()
             ->active()
             ->clocksIn()
@@ -81,6 +88,11 @@ class PayrollController extends Controller
                 'nhf_applies' => $user->salaryProfile->nhf_applies ?? true,
                 'effective_from' => $user->salaryProfile?->effective_from?->toDateString(),
                 'annual_rent' => (float) ($user->profile->annual_rent ?? 0),
+                // Their own rates where they have a set, so the form can open
+                // on them; null means they are on the company's.
+                'rates' => $personal->has($user->id)
+                    ? $this->settingsPayload($personal->get($user->id))
+                    : null,
             ])
             ->values();
 
@@ -89,6 +101,7 @@ class PayrollController extends Controller
             'staff' => $staff,
             'settings' => $this->settingsPayload($settings),
             'unpaid' => $staff->whereNull('annual_gross')->count(),
+            'on_personal_rates' => $personal->count(),
             'next_period' => $this->nextPeriod(),
         ]);
     }

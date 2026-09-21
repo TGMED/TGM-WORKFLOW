@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
+import RateFields from '@/components/payroll/RateFields.vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
@@ -18,11 +19,14 @@ const props = defineProps<{
     staff: PayrollStaffRow[];
     settings: PayrollSettings;
     unpaid: number;
+    on_personal_rates: number;
     next_period: { year: number; month: number };
 }>();
 
 const tab = ref<'runs' | 'salaries' | 'rules'>('runs');
 const editing = ref<PayrollStaffRow | null>(null);
+/** The person whose own rates are being edited, if any. */
+const rating = ref<PayrollStaffRow | null>(null);
 const search = ref('');
 
 const months = [
@@ -54,6 +58,24 @@ const salaryForm = useForm({
 });
 
 const rulesForm = useForm({
+    currency: props.settings.currency,
+    basic_percent: props.settings.basic_percent,
+    housing_percent: props.settings.housing_percent,
+    transport_percent: props.settings.transport_percent,
+    pension_employee_percent: props.settings.pension_employee_percent,
+    pension_employer_percent: props.settings.pension_employer_percent,
+    nhf_percent: props.settings.nhf_percent,
+    rent_relief_percent: props.settings.rent_relief_percent,
+    rent_relief_cap: props.settings.rent_relief_cap,
+    tax_bands: props.settings.tax_bands.map((band) => ({ ...band })),
+});
+
+/*
+ * One person's own rates. A separate form from the company's so an unsaved
+ * edit to one cannot leak into the other, and so the errors land on the right
+ * fields when either is rejected.
+ */
+const personalForm = useForm({
     currency: props.settings.currency,
     basic_percent: props.settings.basic_percent,
     housing_percent: props.settings.housing_percent,
@@ -102,19 +124,6 @@ const monthlyBill = computed(() =>
     ),
 );
 
-// What is left of the package once basic, housing and transport are taken.
-// Shown live because a split that overruns 100% is rejected on save.
-const otherPercent = computed(
-    () =>
-        Math.round(
-            (100 -
-                Number(rulesForm.basic_percent) -
-                Number(rulesForm.housing_percent) -
-                Number(rulesForm.transport_percent)) *
-                100,
-        ) / 100,
-);
-
 function editSalary(person: PayrollStaffRow) {
     salaryForm.clearErrors();
     salaryForm.defaults({
@@ -137,24 +146,75 @@ function saveSalary() {
     });
 }
 
+/**
+ * Open somebody's own rates. Their set where they have one; otherwise the
+ * company's, as the starting point they would be copied from.
+ */
+function editRates(person: PayrollStaffRow) {
+    const source = person.rates ?? props.settings;
+
+    personalForm.clearErrors();
+    personalForm.defaults({
+        currency: source.currency,
+        basic_percent: source.basic_percent,
+        housing_percent: source.housing_percent,
+        transport_percent: source.transport_percent,
+        pension_employee_percent: source.pension_employee_percent,
+        pension_employer_percent: source.pension_employer_percent,
+        nhf_percent: source.nhf_percent,
+        rent_relief_percent: source.rent_relief_percent,
+        rent_relief_cap: source.rent_relief_cap,
+        tax_bands: source.tax_bands.map((band) => ({ ...band })),
+    });
+    personalForm.reset();
+    rating.value = person;
+}
+
+function savePersonalRates() {
+    if (rating.value === null) {
+        return;
+    }
+
+    const person = rating.value;
+
+    const put = () =>
+        personalForm.put(`/admin/staff/${person.id}/payroll-settings`, {
+            preserveScroll: true,
+            onSuccess: () => {
+                rating.value = null;
+            },
+        });
+
+    // Somebody not yet on their own rates needs the row creating first; the
+    // copy it starts from is then overwritten by what is in the form.
+    if (person.rates === null) {
+        router.post(
+            `/admin/staff/${person.id}/payroll-settings`,
+            {},
+            { preserveScroll: true, onSuccess: put },
+        );
+
+        return;
+    }
+
+    put();
+}
+
+function backToCompanyRates(person: PayrollStaffRow) {
+    router.delete(`/admin/staff/${person.id}/payroll-settings`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            rating.value = null;
+        },
+    });
+}
+
 function openRun() {
     runForm.post('/admin/payroll', { preserveScroll: true });
 }
 
 function saveRules() {
     rulesForm.put('/admin/payroll-settings', { preserveScroll: true });
-}
-
-function addBand() {
-    // New bands go in below the open-ended one, which has to stay last.
-    const open = rulesForm.tax_bands.filter((band) => band.up_to === null);
-    const bounded = rulesForm.tax_bands.filter((band) => band.up_to !== null);
-
-    rulesForm.tax_bands = [...bounded, { up_to: 0, rate: 0 }, ...open];
-}
-
-function removeBand(index: number) {
-    rulesForm.tax_bands = rulesForm.tax_bands.filter((_, i) => i !== index);
 }
 
 function deleteRun(run: PayrollRunRow) {
@@ -332,6 +392,7 @@ function deleteRun(run: PayrollRunRow) {
                                     Monthly
                                 </th>
                                 <th class="px-5 py-3 font-medium">Schemes</th>
+                                <th class="px-5 py-3 font-medium">Rates</th>
                                 <th class="px-5 py-3"></th>
                             </tr>
                         </thead>
@@ -387,7 +448,28 @@ function deleteRun(run: PayrollRunRow) {
                                     </template>
                                     <span v-else>—</span>
                                 </td>
+                                <td class="px-5 py-3.5">
+                                    <StatusPill
+                                        v-if="person.rates"
+                                        tone="brass"
+                                    >
+                                        Own rates
+                                    </StatusPill>
+                                    <span
+                                        v-else
+                                        class="text-[12.5px] text-faint"
+                                    >
+                                        Company
+                                    </span>
+                                </td>
                                 <td class="px-5 py-3.5 text-right">
+                                    <AppButton
+                                        variant="ghost"
+                                        size="sm"
+                                        @click="editRates(person)"
+                                    >
+                                        Rates
+                                    </AppButton>
                                     <AppButton
                                         variant="ghost"
                                         size="sm"
@@ -413,177 +495,7 @@ function deleteRun(run: PayrollRunRow) {
                 subtitle="Everything payroll computes with. Change these when the law does, then rebuild any draft run to apply them."
             >
                 <form class="space-y-6" @submit.prevent="saveRules">
-                    <section>
-                        <h3 class="eyebrow">How a package splits</h3>
-                        <p class="mt-1 text-[12.5px] text-muted">
-                            Pension is assessed on basic, housing and transport
-                            together, so this split changes what people pay in.
-                        </p>
-
-                        <div class="mt-3 grid gap-4 sm:grid-cols-4">
-                            <TextField
-                                v-model="rulesForm.basic_percent"
-                                label="Basic %"
-                                type="number"
-                                step="0.01"
-                                :error="rulesForm.errors.basic_percent"
-                            />
-                            <TextField
-                                v-model="rulesForm.housing_percent"
-                                label="Housing %"
-                                type="number"
-                                step="0.01"
-                                :error="rulesForm.errors.housing_percent"
-                            />
-                            <TextField
-                                v-model="rulesForm.transport_percent"
-                                label="Transport %"
-                                type="number"
-                                step="0.01"
-                                :error="rulesForm.errors.transport_percent"
-                            />
-                            <div class="space-y-1.5">
-                                <p class="text-[13px] font-medium text-muted">
-                                    Other allowances
-                                </p>
-                                <p
-                                    class="rounded-xl border border-line bg-sunken px-3.5 py-2.5 text-sm"
-                                    :class="
-                                        otherPercent < 0
-                                            ? 'text-alert'
-                                            : 'text-muted'
-                                    "
-                                >
-                                    {{ otherPercent }}%
-                                </p>
-                            </div>
-                        </div>
-                    </section>
-
-                    <section>
-                        <h3 class="eyebrow">Statutory deductions</h3>
-                        <div class="mt-3 grid gap-4 sm:grid-cols-3">
-                            <TextField
-                                v-model="rulesForm.pension_employee_percent"
-                                label="Pension · employee %"
-                                type="number"
-                                step="0.01"
-                                :error="
-                                    rulesForm.errors.pension_employee_percent
-                                "
-                            />
-                            <TextField
-                                v-model="rulesForm.pension_employer_percent"
-                                label="Pension · employer %"
-                                type="number"
-                                step="0.01"
-                                hint="Paid on top, not deducted."
-                                :error="
-                                    rulesForm.errors.pension_employer_percent
-                                "
-                            />
-                            <TextField
-                                v-model="rulesForm.nhf_percent"
-                                label="NHF % of basic"
-                                type="number"
-                                step="0.01"
-                                :error="rulesForm.errors.nhf_percent"
-                            />
-                        </div>
-                    </section>
-
-                    <section>
-                        <h3 class="eyebrow">Rent relief</h3>
-                        <p class="mt-1 text-[12.5px] text-muted">
-                            Taken off before tax is assessed, from the annual
-                            rent on each employee's own HR record. Nobody with
-                            no rent on file gets any.
-                        </p>
-                        <div class="mt-3 grid gap-4 sm:grid-cols-2">
-                            <TextField
-                                v-model="rulesForm.rent_relief_percent"
-                                label="Relief % of rent paid"
-                                type="number"
-                                step="0.01"
-                                :error="rulesForm.errors.rent_relief_percent"
-                            />
-                            <TextField
-                                v-model="rulesForm.rent_relief_cap"
-                                label="Capped at"
-                                type="number"
-                                step="0.01"
-                                :error="rulesForm.errors.rent_relief_cap"
-                            />
-                        </div>
-                    </section>
-
-                    <section>
-                        <h3 class="eyebrow">Annual tax bands</h3>
-                        <p class="mt-1 text-[12.5px] text-muted">
-                            Each band is charged only on the slice of income
-                            inside it. One band must be left open-ended to catch
-                            everything above the rest.
-                        </p>
-
-                        <p
-                            v-if="rulesForm.errors.tax_bands"
-                            class="mt-2 text-[13px] text-alert"
-                        >
-                            {{ rulesForm.errors.tax_bands }}
-                        </p>
-
-                        <ul class="mt-3 space-y-2">
-                            <li
-                                v-for="(band, index) in rulesForm.tax_bands"
-                                :key="index"
-                                class="flex flex-wrap items-end gap-3 rounded-xl border border-line bg-sunken/40 px-3.5 py-3"
-                            >
-                                <div class="min-w-[10rem] flex-1">
-                                    <label
-                                        class="text-[12px] font-medium text-muted"
-                                    >
-                                        Up to
-                                    </label>
-                                    <input
-                                        v-model="band.up_to"
-                                        type="number"
-                                        step="1"
-                                        placeholder="Open-ended"
-                                        class="mt-1 w-full rounded-lg border border-line bg-panel-raised px-3 py-2 font-mono text-[13px] focus:border-beacon focus:outline-none"
-                                    />
-                                </div>
-                                <div class="w-28">
-                                    <label
-                                        class="text-[12px] font-medium text-muted"
-                                    >
-                                        Rate %
-                                    </label>
-                                    <input
-                                        v-model="band.rate"
-                                        type="number"
-                                        step="0.01"
-                                        class="mt-1 w-full rounded-lg border border-line bg-panel-raised px-3 py-2 font-mono text-[13px] focus:border-beacon focus:outline-none"
-                                    />
-                                </div>
-                                <AppButton
-                                    variant="ghost"
-                                    size="sm"
-                                    @click="removeBand(index)"
-                                >
-                                    Remove
-                                </AppButton>
-                            </li>
-                        </ul>
-
-                        <AppButton
-                            class="mt-3"
-                            variant="secondary"
-                            size="sm"
-                            @click="addBand"
-                        >
-                            Add a band
-                        </AppButton>
-                    </section>
+                    <RateFields :form="rulesForm" />
 
                     <div
                         class="flex justify-end border-t border-line-soft pt-4"
@@ -668,6 +580,43 @@ function deleteRun(run: PayrollRunRow) {
                 </AppButton>
                 <AppButton :loading="salaryForm.processing" @click="saveSalary">
                     Save salary
+                </AppButton>
+            </template>
+        </ModalShell>
+
+        <!-- One person's own rates. Opening it on somebody who is on the
+             company rates shows those, and saving is what puts them on a set
+             of their own. -->
+        <ModalShell
+            :open="rating !== null"
+            :title="rating ? `Rates · ${rating.name}` : ''"
+            :subtitle="
+                rating?.rates
+                    ? 'Their own rates. These do not follow the company rates when those change.'
+                    : 'Showing the company rates. Saving puts this person on their own set, copied from these, and they stop following company changes.'
+            "
+            @close="rating = null"
+        >
+            <form class="space-y-6" @submit.prevent="savePersonalRates">
+                <RateFields :form="personalForm" />
+            </form>
+
+            <template #footer>
+                <AppButton
+                    v-if="rating?.rates"
+                    variant="ghost"
+                    @click="backToCompanyRates(rating)"
+                >
+                    Back to company rates
+                </AppButton>
+                <AppButton variant="ghost" @click="rating = null">
+                    Cancel
+                </AppButton>
+                <AppButton
+                    :loading="personalForm.processing"
+                    @click="savePersonalRates"
+                >
+                    {{ rating?.rates ? 'Save rates' : 'Use their own rates' }}
                 </AppButton>
             </template>
         </ModalShell>

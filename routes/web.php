@@ -23,6 +23,7 @@ use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\SalaryController;
 use App\Http\Controllers\Admin\StaffController;
 use App\Http\Controllers\Admin\TeamController;
+use App\Http\Controllers\Admin\UserPayrollSettingsController;
 use App\Http\Controllers\AnnouncementController as PublicAnnouncementController;
 use App\Http\Controllers\ApprovalController;
 use App\Http\Controllers\AttendanceController;
@@ -380,6 +381,15 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
             Route::post('payroll/{run}/pension/remit', [PensionController::class, 'remit'])->name('pension.remit');
 
             Route::put('payroll-settings', [PayrollSettingsController::class, 'update'])->name('payroll-settings.update');
+
+            // Rates for one person rather than for the company. A personal set
+            // replaces the company's whole, and stops following it.
+            Route::post('staff/{user}/payroll-settings', [UserPayrollSettingsController::class, 'store'])
+                ->name('user-payroll-settings.store');
+            Route::put('staff/{user}/payroll-settings', [UserPayrollSettingsController::class, 'update'])
+                ->name('user-payroll-settings.update');
+            Route::delete('staff/{user}/payroll-settings', [UserPayrollSettingsController::class, 'destroy'])
+                ->name('user-payroll-settings.destroy');
 
             Route::post('salaries', [SalaryController::class, 'store'])->name('salaries.store');
             Route::delete('salaries/{salaryProfile}', [SalaryController::class, 'destroy'])->name('salaries.destroy');

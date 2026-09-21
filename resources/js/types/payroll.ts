@@ -52,6 +52,11 @@ export type PayrollStaffRow = {
     nhf_applies: boolean;
     effective_from: string | null;
     annual_rent: number;
+    /**
+     * Their own rates, where somebody has been put on a personal set. Null
+     * means they are paid under the company's.
+     */
+    rates: PayrollSettings | null;
 };
 
 /** One line on a payslip, earning or deduction. */

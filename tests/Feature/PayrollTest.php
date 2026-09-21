@@ -209,6 +209,110 @@ class PayrollTest extends TestCase
         $this->assertSame(1000000.0, Payslip::query()->firstOrFail()->gross_pay);
     }
 
+    // Rates for one person rather than for the company.
+
+    public function test_somebody_on_their_own_rates_is_paid_under_them(): void
+    {
+        $company = $this->staff();
+        $special = $this->staff();
+
+        $this->salaryFor($company, 6000000);
+        $this->salaryFor($special, 6000000);
+
+        // Same package, a different split. Basic drives the NHF line, so a
+        // change here shows up somewhere a reader can point at.
+        PayrollSettings::copyToUser($special)->update([
+            'basic_percent' => 60,
+            'housing_percent' => 10,
+            'transport_percent' => 10,
+        ]);
+
+        $officer = $this->officer();
+        $this->actingAs($officer)->post('/admin/payroll', ['year' => 2026, 'month' => 8]);
+
+        $onCompanyRates = Payslip::query()->where('user_id', $company->id)->firstOrFail();
+        $onOwnRates = Payslip::query()->where('user_id', $special->id)->firstOrFail();
+
+        // 40% of six million over twelve against 60% of it. Read back
+        // through the JSON cast, which hands a whole figure back as an int.
+        $this->assertSame(200000.0, (float) $onCompanyRates->earnings[0]['amount']);
+        $this->assertSame(300000.0, (float) $onOwnRates->earnings[0]['amount']);
+    }
+
+    public function test_a_personal_set_replaces_the_company_one_whole(): void
+    {
+        $user = $this->staff();
+
+        PayrollSettings::copyToUser($user)->update(['basic_percent' => 55]);
+
+        // The company row moves; the personal one does not follow it. That is
+        // what all-or-nothing means, and it is the point of the test.
+        PayrollSettings::current()->update(['nhf_percent' => 9]);
+
+        $resolved = PayrollSettings::forUser($user);
+
+        $this->assertTrue($resolved->isPersonal());
+        $this->assertSame(55.0, $resolved->basic_percent);
+        $this->assertSame(2.5, $resolved->nhf_percent);
+    }
+
+    public function test_without_a_personal_set_somebody_is_on_the_company_rates(): void
+    {
+        $resolved = PayrollSettings::forUser($this->staff());
+
+        $this->assertFalse($resolved->isPersonal());
+        $this->assertSame(PayrollSettings::current()->id, $resolved->id);
+    }
+
+    public function test_the_payroll_officer_puts_somebody_on_and_off_their_own_rates(): void
+    {
+        $user = $this->staff();
+        $officer = $this->officer();
+
+        $this->actingAs($officer)
+            ->post("/admin/staff/{$user->id}/payroll-settings")
+            ->assertSessionHasNoErrors();
+
+        $this->assertTrue(PayrollSettings::forUser($user)->isPersonal());
+
+        $this->actingAs($officer)
+            ->put("/admin/staff/{$user->id}/payroll-settings", [
+                'currency' => 'NGN',
+                'basic_percent' => 50,
+                'housing_percent' => 20,
+                'transport_percent' => 10,
+                'pension_employee_percent' => 8,
+                'pension_employer_percent' => 10,
+                'nhf_percent' => 2.5,
+                'rent_relief_percent' => 20,
+                'rent_relief_cap' => 500000,
+                'tax_bands' => [
+                    ['up_to' => 800000, 'rate' => 0],
+                    ['up_to' => null, 'rate' => 25],
+                ],
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(50.0, PayrollSettings::forUser($user)->basic_percent);
+
+        $this->actingAs($officer)
+            ->delete("/admin/staff/{$user->id}/payroll-settings")
+            ->assertSessionHasNoErrors();
+
+        $this->assertFalse(PayrollSettings::forUser($user)->isPersonal());
+    }
+
+    public function test_only_payroll_may_set_somebody_up_on_their_own_rates(): void
+    {
+        $user = $this->staff();
+
+        $this->actingAs($this->staff())
+            ->post("/admin/staff/{$user->id}/payroll-settings")
+            ->assertForbidden();
+
+        $this->assertFalse(PayrollSettings::forUser($user)->isPersonal());
+    }
+
     // Who sees what.
 
     public function test_a_draft_run_is_invisible_to_the_person_it_is_about(): void

@@ -4,17 +4,23 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use OwenIt\Auditing\Auditable;
 use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
 
 /**
- * The one row of payroll rules. Audited: a rate that changes between two
- * months is the first thing anyone asks about when a net figure moves, and
- * the trail answers it without a conversation.
+ * The payroll rules. Audited: a rate that changes between two months is the
+ * first thing anyone asks about when a net figure moves, and the trail answers
+ * it without a conversation.
+ *
+ * Normally one row, the company's, with a null `user_id`. A row carrying a
+ * `user_id` is that person's own set, and it replaces the company's outright
+ * rather than being merged with it: see `forUser()`.
  *
  * @property int $id
+ * @property int|null $user_id
  * @property string $currency
  * @property float $basic_percent
  * @property float $housing_percent
@@ -28,8 +34,10 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
+ * @property-read User|null $user
  */
 #[Fillable([
+    'user_id',
     'currency',
     'basic_percent',
     'housing_percent',
@@ -67,14 +75,73 @@ class PayrollSettings extends Model implements AuditableContract
     }
 
     /**
-     * The single row, created on the spot if the table is somehow empty so a
+     * @return BelongsTo<User, $this>
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    /**
+     * The company row, created on the spot if the table is somehow empty so a
      * payroll run can never fail for want of a settings record.
      */
     public static function current(): self
     {
-        return self::query()->firstOr(fn (): self => self::query()->create([
-            'tax_bands' => [['up_to' => null, 'rate' => 0]],
-        ]));
+        return self::query()
+            ->whereNull('user_id')
+            ->firstOr(fn (): self => self::query()->create([
+                'tax_bands' => [['up_to' => null, 'rate' => 0]],
+            ]));
+    }
+
+    /**
+     * The rates this person is actually paid under: their own set where they
+     * have one, the company's where they do not.
+     *
+     * All or nothing on purpose. A personal row is not merged field by field
+     * with the company's, so every figure on somebody's payslip comes from one
+     * row and can be pointed at.
+     */
+    public static function forUser(User $user): self
+    {
+        return self::query()->where('user_id', $user->id)->first() ?? self::current();
+    }
+
+    /**
+     * Whether these are somebody's own rates rather than the company's.
+     */
+    public function isPersonal(): bool
+    {
+        return $this->user_id !== null;
+    }
+
+    /**
+     * The company rates copied onto a person, as the starting point for their
+     * own set. Copied rather than referenced: from here the two drift, which
+     * is what having a personal set means.
+     */
+    public static function copyToUser(User $user): self
+    {
+        $company = self::current();
+
+        return self::query()->updateOrCreate(
+            ['user_id' => $user->id],
+            collect($company->attributesToArray())
+                ->only([
+                    'currency',
+                    'basic_percent',
+                    'housing_percent',
+                    'transport_percent',
+                    'pension_employee_percent',
+                    'pension_employer_percent',
+                    'nhf_percent',
+                    'rent_relief_percent',
+                    'rent_relief_cap',
+                ])
+                ->put('tax_bands', $company->tax_bands)
+                ->all(),
+        );
     }
 
     /**

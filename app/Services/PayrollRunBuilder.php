@@ -25,7 +25,15 @@ class PayrollRunBuilder
      */
     public function build(PayrollRun $run): int
     {
-        $settings = PayrollSettings::current();
+        // Rates are resolved per person rather than once for the run: most
+        // people are on the company's, but anybody with their own set is paid
+        // under it, and a run has to be able to hold both.
+        $company = PayrollSettings::current();
+
+        $personal = PayrollSettings::query()
+            ->whereNotNull('user_id')
+            ->get()
+            ->keyBy('user_id');
 
         // Who is on the payroll this month, resolved first: administrators
         // run the system rather than draw a salary through it, and somebody
@@ -37,7 +45,7 @@ class PayrollRunBuilder
             ->whereIn('user_id', $payable)
             ->get();
 
-        return DB::transaction(function () use ($run, $settings, $profiles): int {
+        return DB::transaction(function () use ($run, $company, $personal, $profiles): int {
             // Emptied first: somebody taken off the payroll since the last
             // build must not be left behind with a stale payslip. Forced,
             // because a soft-deleted payslip keeps its slot in the unique
@@ -50,7 +58,7 @@ class PayrollRunBuilder
             foreach ($profiles as $profile) {
                 $breakdown = $this->calculator->forProfile(
                     $profile,
-                    $settings,
+                    $personal->get($profile->user_id, $company),
                     (float) ($profile->user->profile->annual_rent ?? 0),
                 );
 
