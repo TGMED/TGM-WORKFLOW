@@ -728,6 +728,25 @@ watch(currentUrl, () => {
                                 Notifications
                             </Link>
                             <Link
+                                href="/whats-new"
+                                class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-muted transition-colors hover:bg-line-soft hover:text-text"
+                            >
+                                <svg
+                                    class="size-4"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.7"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                >
+                                    <path
+                                        d="M11 4.5 12.8 9.2 17.5 11l-4.7 1.8L11 17.5l-1.8-4.7L4.5 11l4.7-1.8L11 4.5ZM18 3.5v3m-1.5-1.5h3M18 16.5v4m-2-2h4"
+                                    />
+                                </svg>
+                                What's new
+                            </Link>
+                            <Link
                                 href="/settings/password"
                                 class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-muted transition-colors hover:bg-line-soft hover:text-text"
                             >

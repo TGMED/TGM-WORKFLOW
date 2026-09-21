@@ -255,6 +255,9 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
     Route::post('push-tokens', [PushTokenController::class, 'store'])->name('push-tokens.store');
     Route::delete('push-tokens', [PushTokenController::class, 'destroy'])->name('push-tokens.destroy');
 
+    // Every release note, open to everybody who signs in, admins included:
+    // the popup shows only the latest, and this is where the rest are kept.
+    Route::get('whats-new', [WhatsNewController::class, 'index'])->name('whats-new.index');
     Route::post('whats-new/seen', [WhatsNewController::class, 'store'])->name('whats-new.seen');
 
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');

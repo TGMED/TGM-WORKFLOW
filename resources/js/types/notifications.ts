@@ -72,9 +72,17 @@ export type WhatsNewFeature = {
     description: string;
 };
 
-export type WhatsNewNotes = {
+export type WhatsNewRelease = {
     version: string;
+    /** When it shipped, as Y-m-d. */
+    date: string;
+    features: WhatsNewFeature[];
+    /** Things that used to go wrong and no longer do. */
+    fixes: WhatsNewFeature[];
+};
+
+/** The popup's notes: the latest release only. */
+export type WhatsNewNotes = WhatsNewRelease & {
     title: string;
     lede: string;
-    features: WhatsNewFeature[];
 };

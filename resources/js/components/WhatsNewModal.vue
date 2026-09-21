@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { router, usePage } from '@inertiajs/vue3';
+import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
+import WhatsNewNotes from '@/components/WhatsNewNotes.vue';
 import type { SharedProps } from '@/types';
 
 const page = usePage<SharedProps>();
@@ -41,28 +42,16 @@ function dismiss() {
         width="xl"
         @close="dismiss"
     >
-        <ul class="space-y-4">
-            <li
-                v-for="feature in notes.features"
-                :key="feature.title"
-                class="flex gap-3"
-            >
-                <span
-                    class="mt-1.5 size-1.5 shrink-0 rounded-full bg-brand"
-                    aria-hidden="true"
-                />
-                <div class="min-w-0">
-                    <p class="text-[14px] font-semibold tracking-tight">
-                        {{ feature.title }}
-                    </p>
-                    <p class="mt-0.5 text-[13px] leading-relaxed text-muted">
-                        {{ feature.description }}
-                    </p>
-                </div>
-            </li>
-        </ul>
+        <WhatsNewNotes :release="notes" />
 
         <template #footer>
+            <Link
+                href="/whats-new"
+                class="mr-auto text-[13px] text-muted transition-colors hover:text-text"
+                @click="open = false"
+            >
+                Every release
+            </Link>
             <AppButton @click="dismiss">Got it</AppButton>
         </template>
     </ModalShell>
