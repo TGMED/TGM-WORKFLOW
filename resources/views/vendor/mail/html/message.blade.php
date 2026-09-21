@@ -1,3 +1,5 @@
+@props(['transactional' => false])
+
 <x-mail::layout>
 {{-- Header --}}
 <x-slot:header>
@@ -22,7 +24,9 @@
 <x-slot:footer>
 <x-mail::footer>
 {{ config('app.name') }} &middot; sent because you are on the staff list.
+@unless ($transactional)
 [Choose what you hear about]({{ route('notifications.edit') }})
+@endunless
 
 © {{ date('Y') }} {{ config('app.name') }}. {{ __('All rights reserved.') }}
 </x-mail::footer>

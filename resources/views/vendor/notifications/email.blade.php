@@ -1,4 +1,5 @@
-<x-mail::message>
+{{-- Transactional mail (an invitation, a reset link) cannot be switched off, so it does not offer settings --}}
+<x-mail::message :transactional="$transactional ?? false">
 {{-- Eyebrow: the subject, so the mail says what it is about before it says hello --}}
 @if (! empty($subject))
 <p class="eyebrow">{{ $subject }}</p>
@@ -65,7 +66,7 @@
     [
         'actionText' => $actionText,
     ]
-) <span class="break-all">[{{ $displayableActionUrl }}]({{ $actionUrl }})</span>
+) <span class="break-all"><a href="{{ $actionUrl }}">{{ $displayableActionUrl }}</a></span>
 </x-slot:subcopy>
 @endisset
 </x-mail::message>

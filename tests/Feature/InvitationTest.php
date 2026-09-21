@@ -11,6 +11,7 @@ use App\Support\WhatsNew;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Mail\Events\MessageSent;
+use Illuminate\Mail\Markdown;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Notification;
@@ -81,6 +82,37 @@ class InvitationTest extends TestCase
         // Only a hash is kept.
         $this->assertNotSame($token, $user->invitation_token);
         $this->assertSame(hash('sha256', $token), $user->invitation_token);
+    }
+
+    public function test_the_invitation_email_carries_the_link_and_how_long_it_lasts(): void
+    {
+        config(['hr.invitation_days' => 7]);
+
+        $user = User::factory()->make(['name' => 'Amara Nwosu']);
+        $mail = (new Invitation('some-token'))->toMail($user);
+        $html = (string) $mail->render();
+        $text = (string) app(Markdown::class)->renderText($mail->markdown, $mail->data());
+
+        $this->assertSame('Hello Amara,', $mail->greeting);
+        $this->assertSame(route('invitation.show', 'some-token'), $mail->actionUrl);
+        $this->assertStringContainsString('The link works for 7 days.', $html);
+
+        // Nobody invited has an account yet, so there are no settings to offer.
+        $this->assertStringNotContainsString(route('notifications.edit'), $html);
+        $this->assertStringNotContainsString(route('notifications.edit'), $text);
+
+        // The backup link reads as a plain address in the text part.
+        $this->assertStringContainsString('paste this link into your browser: '.route('invitation.show', 'some-token'), $text);
+        $this->assertStringNotContainsString('](', $text);
+    }
+
+    public function test_a_one_day_invitation_says_day_not_days(): void
+    {
+        config(['hr.invitation_days' => 1]);
+
+        $mail = (new Invitation('some-token'))->toMail(User::factory()->make());
+
+        $this->assertContains('The link works for 1 day. If it runs out, ask the people team to send another.', $mail->outroLines);
     }
 
     public function test_the_link_opens_a_page_to_choose_a_password(): void

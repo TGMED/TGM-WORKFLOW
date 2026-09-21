@@ -200,4 +200,11 @@ class PasswordResetTest extends TestCase
             'password_confirmation' => 'Different-Password123!',
         ])->assertSessionHasErrors('password');
     }
+
+    public function test_the_reset_email_does_not_offer_notification_settings(): void
+    {
+        $mail = (new ResetPassword('some-token'))->toMail(User::factory()->make());
+
+        $this->assertStringNotContainsString(route('notifications.edit'), (string) $mail->render());
+    }
 }

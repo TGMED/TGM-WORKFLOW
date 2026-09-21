@@ -6,6 +6,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Support\Str;
 
 /**
  * The way in for somebody the people team has just added.
@@ -38,11 +39,12 @@ class Invitation extends Notification implements ShouldQueue
         $firstName = strtok((string) ($notifiable->name ?? ''), ' ') ?: 'there';
 
         return (new MailMessage)
+            ->markdown('notifications::email', ['transactional' => true])
             ->subject('You have been invited to '.config('app.name'))
             ->greeting("Hello {$firstName},")
             ->line('The people team has set up your account. Choose a password to get in, then we will walk you through the few details we need from you.')
             ->action('Choose your password', route('invitation.show', $this->token))
-            ->line("The link works for {$days} days. If it runs out, ask the people team to send another.")
+            ->line("The link works for {$days} ".Str::plural('day', $days).'. If it runs out, ask the people team to send another.')
             ->line('If you were not expecting this, you can ignore it: nothing happens until the link is used.');
     }
 }

@@ -5,6 +5,7 @@ namespace App\Notifications;
 use Illuminate\Auth\Notifications\ResetPassword as BaseResetPassword;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Notifications\Messages\MailMessage;
 
 /**
  * The reset link, queued.
@@ -21,4 +22,14 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 class ResetPassword extends BaseResetPassword implements ShouldQueue
 {
     use Queueable;
+
+    /**
+     * Without the footer's link to notification settings: they cannot switch
+     * this off, and somebody locked out cannot reach them anyway.
+     */
+    protected function buildMailMessage($url): MailMessage
+    {
+        return parent::buildMailMessage($url)
+            ->markdown('notifications::email', ['transactional' => true]);
+    }
 }
