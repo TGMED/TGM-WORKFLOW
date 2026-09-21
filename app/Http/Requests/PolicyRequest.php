@@ -37,7 +37,10 @@ class PolicyRequest extends FormRequest
             'document' => [
                 $this->isUpdate() ? 'nullable' : 'required',
                 'file',
-                'mimes:pdf,doc,docx',
+                // PDF only: it is what a browser opens in a tab to be read, so
+                // nobody has to download the handbook to look something up.
+                'mimes:pdf',
+                'mimetypes:application/pdf',
                 'max:20480',
             ],
         ];
@@ -50,7 +53,8 @@ class PolicyRequest extends FormRequest
     {
         return [
             'document.required' => 'Attach the policy document.',
-            'document.mimes' => 'Attach a PDF or a Word document.',
+            'document.mimes' => 'Attach the policy as a PDF.',
+            'document.mimetypes' => 'Attach the policy as a PDF.',
             'document.max' => 'Keep the document under 20 MB.',
             'supersedes_id.exists' => 'Pick a policy that is still in force.',
         ];

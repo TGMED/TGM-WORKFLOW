@@ -222,7 +222,9 @@ function restore(policy: PolicyRow) {
 
                             <div class="flex shrink-0 items-center gap-2">
                                 <a
-                                    :href="`/policies/${policy.id}/file`"
+                                    :href="`/admin/policies/${policy.id}/file`"
+                                    target="_blank"
+                                    rel="noopener"
                                     class="text-[13px] font-medium text-muted hover:text-text"
                                 >
                                     Open
@@ -335,12 +337,13 @@ function restore(policy: PolicyRow) {
                     <input
                         id="policy-document"
                         type="file"
-                        accept=".pdf,.doc,.docx"
+                        accept=".pdf,application/pdf"
                         class="w-full rounded-xl border border-line bg-panel-raised px-3.5 py-2.5 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-line-soft file:px-3 file:py-1.5 file:text-[13px] file:font-medium"
                         @change="pickFile"
                     />
                     <p class="text-[12px] text-faint">
-                        PDF or Word, up to 20 MB.
+                        PDF only, up to 20 MB. It opens in the browser to be
+                        read.
                     </p>
                     <p
                         v-if="form.errors.document"

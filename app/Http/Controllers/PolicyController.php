@@ -5,8 +5,6 @@ namespace App\Http\Controllers;
 use App\Enums\PolicyCategory;
 use App\Models\Policy;
 use App\Services\PolicyLibrary;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -53,17 +51,13 @@ class PolicyController extends Controller
     }
 
     /**
-     * Hand back the document itself. Retired versions are not served here:
+     * Open the document itself. Retired versions are not served here:
      * somebody reading the handbook should be reading the rule in force.
      */
-    public function download(Request $request, Policy $policy): StreamedResponse
+    public function show(Policy $policy, PolicyLibrary $library): StreamedResponse
     {
         abort_unless($policy->isInForce(), 404);
 
-        $disk = Storage::disk(PolicyLibrary::DISK);
-
-        abort_unless($disk->exists($policy->file_path), 404);
-
-        return $disk->download($policy->file_path, $policy->file_name);
+        return $library->open($policy);
     }
 }

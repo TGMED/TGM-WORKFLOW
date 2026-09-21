@@ -11,6 +11,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * The handbook and everything under it. Publishing a new version stands the
@@ -40,6 +41,15 @@ class PolicyController extends Controller
                 'retired' => $policies->where('is_active', false)->count(),
             ],
         ]);
+    }
+
+    /**
+     * Open any version, retired ones included: the library lists them, and
+     * whoever keeps it may need to read what staff used to be held to.
+     */
+    public function show(Policy $policy): StreamedResponse
+    {
+        return $this->library->open($policy);
     }
 
     public function store(PolicyRequest $request): RedirectResponse

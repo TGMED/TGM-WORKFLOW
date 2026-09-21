@@ -6,6 +6,7 @@ use App\Models\Policy;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Where policy documents are kept.
@@ -59,6 +60,23 @@ class PolicyLibrary
     /**
      * Take a policy out of force without destroying it.
      */
+    /**
+     * The document, to be read in the browser rather than saved: opened in a
+     * tab, it is the page somebody wanted, and a file in their downloads is
+     * one more copy of a rule that may since have changed.
+     */
+    public function open(Policy $policy): StreamedResponse
+    {
+        $disk = Storage::disk(self::DISK);
+
+        abort_unless($disk->exists($policy->file_path), 404);
+
+        return $disk->response($policy->file_path, $policy->file_name, [
+            'Content-Type' => $policy->mime_type ?: 'application/pdf',
+            'X-Content-Type-Options' => 'nosniff',
+        ], 'inline');
+    }
+
     public function retire(Policy $policy): void
     {
         $policy->update(['is_active' => false]);

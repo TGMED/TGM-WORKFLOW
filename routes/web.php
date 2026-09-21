@@ -167,7 +167,7 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
     // administrator keeps the library at admin/policies instead.
     Route::middleware('clocks-in')->group(function (): void {
         Route::get('policies', [PolicyController::class, 'index'])->name('policies.index');
-        Route::get('policies/{policy}/file', [PolicyController::class, 'download'])->name('policies.download');
+        Route::get('policies/{policy}/file', [PolicyController::class, 'show'])->name('policies.file');
     });
 
     // Raising an incident is open to everyone who signs in, admins included:
@@ -339,6 +339,7 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
 
         Route::middleware('permission:policies.manage')->group(function (): void {
             Route::get('policies', [AdminPolicyController::class, 'index'])->name('policies.index');
+            Route::get('policies/{policy}/file', [AdminPolicyController::class, 'show'])->name('policies.file');
             Route::post('policies', [AdminPolicyController::class, 'store'])->name('policies.store');
             Route::put('policies/{policy}', [AdminPolicyController::class, 'update'])->name('policies.update');
             Route::patch('policies/{policy}/retire', [AdminPolicyController::class, 'retire'])->name('policies.retire');

@@ -139,7 +139,46 @@ class PolicyLibraryTest extends TestCase
         $this->actingAs(User::factory()->create())
             ->get("/policies/{$policy->id}/file")
             ->assertOk()
-            ->assertHeader('content-disposition', 'attachment; filename=handbook.pdf');
+            ->assertHeader('content-disposition', 'inline; filename=handbook.pdf');
+    }
+
+    public function test_only_a_pdf_can_be_published(): void
+    {
+        $this->actingAs($this->admin())
+            ->post('/admin/policies', $this->payload([
+                'document' => UploadedFile::fake()->create(
+                    'handbook.docx',
+                    200,
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                ),
+            ]))
+            ->assertSessionHasErrors('document');
+
+        $this->assertSame(0, Policy::query()->count());
+    }
+
+    public function test_the_people_team_opens_any_version_from_their_own_side(): void
+    {
+        Storage::disk('local')->put('policies/old.pdf', 'the old rules');
+
+        $policy = Policy::factory()->retired()->create([
+            'file_path' => 'policies/old.pdf',
+            'file_name' => 'old.pdf',
+        ]);
+
+        $this->actingAs($this->admin())
+            ->get("/admin/policies/{$policy->id}/file")
+            ->assertOk()
+            ->assertHeader('content-disposition', 'inline; filename=old.pdf');
+    }
+
+    public function test_staff_cannot_open_documents_from_the_admin_side(): void
+    {
+        $policy = Policy::factory()->retired()->create();
+
+        $this->actingAs(User::factory()->create())
+            ->get("/admin/policies/{$policy->id}/file")
+            ->assertForbidden();
     }
 
     public function test_a_retired_document_is_not_served_to_staff(): void
