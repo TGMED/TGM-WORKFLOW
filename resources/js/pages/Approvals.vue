@@ -105,24 +105,30 @@ const total = computed(
 
 const relief = computed(() => deciding.value?.stage === 'relief');
 
+/*
+ * A decline on leave sends the request back to the person who asked, at every
+ * stage, so they can fix it and put it round again. The other modules still
+ * end on a decline, so the wording has to follow the module rather than being
+ * fixed for all of them.
+ */
+const sendsBack = computed(
+    () => relief.value || deciding.value?.module === 'leave',
+);
+
 const modalTitle = computed(() => {
-    if (relief.value) {
-        return decision.value === 'approved'
-            ? 'Agree to cover this'
-            : 'Send this back';
+    if (decision.value === 'approved') {
+        return relief.value ? 'Agree to cover this' : 'Approve request';
     }
 
-    return decision.value === 'approved'
-        ? 'Approve request'
-        : 'Decline request';
+    return sendsBack.value ? 'Send this back' : 'Decline request';
 });
 
 const modalAction = computed(() => {
-    if (relief.value) {
-        return decision.value === 'approved' ? 'Agree cover' : 'Send back';
+    if (decision.value === 'approved') {
+        return relief.value ? 'Agree cover' : 'Approve';
     }
 
-    return decision.value === 'approved' ? 'Approve' : 'Decline';
+    return sendsBack.value ? 'Send back' : 'Decline';
 });
 
 function start(request: PendingRequest, choice: 'approved' | 'rejected') {
@@ -315,7 +321,8 @@ function submit() {
                                     @click="start(row, 'rejected')"
                                 >
                                     {{
-                                        row.stage === 'relief'
+                                        row.stage === 'relief' ||
+                                        row.module === 'leave'
                                             ? 'Send back'
                                             : 'Decline'
                                     }}
@@ -394,8 +401,17 @@ function submit() {
                         </template>
                     </template>
                     <template v-else-if="decision === 'rejected'">
-                        Declining ends the request outright, whatever approvals
-                        it already has.
+                        <template v-if="sendsBack">
+                            Sending it back returns the request to
+                            {{ deciding?.requester.name }} to redo, whatever
+                            approvals it already has. They can change it and put
+                            it round again from the start, and your reason goes
+                            with it.
+                        </template>
+                        <template v-else>
+                            Declining ends the request outright, whatever
+                            approvals it already has.
+                        </template>
                     </template>
                     <template
                         v-else-if="

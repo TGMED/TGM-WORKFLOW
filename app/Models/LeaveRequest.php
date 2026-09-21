@@ -288,6 +288,25 @@ class LeaveRequest extends Model implements Approvable, AuditableContract
     }
 
     /**
+     * A decline at any point sends the leave back to the person who asked for
+     * it, rather than ending it.
+     *
+     * The chain has several people in it and a decline usually means something
+     * about the request is wrong — the dates, the cover, the reason — rather
+     * than that the answer is permanently no. Sending it back lets the
+     * requester fix it and put it round again, and the round they were on
+     * stays on the trail with the reason it came back.
+     *
+     * The effect is that leave has no terminal refusal. A request that should
+     * not go ahead is withdrawn by the requester, which is a decision with a
+     * name against it rather than one that leaves them nothing to do.
+     */
+    public function statusAfterRejection(ApprovalStage $stage): RequestStatus
+    {
+        return RequestStatus::Returned;
+    }
+
+    /**
      * Where the request sits right now, for the requester's own list.
      */
     public function stageLabel(): string

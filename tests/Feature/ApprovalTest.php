@@ -48,7 +48,7 @@ class ApprovalTest extends TestCase
         $this->assertSame(1, $leave->approvals()->count());
     }
 
-    public function test_a_rejection_ends_the_request_whatever_is_outstanding(): void
+    public function test_a_decline_sends_the_leave_back_whatever_is_outstanding(): void
     {
         $leave = LeaveRequest::factory()->create([
             'user_id' => $this->staff()->id,
@@ -61,7 +61,10 @@ class ApprovalTest extends TestCase
                 'comment' => 'We are short-staffed that week.',
             ]);
 
-        $this->assertSame(RequestStatus::Rejected, $leave->refresh()->status);
+        // Back to the requester rather than finished with: leave has no
+        // terminal refusal, and the two approvals still outstanding are moot
+        // until it comes round again.
+        $this->assertSame(RequestStatus::Returned, $leave->refresh()->status);
         $this->assertSame(
             'We are short-staffed that week.',
             $leave->approvals()->first()->comment,

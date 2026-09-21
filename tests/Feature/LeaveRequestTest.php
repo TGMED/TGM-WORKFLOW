@@ -379,7 +379,7 @@ class LeaveRequestTest extends TestCase
         $this->assertSame(RequestStatus::Cancelled, $leave->refresh()->status);
     }
 
-    public function test_a_request_an_approver_declined_cannot_be_resubmitted(): void
+    public function test_a_request_an_approver_declined_goes_back_for_a_redo(): void
     {
         $staff = $this->staff();
         $relief = $this->staff();
@@ -392,16 +392,26 @@ class LeaveRequestTest extends TestCase
         $service->decide($leave, $relief, ApprovalDecision::Approved);
         $service->decide($leave->refresh(), $supervisor, ApprovalDecision::Rejected);
 
+        // An approver's decline lands the same way a relief officer's does:
+        // back with the requester, who fixes it and sends it round again.
+        $this->assertSame(RequestStatus::Returned, $leave->refresh()->status);
+        $this->assertTrue($leave->needsResubmitting());
+
         $this->actingAs($staff)
             ->put("/leave/{$leave->id}", $this->editPayload($leave->refresh(), [
-                'reason' => 'Trying again anyway.',
+                'reason' => 'Moved it a week later.',
             ]));
 
         $leave->refresh();
 
-        $this->assertSame(RequestStatus::Rejected, $leave->status);
-        $this->assertSame(1, $leave->round);
-        $this->assertNotSame('Trying again anyway.', $leave->reason);
+        $this->assertSame(RequestStatus::Pending, $leave->status);
+        $this->assertSame(2, $leave->round);
+        $this->assertSame('Moved it a week later.', $leave->reason);
+
+        // The decisions that sent it back stay on the trail, but a fresh
+        // round means everybody is asked again rather than counted as done.
+        $this->assertSame(2, $leave->approvals()->count());
+        $this->assertSame(0, $leave->load('approvals')->approvalsGiven());
     }
 
     /**

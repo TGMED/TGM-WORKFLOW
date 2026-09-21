@@ -7,6 +7,7 @@ use App\Enums\ApprovalDecision;
 use App\Enums\ApprovalStage;
 use App\Enums\NotificationTopic;
 use App\Enums\RequestModule;
+use App\Enums\RequestStatus;
 use App\Models\Approval;
 use App\Models\User;
 use App\Services\Push\PushMessage;
@@ -64,9 +65,21 @@ class RequestDecided extends TopicNotification
             $this->approval->decision === ApprovalDecision::Approved
                 && $this->approval->stage === ApprovalStage::Relief => 'Your cover has been agreed',
             $this->approval->decision === ApprovalDecision::Approved => 'Your request was approved',
-            $this->approval->stage === ApprovalStage::Relief => 'Your request has come back to you',
+            $this->wasSentBack() => 'Your request has come back to you',
             default => 'Your request was declined',
         };
+    }
+
+    /**
+     * Whether the decline handed the request back rather than ending it.
+     *
+     * Read off where the request landed rather than off who took the decision:
+     * a relief officer has always sent leave back, and now every approver on a
+     * leave request does too. The status is the one thing that knows.
+     */
+    protected function wasSentBack(): bool
+    {
+        return $this->request->requestStatus() === RequestStatus::Returned;
     }
 
     protected function headline(): string
@@ -77,7 +90,7 @@ class RequestDecided extends TopicNotification
             $this->approval->decision === ApprovalDecision::Approved
                 && $this->approval->stage === ApprovalStage::Relief => "{$name} has agreed to cover for you.",
             $this->approval->decision === ApprovalDecision::Approved => "{$name} approved your request.",
-            $this->approval->stage === ApprovalStage::Relief => "{$name} has sent your request back for a change.",
+            $this->wasSentBack() => "{$name} has sent your request back for a change.",
             default => "{$name} declined your request.",
         };
     }
@@ -94,6 +107,9 @@ class RequestDecided extends TopicNotification
         return match (true) {
             $status->isOpen() && $outstanding > 0 => "It still needs {$outstanding} more approval(s).",
             $status->isOpen() => 'It is on its way through the rest of the chain.',
+            // A returned request is not finished with, so it is told as
+            // something to do rather than as a verdict.
+            $status === RequestStatus::Returned => 'Change it and send it round again, or withdraw it if it is no longer needed.',
             default => "It is now marked {$status->label()}.",
         };
     }
