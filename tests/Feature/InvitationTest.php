@@ -7,6 +7,7 @@ use App\Models\Location;
 use App\Models\Role;
 use App\Models\User;
 use App\Notifications\Invitation;
+use App\Support\WhatsNew;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Mail\Events\MessageSent;
@@ -107,6 +108,9 @@ class InvitationTest extends TestCase
         $this->assertAuthenticatedAs($user);
         $this->assertNull($user->invitationState());
         $this->assertNotNull($user->email_verified_at);
+        // Release notes say what changed since somebody was last here, and a
+        // new starter never was.
+        $this->assertSame(WhatsNew::version(), $user->whats_new_seen);
 
         // A new starter has details to give, so the dashboard sends them on.
         $this->get('/dashboard')->assertRedirect('/profile/setup');

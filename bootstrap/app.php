@@ -8,10 +8,12 @@ use App\Http\Middleware\EnsureUserClocksIn;
 use App\Http\Middleware\EnsureUserHasPermission;
 use App\Http\Middleware\EnsureUserIsSuperAdmin;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Support\ErrorPage;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -47,4 +49,33 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
+
+        // Every error a person can land on goes to the app's own error page,
+        // rather than the framework's, which Inertia shows in an overlay on
+        // top of whatever they were doing.
+        $exceptions->respond(function (Response $response, Throwable $e, Request $request): Response {
+            $status = $response->getStatusCode();
+
+            // Redirects (a failed validation, a sign-in check) are not errors,
+            // and a JSON caller wants JSON.
+            if ($status < 400 || ($request->expectsJson() && ! $request->header('X-Inertia'))) {
+                return $response;
+            }
+
+            // While developing, a server error keeps its stack trace.
+            if ($status >= 500 && config('app.debug')) {
+                return $response;
+            }
+
+            // A form left open past its session: send them back to it rather
+            // than to an error page, since trying again is all it takes.
+            if ($status === 419) {
+                return back()->with('toast', [
+                    'type' => 'error',
+                    'message' => 'The page had been open too long, so that did not go through. Try it again.',
+                ]);
+            }
+
+            return ErrorPage::render($request, $e, $status);
+        });
     })->create();

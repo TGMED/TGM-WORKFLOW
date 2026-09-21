@@ -11,7 +11,9 @@ class EnsureProfileIsComplete
     /**
      * Routes someone with an unfinished profile may still reach. Anything that
      * would leave them stuck otherwise: the profile pages themselves, changing
-     * a password, and getting back out.
+     * a password, and getting back out. Putting away the release notes and a
+     * walkthrough go through too: both are things the page does around them,
+     * write nothing to their record, and would otherwise fail in their face.
      *
      * Deciding on a request is here for somebody else's sake. A person named
      * as cover, or as the approver, holds a colleague's leave up for as long
@@ -26,6 +28,8 @@ class EnsureProfileIsComplete
         'profile.*',
         'password.*',
         'logout',
+        'whats-new.*',
+        'tours.*',
         'approvals.index',
         'approvals.store',
     ];

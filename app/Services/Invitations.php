@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Notifications\Invitation;
+use App\Support\WhatsNew;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
@@ -49,7 +50,8 @@ class Invitations
     /**
      * Take the invitation up: their password, chosen by them, and the link
      * spent. Following it proves the address is theirs, so it is verified in
-     * the same breath.
+     * the same breath. The release notes count as read: they say what changed
+     * since somebody was last here, and a new starter never was.
      */
     public function accept(User $user, string $password): void
     {
@@ -58,6 +60,7 @@ class Invitations
             'remember_token' => Str::random(60),
             'invitation_token' => null,
             'email_verified_at' => $user->email_verified_at ?? Carbon::now(),
+            'whats_new_seen' => WhatsNew::version(),
         ])->save();
     }
 
