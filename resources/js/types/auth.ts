@@ -23,6 +23,7 @@ export type Permission =
     | 'locations.manage'
     | 'departments.manage'
     | 'attendance.report'
+    | 'leave.register'
     | 'clock-attempts.view'
     | 'announcements.manage'
     | 'policies.manage'

@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\AuditController;
 use App\Http\Controllers\Admin\ClockAttemptController;
 use App\Http\Controllers\Admin\DepartmentController;
 use App\Http\Controllers\Admin\ImportController;
+use App\Http\Controllers\Admin\LeaveRegisterController;
 use App\Http\Controllers\Admin\LeaveRestrictedPeriodController;
 use App\Http\Controllers\Admin\LeaveTypeController;
 use App\Http\Controllers\Admin\LocationController;
@@ -330,6 +331,14 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
             Route::post('announcements', [AnnouncementController::class, 'store'])->name('announcements.store');
             Route::put('announcements/{announcement}', [AnnouncementController::class, 'update'])->name('announcements.update');
             Route::delete('announcements/{announcement}', [AnnouncementController::class, 'destroy'])->name('announcements.destroy');
+        });
+
+        // Every leave request in the company, read-only. Behind its own
+        // permission: it carries the reason people gave for time off, which
+        // is not something staff management has to see to do its job.
+        Route::middleware('permission:leave.register')->group(function (): void {
+            Route::get('leave', [LeaveRegisterController::class, 'index'])->name('leave.index');
+            Route::get('leave/export', [LeaveRegisterController::class, 'export'])->name('leave.export');
         });
 
         // Leave types, their policy rules, closed periods and the approval

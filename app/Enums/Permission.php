@@ -17,6 +17,7 @@ enum Permission: string
     case ManageLocations = 'locations.manage';
     case ManageDepartments = 'departments.manage';
     case ViewAttendanceReport = 'attendance.report';
+    case ViewLeaveRegister = 'leave.register';
     case ViewClockAttempts = 'clock-attempts.view';
     case ManageAnnouncements = 'announcements.manage';
     case ManagePolicies = 'policies.manage';
@@ -36,6 +37,7 @@ enum Permission: string
             self::ManageLocations => 'Manage sites',
             self::ManageDepartments => 'Manage departments and teams',
             self::ViewAttendanceReport => 'See the attendance report',
+            self::ViewLeaveRegister => 'See the leave register',
             self::ViewClockAttempts => 'See rejected clock attempts',
             self::ManageAnnouncements => 'Manage announcements',
             self::ManagePolicies => 'Manage company policy',
@@ -57,6 +59,7 @@ enum Permission: string
             self::ManageLocations => 'Add and configure sites, their geofence and their working day.',
             self::ManageDepartments => 'Create departments and the teams inside them, name who heads and leads each, and move people between them. Naming a head or a lead is what grants those roles, so this also decides who may see a group\'s numbers and decide on its requests.',
             self::ViewAttendanceReport => 'Attendance across the whole company for any window.',
+            self::ViewLeaveRegister => 'Every leave request in the company, whoever it belongs to and wherever it has reached. Read-only, and it includes the reason people gave, so give it no more widely than the people team.',
             self::ViewClockAttempts => 'Clock-ins the geofence turned away, and why.',
             self::ManageAnnouncements => 'Write and publish company notices.',
             self::ManagePolicies => 'Publish the handbook and the policies staff are held to, and retire the versions they replace. Everyone may read what is published; this is who decides what that is.',
@@ -76,7 +79,7 @@ enum Permission: string
     public function group(): string
     {
         return match ($this) {
-            self::ViewAdminDashboard, self::ViewAttendanceReport, self::ViewClockAttempts, self::ViewAuditTrail => 'Visibility',
+            self::ViewAdminDashboard, self::ViewAttendanceReport, self::ViewLeaveRegister, self::ViewClockAttempts, self::ViewAuditTrail => 'Visibility',
             self::ManageStaff, self::ManageLocations, self::ManageDepartments, self::ManageAnnouncements, self::ManagePolicies => 'People and sites',
             self::ManagePayroll, self::HandleReports => 'Confidential',
             self::ManageRequestSettings, self::ApproveRequests => 'Requests',

@@ -199,6 +199,12 @@ const nav: NavItem[] = [
                 icon: 'M8 3v3m8-3v3M3.5 9.5h17M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v12A1.5 1.5 0 0 1 19 20.5H5A1.5 1.5 0 0 1 3.5 19V7A1.5 1.5 0 0 1 5 5.5Zm3.5 7.5 2 2 4.5-4.5',
             },
             {
+                label: 'Leave register',
+                href: '/admin/leave',
+                permission: 'leave.register',
+                icon: 'M8 3v3m8-3v3M3.5 9.5h17M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v12A1.5 1.5 0 0 1 19 20.5H5A1.5 1.5 0 0 1 3.5 19V7A1.5 1.5 0 0 1 5 5.5Zm2.5 8.5h4m-4 3h6',
+            },
+            {
                 label: 'Clock attempts',
                 href: '/admin/clock-attempts',
                 permission: 'clock-attempts.view',
