@@ -154,6 +154,11 @@ return [
                     'audience' => ['staff'],
                     'description' => 'Anyone with details still to give is walked through them a step at a time: about you, then family, then your bank account. Only the first step is required, and anything skipped can be filled in later from My profile.',
                 ],
+                [
+                    'title' => 'An administrator has the final say on out of office',
+                    'audience' => ['staff', 'admins'],
+                    'description' => 'A day out of the office still goes to your team lead and head of department first, and then to an administrator. It is only agreed once an administrator has approved it.',
+                ],
             ],
             'fixes' => [
                 [
@@ -173,6 +178,20 @@ return [
                 [
                     'title' => 'Password reset emails no longer hold up the page',
                     'description' => 'Asking for a reset link returns straight away; the email follows a moment later rather than being sent while you wait.',
+                ],
+                [
+                    'title' => 'Errors in plain words',
+                    'description' => 'A page you cannot open, or a link that has run out, now says so on a page of the app\'s own, in words you can act on, rather than a technical message laid over what you were doing. A form left open too long takes you back to it to try again.',
+                ],
+                [
+                    'title' => 'New starters can put these notes away',
+                    'audience' => ['staff'],
+                    'description' => 'Closing these notes or a page tour used to fail for anybody still finishing their profile. It works now, and somebody who has just joined is not shown notes about changes from before they arrived.',
+                ],
+                [
+                    'title' => 'Invitation emails fit the person reading them',
+                    'audience' => ['staff.manage'],
+                    'description' => 'Invitations and password reset emails no longer offer a link to notification settings the reader cannot reach and could not use to switch them off.',
                 ],
             ],
         ],
