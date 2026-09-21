@@ -4,7 +4,8 @@ namespace App\Enums;
 
 /**
  * Where in a request's run a decision was taken. Leave collects a relief
- * officer's sign-off before it reaches anyone with approval rights; every
+ * officer's sign-off before it reaches anyone with approval rights, and a day
+ * out of the office takes an administrator's final say after its line; every
  * other decision is an approval proper.
  */
 enum ApprovalStage: string
@@ -13,11 +14,14 @@ enum ApprovalStage: string
 
     case Approval = 'approval';
 
+    case Admin = 'admin';
+
     public function label(): string
     {
         return match ($this) {
             self::Relief => 'Relief officer',
             self::Approval => 'Approver',
+            self::Admin => 'Administrator',
         };
     }
 
@@ -26,6 +30,6 @@ enum ApprovalStage: string
      */
     public function countsTowardsApproval(): bool
     {
-        return $this === self::Approval;
+        return $this !== self::Relief;
     }
 }

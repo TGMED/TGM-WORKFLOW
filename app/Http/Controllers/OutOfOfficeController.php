@@ -54,7 +54,6 @@ class OutOfOfficeController extends Controller
                 Carbon::now()->subYear()->startOfYear(),
                 Carbon::now()->addYears(2)->endOfYear(),
             ),
-            'approvers_required' => ApprovalSetting::approversRequired(RequestModule::OutOfOffice),
             'stats' => [
                 'pending' => $requests->where('status', RequestStatus::Pending)->count(),
                 'days_this_year' => (int) $thisYear->sum('days'),

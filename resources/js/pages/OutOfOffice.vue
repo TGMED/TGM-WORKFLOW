@@ -49,7 +49,6 @@ const props = defineProps<{
     kinds: Kind[];
     workdays: number[];
     holidays: Holidays;
-    approvers_required: number;
     stats: { pending: number; days_this_year: number };
 }>();
 
@@ -168,7 +167,7 @@ function withdraw() {
 
     <AppLayout
         heading="Out of office"
-        :lede="`Days worked from home or out on company business. Nothing comes off your leave. Each one needs ${approvers_required} approval${approvers_required === 1 ? '' : 's'}.`"
+        lede="Days worked from home or out on company business. Nothing comes off your leave. Each one goes to your team lead and head of department, then an administrator has the final say."
     >
         <template #toolbar>
             <AppButton size="sm" @click="open()">Raise a request</AppButton>

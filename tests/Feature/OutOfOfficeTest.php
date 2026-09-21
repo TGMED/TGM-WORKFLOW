@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\ApprovalDecision;
+use App\Enums\ApprovalStage;
 use App\Enums\OutOfOfficeKind;
 use App\Enums\RequestModule;
 use App\Enums\RequestStatus;
@@ -12,9 +13,11 @@ use App\Models\LeaveType;
 use App\Models\Location;
 use App\Models\OutOfOfficeRequest;
 use App\Models\User;
+use App\Notifications\ApprovalRequested;
 use App\Services\ApprovalService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 /**
@@ -150,7 +153,7 @@ class OutOfOfficeTest extends TestCase
         $this->assertSame(1, ApprovalSetting::approversRequired(RequestModule::Leave));
     }
 
-    public function test_an_approver_sees_it_in_their_inbox_and_can_agree_it(): void
+    public function test_an_approver_cannot_agree_it_in_place_of_an_administrator(): void
     {
         $staff = $this->staff();
         $approver = User::factory()->approver()->create(['location_id' => $this->location->id]);
@@ -161,11 +164,100 @@ class OutOfOfficeTest extends TestCase
 
         $this->actingAs($approver)
             ->get('/approvals')
-            ->assertOk()
-            ->assertInertia(fn ($page) => $page->has('out_of_office', 1));
+            ->assertInertia(fn ($page) => $page->has('out_of_office', 0));
+
+        $this->assertFalse(app(ApprovalService::class)->decide($away, $approver, ApprovalDecision::Approved));
+        $this->assertSame(RequestStatus::Pending, $away->refresh()->status);
+    }
+
+    public function test_an_administrator_has_the_final_say(): void
+    {
+        $staff = $this->staff();
+        $admin = User::factory()->superAdmin()->create();
+
+        $this->actingAs($staff)->post('/out-of-office', $this->payload());
+
+        $away = OutOfOfficeRequest::query()->firstOrFail();
+
+        $this->assertSame('With an administrator', $away->stageLabel());
+
+        $this->actingAs($admin)
+            ->get('/approvals')
+            ->assertInertia(fn ($page) => $page
+                ->has('out_of_office', 1)
+                ->where('out_of_office.0.stage', 'admin'));
+
+        app(ApprovalService::class)->decide($away, $admin, ApprovalDecision::Approved);
+
+        $away->refresh();
+        $this->assertSame(RequestStatus::Approved, $away->status);
+        $this->assertSame(ApprovalStage::Admin, $away->approvals->sole()->stage);
+    }
+
+    public function test_the_line_goes_first_and_then_the_administrator_is_asked(): void
+    {
+        Notification::fake();
+
+        $admin = User::factory()->superAdmin()->create();
+        $head = $this->staff();
+        $staff = $this->staff();
+
+        $this->actingAs($admin)->post('/admin/departments', [
+            'name' => 'Operations',
+            'head_user_id' => $head->id,
+            'members' => [$head->id, $staff->id],
+        ])->assertSessionHasNoErrors();
+
+        $this->actingAs($staff->fresh())->post('/out-of-office', $this->payload());
+
+        $away = OutOfOfficeRequest::query()->firstOrFail();
+
+        // The administrator cannot jump the line.
+        $this->assertFalse($away->awaitsDecisionFrom($admin));
+        $this->assertTrue($away->awaitsDecisionFrom($head->fresh()));
+
+        app(ApprovalService::class)->decide($away, $head->fresh(), ApprovalDecision::Approved);
+
+        // The head's approval meets the count, but it is not agreed yet.
+        $away->refresh();
+        $this->assertSame(RequestStatus::Pending, $away->status);
+        $this->assertTrue($away->awaitsAdmin());
+        $this->assertSame('An administrator has the final say.', $away->nextStep());
+        Notification::assertSentTo($admin, ApprovalRequested::class);
+
+        app(ApprovalService::class)->decide($away, $admin, ApprovalDecision::Approved);
+
+        $this->assertSame(RequestStatus::Approved, $away->refresh()->status);
+    }
+
+    public function test_an_administrator_can_turn_it_down(): void
+    {
+        $admin = User::factory()->superAdmin()->create();
+
+        $this->actingAs($this->staff())->post('/out-of-office', $this->payload());
+
+        $away = OutOfOfficeRequest::query()->firstOrFail();
+
+        app(ApprovalService::class)->decide($away, $admin, ApprovalDecision::Rejected, 'We need you on site that week.');
+
+        $this->assertSame(RequestStatus::Rejected, $away->refresh()->status);
+    }
+
+    public function test_a_higher_approval_count_is_still_met_after_the_administrator(): void
+    {
+        ApprovalSetting::for(RequestModule::OutOfOffice)->update(['approvers_required' => 2]);
+
+        $admin = User::factory()->superAdmin()->create();
+        $approver = User::factory()->approver()->create(['location_id' => $this->location->id]);
+
+        $this->actingAs($this->staff())->post('/out-of-office', $this->payload());
+
+        $away = OutOfOfficeRequest::query()->firstOrFail();
+
+        app(ApprovalService::class)->decide($away, $admin, ApprovalDecision::Approved);
+        $this->assertSame(RequestStatus::Pending, $away->refresh()->status);
 
         app(ApprovalService::class)->decide($away, $approver, ApprovalDecision::Approved);
-
         $this->assertSame(RequestStatus::Approved, $away->refresh()->status);
     }
 

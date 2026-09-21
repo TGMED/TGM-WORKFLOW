@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Contracts\Approvable;
+use App\Enums\ApprovalDecision;
+use App\Enums\ApprovalStage;
 use App\Enums\OutOfOfficeKind;
 use App\Enums\RequestModule;
 use App\Enums\RequestStatus;
@@ -71,7 +73,9 @@ class OutOfOfficeRequest extends Model implements Approvable, AuditableContract
 {
     use Auditable;
     use BelongsToStaff;
-    use HasApprovals;
+    use HasApprovals {
+        awaitsDecisionFrom as protected awaitsDecisionFromTheLine;
+    }
 
     /** @use HasFactory<OutOfOfficeRequestFactory> */
     use HasFactory;
@@ -214,10 +218,69 @@ class OutOfOfficeRequest extends Model implements Approvable, AuditableContract
         ], fn (?string $value): bool => $value !== null && $value !== '');
     }
 
+    /**
+     * Whether an administrator has given the final say. A day away from the
+     * site is agreed by the people who run the company, not only by the line:
+     * nobody is out of sight on the company's word until one of them has
+     * seen it.
+     */
+    public function adminSignedOff(): bool
+    {
+        return $this->currentDecisions()
+            ->where('decision', ApprovalDecision::Approved)
+            ->contains('stage', ApprovalStage::Admin);
+    }
+
+    /**
+     * Whether the request has come through its line and now waits on an
+     * administrator.
+     */
+    public function awaitsAdmin(): bool
+    {
+        return $this->requestStatus()->isOpen()
+            && $this->lineAwaiting() === null
+            && ! $this->adminSignedOff();
+    }
+
+    /**
+     * The line first, as for every request. Past it, the turn belongs to an
+     * administrator and nobody else, however many approvals the settings
+     * ask for; after them, anybody who approves company-wide may add the
+     * rest.
+     */
+    public function awaitsDecisionFrom(User $user): bool
+    {
+        if ($this->awaitsAdmin()) {
+            return $user->isSuperAdmin()
+                && $this->user_id !== $user->id
+                && ! $this->wasDecidedBy($user);
+        }
+
+        return $this->awaitsDecisionFromTheLine($user);
+    }
+
+    public function approvalStageFor(User $user): ApprovalStage
+    {
+        return $this->awaitsAdmin() && $user->isSuperAdmin()
+            ? ApprovalStage::Admin
+            : ApprovalStage::Approval;
+    }
+
+    /**
+     * Not granted until both the line and an administrator have had their
+     * say, whatever the approval count.
+     */
+    protected function approvalGatesFinished(): bool
+    {
+        return $this->lineFinished() && $this->adminSignedOff();
+    }
+
     public function standing(?User $viewer = null): string
     {
+        $fallback = $this->awaitsAdmin() ? 'an administrator' : 'an approver';
+
         return $this->settledStanding()
-            ?? 'Waiting on '.$this->decider($viewer, $this->lineAwaitingUser(), 'an approver').' for a decision.';
+            ?? 'Waiting on '.$this->decider($viewer, $this->lineAwaitingUser(), $fallback).' for a decision.';
     }
 
     public function nextStep(?User $viewer = null): ?string
@@ -230,6 +293,12 @@ class OutOfOfficeRequest extends Model implements Approvable, AuditableContract
 
         if ($outstanding < 1) {
             return null;
+        }
+
+        if (! $this->adminSignedOff()) {
+            return $this->lineAwaiting() === null
+                ? 'An administrator has the final say.'
+                : 'After the line, an administrator has the final say.';
         }
 
         return $outstanding === 1
@@ -258,6 +327,7 @@ class OutOfOfficeRequest extends Model implements Approvable, AuditableContract
             return $this->status->label();
         }
 
-        return $this->lineStageLabel() ?? 'Awaiting an approval';
+        return $this->lineStageLabel()
+            ?? ($this->awaitsAdmin() ? 'With an administrator' : 'Awaiting an approval');
     }
 }

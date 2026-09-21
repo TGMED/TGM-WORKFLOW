@@ -24,7 +24,7 @@ type Requester = {
 type PendingRequest = {
     id: number;
     module: 'leave' | 'lateness' | 'out_of_office';
-    stage: 'relief' | 'approval';
+    stage: 'relief' | 'approval' | 'admin';
     stage_label: string;
     summary: string;
     requested_at: string | null;

@@ -330,6 +330,11 @@ class ApprovalController extends Controller
 
         $outstanding = $subject->load('approvals')->approvalsOutstanding();
 
+        // A day out of the office is not agreed on the line's word alone.
+        if ($subject instanceof OutOfOfficeRequest && $subject->awaitsAdmin()) {
+            return "Approved. {$name}'s request now goes to an administrator for the final say.";
+        }
+
         return $outstanding === 0
             ? "Approved {$name}'s request. It is now granted."
             : "Approved. {$name}'s request still needs {$outstanding} more approval(s).";

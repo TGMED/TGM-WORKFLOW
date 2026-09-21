@@ -81,14 +81,14 @@ trait HasApprovals
     }
 
     /**
-     * Only approval-stage decisions count. A relief officer's sign-off gates
-     * the run rather than standing in for one of the approvals required.
+     * Only approvals proper count. A relief officer's sign-off gates the run
+     * rather than standing in for one of the approvals required.
      */
     public function approvalsGiven(): int
     {
         return $this->currentDecisions()
             ->where('decision', ApprovalDecision::Approved)
-            ->where('stage', ApprovalStage::Approval)
+            ->filter(fn (Approval $approval): bool => $approval->stage->countsTowardsApproval())
             ->count();
     }
 

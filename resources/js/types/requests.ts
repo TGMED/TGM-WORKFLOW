@@ -11,7 +11,7 @@ export type RequestTrail = {
     approver: string;
     decision: 'approved' | 'rejected';
     decision_label: string;
-    stage: 'relief' | 'approval';
+    stage: 'relief' | 'approval' | 'admin';
     stage_label: string;
     comment: string | null;
     decided_at: string;
