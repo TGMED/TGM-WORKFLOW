@@ -132,12 +132,12 @@ return [
                 [
                     'title' => 'Public holidays',
                     'audience' => ['staff'],
-                    'description' => 'The days the company is off now show beside every page as they come up, and on your dashboard on the day itself. They are never taken from your leave, and the leave form says which ones it has left out.',
+                    'description' => 'The days you are off, whether the whole company is or only your site, now show beside every page as they come up, and on your dashboard on the day itself. They are never taken from your leave, and the leave form says which ones it has left out.',
                 ],
                 [
                     'title' => 'Set the year\'s public holidays',
                     'audience' => ['locations.manage', 'attendance.report'],
-                    'description' => 'Add the days the company is off under Attendance, then Public holidays. Every site is off on them whatever its own week says, so they come off the days everyone is expected in on the attendance report and nobody is marked absent for them.',
+                    'description' => 'Add the days off under Attendance, then Public holidays, either for every site or for one, such as a state holiday only one office keeps. The sites they cover are off whatever their own week says, so the day comes off the days expected there on the attendance report and nobody is marked absent for it.',
                 ],
                 [
                     'title' => 'Policies open in your browser',
