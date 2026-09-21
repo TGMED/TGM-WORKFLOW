@@ -223,6 +223,7 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
     // they are not on the payroll and have no record to keep.
     Route::prefix('profile')->name('profile.')->middleware('clocks-in')->group(function (): void {
         Route::get('/', [ProfileController::class, 'edit'])->name('edit');
+        Route::get('setup', [ProfileController::class, 'setup'])->name('setup');
         Route::put('/', [ProfileController::class, 'update'])->name('update');
 
         Route::put('bank', [BankDetailsController::class, 'update'])->name('bank.update');

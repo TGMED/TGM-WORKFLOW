@@ -136,22 +136,22 @@ class EmployeeProfileTest extends TestCase
     /**
      * The gate.
      */
-    public function test_an_unfinished_profile_is_sent_back_to_the_profile_page(): void
+    public function test_an_unfinished_profile_is_sent_to_the_guided_setup(): void
     {
         $staff = User::factory()->withoutProfile()->create([
             'location_id' => $this->location->id,
         ]);
 
-        $this->actingAs($staff)->get('/dashboard')->assertRedirect('/profile');
-        $this->actingAs($staff)->get('/leave')->assertRedirect('/profile');
-        $this->actingAs($staff)->get('/attendance')->assertRedirect('/profile');
+        $this->actingAs($staff)->get('/dashboard')->assertRedirect('/profile/setup');
+        $this->actingAs($staff)->get('/leave')->assertRedirect('/profile/setup');
+        $this->actingAs($staff)->get('/attendance')->assertRedirect('/profile/setup');
     }
 
     /**
      * The whole point of the gate: someone signing in with an unfinished
      * record ends up on the profile page rather than the dashboard.
      */
-    public function test_signing_in_with_an_unfinished_profile_lands_on_the_profile(): void
+    public function test_signing_in_with_an_unfinished_profile_lands_on_the_setup(): void
     {
         $staff = User::factory()->withoutProfile()->create([
             'location_id' => $this->location->id,
@@ -164,7 +164,7 @@ class EmployeeProfileTest extends TestCase
         ])->assertRedirect('/dashboard');
 
         // The hop the browser makes next is where the gate turns them around.
-        $this->get('/dashboard')->assertRedirect('/profile');
+        $this->get('/dashboard')->assertRedirect('/profile/setup');
         $this->get('/profile')->assertOk();
 
         $this->assertAuthenticatedAs($staff);
@@ -211,7 +211,7 @@ class EmployeeProfileTest extends TestCase
             'location_id' => $this->location->id,
         ]);
 
-        $this->actingAs($staff)->get('/dashboard')->assertRedirect('/profile');
+        $this->actingAs($staff)->get('/dashboard')->assertRedirect('/profile/setup');
 
         $this->actingAs($staff)->put('/profile', $this->payload());
 
@@ -225,7 +225,7 @@ class EmployeeProfileTest extends TestCase
             'phone' => null,
         ]);
 
-        $this->actingAs($staff)->get('/dashboard')->assertRedirect('/profile');
+        $this->actingAs($staff)->get('/dashboard')->assertRedirect('/profile/setup');
     }
 
     /**

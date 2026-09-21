@@ -32,7 +32,8 @@ class EnsureProfileIsComplete
 
     /**
      * Nobody uses the app on a half-filled record. An employee who has not
-     * finished their profile is sent back to it, whatever they asked for.
+     * finished their profile is sent to the guided setup, whatever they asked
+     * for: a step at a time, starting with the part that is required.
      *
      * Super admins are exempt: they administer the system rather than appear
      * on the payroll, so there is no HR record for them to keep.
@@ -47,13 +48,9 @@ class EnsureProfileIsComplete
             return $next($request);
         }
 
+        // No toast: the setup page says why they are there.
         if ($request->isMethod('GET')) {
-            return redirect()
-                ->route('profile.edit')
-                ->with('toast', [
-                    'type' => 'info',
-                    'message' => 'Finish your profile to carry on. We only need a few details.',
-                ]);
+            return redirect()->route('profile.setup');
         }
 
         abort(403, 'Finish your profile before using the rest of the app.');

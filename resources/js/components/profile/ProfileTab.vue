@@ -17,7 +17,11 @@ const props = defineProps<{
     missingFields: string[];
 }>();
 
-const emit = defineEmits<{ 'edit-address': [EmployeeAddress | null] }>();
+const emit = defineEmits<{
+    'edit-address': [EmployeeAddress | null];
+    /** Saved without a validation error, so a guided setup can move on. */
+    saved: [];
+}>();
 
 const form = useForm({
     employee_id: props.profile.employee_id,
@@ -72,7 +76,10 @@ function onCountry() {
 }
 
 function submit() {
-    form.put('/profile', { preserveScroll: true });
+    form.put('/profile', {
+        preserveScroll: true,
+        onSuccess: () => emit('saved'),
+    });
 }
 </script>
 

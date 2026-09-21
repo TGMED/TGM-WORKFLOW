@@ -25,8 +25,14 @@ const form = useForm({
     nhf_number: props.profile.nhf_number,
 });
 
+/** Saved without a validation error, so a guided setup can move on. */
+const emit = defineEmits<{ saved: [] }>();
+
 function submit() {
-    form.put('/profile/bank', { preserveScroll: true });
+    form.put('/profile/bank', {
+        preserveScroll: true,
+        onSuccess: () => emit('saved'),
+    });
 }
 </script>
 

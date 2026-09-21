@@ -20,12 +20,30 @@ class ProfileController extends Controller
 {
     public function edit(Request $request): Response
     {
-        $user = $request->user();
+        return Inertia::render('Profile', $this->pageProps($request->user()));
+    }
+
+    /**
+     * The same record, walked through a step at a time for somebody who has
+     * just got in: the part the app cannot run without first, then the parts
+     * that can wait. Where the profile gate sends anybody with details still
+     * to give.
+     */
+    public function setup(Request $request): Response
+    {
+        return Inertia::render('ProfileSetup', $this->pageProps($request->user()));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function pageProps(User $user): array
+    {
         $user->load(['profile', 'relations', 'addresses']);
 
         $profile = $user->profileRecord();
 
-        return Inertia::render('Profile', [
+        return [
             'profile' => $this->payload($user, $profile),
             'relations' => $this->relations($user),
             'addresses' => $user->addresses
@@ -43,7 +61,7 @@ class ProfileController extends Controller
             'options' => $this->options(),
             'missing_fields' => $profile->missingFields(),
             'is_complete' => $profile->isComplete(),
-        ]);
+        ];
     }
 
     /**
