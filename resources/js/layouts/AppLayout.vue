@@ -41,9 +41,10 @@ type NavItem = {
 // Icons are single-path outlines, kept inline so there is no icon dependency.
 //
 // The rail is grouped rather than listed flat: a signed-in member of staff sees
-// four rows, and everything else is one click behind the heading it belongs to.
-// The two exceptions are deliberate. The dashboard is where people land, and
-// raising an incident is the one route nobody should have to go looking for.
+// a handful of rows, and everything else is one click behind the heading it
+// belongs to. The dashboard is the exception, being where people land. Raising
+// an incident sits under Conduct with the desk that handles it; for staff it is
+// the only page there, so it still stands on the rail by itself.
 const nav: NavItem[] = [
     {
         label: 'Dashboard',
@@ -75,6 +76,11 @@ const nav: NavItem[] = [
                 href: '/out-of-office',
                 icon: 'M4 20V9.5L12 4l8 5.5V20M4 20h16M9.5 20v-5h5v5M14.5 9.5h4.5m0 0-1.8-1.8m1.8 1.8-1.8 1.8',
             },
+            {
+                label: 'My payslips',
+                href: '/payslips',
+                icon: 'M6 3.5h12A1.5 1.5 0 0 1 19.5 5v15.5l-2.5-1.5-2.5 1.5-2.5-1.5-2.5 1.5-2.5-1.5V5A1.5 1.5 0 0 1 6 3.5ZM9 8h6M9 11.5h6M9 15h3',
+            },
         ],
     },
     {
@@ -100,11 +106,6 @@ const nav: NavItem[] = [
         icon: 'M4 20V9.5L12 4l8 5.5V20M4 20h16M9.5 20v-5h5v5M9.5 11h5',
         children: [
             {
-                label: "Who's away",
-                href: '/away',
-                icon: 'M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20M9 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM16.5 8.5h5',
-            },
-            {
                 label: 'Organogram',
                 href: '/organogram',
                 staffOnly: true,
@@ -123,11 +124,6 @@ const nav: NavItem[] = [
                 icon: 'M8 3.5h5.5L18.5 8v11a1.5 1.5 0 0 1-1.5 1.5H8A1.5 1.5 0 0 1 6.5 19V5A1.5 1.5 0 0 1 8 3.5Zm5 0V8h4.5M9.5 12.5h5m-5 3h3',
             },
         ],
-    },
-    {
-        label: 'Report an incident',
-        href: '/reports',
-        icon: 'M12 8.5v4m0 3h.01M10.6 3.9 2.5 18a1.5 1.5 0 0 0 1.3 2.3h16.4a1.5 1.5 0 0 0 1.3-2.3L13.4 3.9a1.6 1.6 0 0 0-2.8 0Z',
     },
     {
         label: 'Admin console',
@@ -157,6 +153,12 @@ const nav: NavItem[] = [
                 permission: 'announcements.manage',
                 icon: 'M3.5 10.5v3a1.5 1.5 0 0 0 1.5 1.5h2l5 4V5l-5 4H5a1.5 1.5 0 0 0-1.5 1.5Zm13-1.5a5 5 0 0 1 0 6',
             },
+            {
+                label: 'Payroll',
+                href: '/admin/payroll',
+                permission: 'payroll.manage',
+                icon: 'M12 6.5v11M9.5 9.2a2.5 2.5 0 0 1 2.5-1.7c1.4 0 2.5.9 2.5 2s-1.1 2-2.5 2-2.5.9-2.5 2 1.1 2 2.5 2a2.5 2.5 0 0 0 2.5-1.7M3.5 12a8.5 8.5 0 1 0 17 0 8.5 8.5 0 0 0-17 0Z',
+            },
         ],
     },
     {
@@ -165,6 +167,11 @@ const nav: NavItem[] = [
         label: 'Conduct',
         icon: 'M12 3.5 4.5 6.5v5c0 4.3 3.1 7.9 7.5 9 4.4-1.1 7.5-4.7 7.5-9v-5L12 3.5Zm-2.2 8.6 1.7 1.7 3.2-3.4',
         children: [
+            {
+                label: 'Report an incident',
+                href: '/reports',
+                icon: 'M12 8.5v4m0 3h.01M10.6 3.9 2.5 18a1.5 1.5 0 0 0 1.3 2.3h16.4a1.5 1.5 0 0 0 1.3-2.3L13.4 3.9a1.6 1.6 0 0 0-2.8 0Z',
+            },
             {
                 label: 'Policy library',
                 href: '/admin/policies',
@@ -196,6 +203,11 @@ const nav: NavItem[] = [
         icon: 'M8 3v3m8-3v3M3.5 9.5h17M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v12A1.5 1.5 0 0 1 19 20.5H5A1.5 1.5 0 0 1 3.5 19V7A1.5 1.5 0 0 1 5 5.5Zm3.5 7.5 2 2 4.5-4.5',
         children: [
             {
+                label: "Who's away",
+                href: '/away',
+                icon: 'M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20M9 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM16.5 8.5h5',
+            },
+            {
                 label: 'Timesheets',
                 href: '/admin/attendance',
                 permission: 'attendance.report',
@@ -224,24 +236,6 @@ const nav: NavItem[] = [
                 href: '/admin/request-settings',
                 permission: 'request-settings.manage',
                 icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm7.4-3a7.4 7.4 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7.4 7.4 0 0 0-2-1.2L14.5 3h-4l-.4 2.6a7.4 7.4 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.5a7.4 7.4 0 0 0 0 2.5l-2 1.5 2 3.4 2.4-1a7.4 7.4 0 0 0 2 1.2l.4 2.6h4l.4-2.6a7.4 7.4 0 0 0 2-1.2l2.4 1 2-3.4-2-1.5c.05-.4.1-.8.1-1.2Z',
-            },
-        ],
-    },
-    {
-        label: 'Finance',
-        icon: 'M12 6.5v11M9.5 9.2a2.5 2.5 0 0 1 2.5-1.7c1.4 0 2.5.9 2.5 2s-1.1 2-2.5 2-2.5.9-2.5 2 1.1 2 2.5 2a2.5 2.5 0 0 0 2.5-1.7M3.5 12a8.5 8.5 0 1 0 17 0 8.5 8.5 0 0 0-17 0Z',
-        children: [
-            {
-                label: 'My payslips',
-                href: '/payslips',
-                staffOnly: true,
-                icon: 'M6 3.5h12A1.5 1.5 0 0 1 19.5 5v15.5l-2.5-1.5-2.5 1.5-2.5-1.5-2.5 1.5-2.5-1.5V5A1.5 1.5 0 0 1 6 3.5ZM9 8h6M9 11.5h6M9 15h3',
-            },
-            {
-                label: 'Payroll',
-                href: '/admin/payroll',
-                permission: 'payroll.manage',
-                icon: 'M12 6.5v11M9.5 9.2a2.5 2.5 0 0 1 2.5-1.7c1.4 0 2.5.9 2.5 2s-1.1 2-2.5 2-2.5.9-2.5 2 1.1 2 2.5 2a2.5 2.5 0 0 0 2.5-1.7M3.5 12a8.5 8.5 0 1 0 17 0 8.5 8.5 0 0 0-17 0Z',
             },
         ],
     },
@@ -331,8 +325,14 @@ const visibleNav = computed<NavItem[]>(() => {
         }
 
         // A group is only a way in to its pages: with none of them left to
-        // show, the heading has nothing behind it and goes too.
+        // show, the heading has nothing behind it and goes too. With one, the
+        // heading is a click that only ever leads to the same place, so the
+        // page stands on the rail by itself.
         const children = item.children.filter(permits);
+
+        if (children.length === 1) {
+            return children;
+        }
 
         return children.length ? [{ ...item, children }] : [];
     });

@@ -40,9 +40,9 @@ export const tours: Record<string, Tour> = {
                 body: 'Your attendance, leave, lateness and days worked away from the office all live here. Each request goes to your team lead and your head of department before anybody else sees it.',
             },
             {
-                anchor: 'nav-finance',
+                anchor: 'nav-my-work',
                 title: 'Your payslips',
-                body: 'Payslips appear here once the month has been signed off. They print, and the figures are frozen as they were paid.',
+                body: 'Payslips are here too, once the month has been signed off. They print or download as a PDF, and the figures are frozen as they were paid.',
             },
             {
                 anchor: 'notice-rail',
