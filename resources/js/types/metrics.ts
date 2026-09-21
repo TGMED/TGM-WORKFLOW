@@ -51,16 +51,6 @@ export type DepartmentMetrics = {
     open_requests: number;
 };
 
-export type SiteMetrics = {
-    id: number;
-    name: string;
-    city: string | null;
-    headcount: number;
-    clocked_in: number;
-    late: number;
-    turnout: number;
-};
-
 export type MovementMetrics = {
     months: Array<{
         month: string;
@@ -83,25 +73,6 @@ export type ProbationRow = {
     overdue: boolean;
 };
 
-export type ModuleCounts = {
-    pending: number;
-    approved: number;
-    rejected: number;
-    total: number;
-};
-
-export type PendingRow = {
-    id: number;
-    staff: string;
-    type: string;
-    days: number;
-    range_label: string;
-    /** Whoever the request is sitting with right now. */
-    with: string | null;
-    waiting_days: number;
-    created_at: string | null;
-};
-
 export type PunctualityRow = {
     id: number;
     name: string;
@@ -118,7 +89,6 @@ export type CompanyMetrics = {
     headline: ConsoleHeadline;
     attendance: AttendanceMetrics;
     departments: DepartmentMetrics[];
-    sites: SiteMetrics[];
     movement: MovementMetrics;
     probation: {
         months: number;
@@ -126,20 +96,6 @@ export type CompanyMetrics = {
         due_soon: ProbationRow[];
         total_on_probation: number;
     };
-    requests: {
-        leave: ModuleCounts;
-        lateness: ModuleCounts;
-        median_decision_days: number | null;
-        oldest_pending: PendingRow[];
-    };
-    leave_liability: Array<{
-        id: number;
-        name: string;
-        entitled: number;
-        taken: number;
-        outstanding: number;
-        used_percent: number;
-    }>;
     punctuality: { worst: PunctualityRow[]; best: PunctualityRow[] };
     /** Null unless the viewer may run payroll. */
     payroll: {
@@ -159,18 +115,6 @@ export type CompanyMetrics = {
         by_status: Array<{ value: string; label: string; total: number }>;
         open: number;
         oldest_open_days: number | null;
-    } | null;
-    /** Null unless the viewer may manage roles. */
-    access: {
-        roles: Array<{
-            id: number;
-            name: string;
-            users_count: number;
-            permissions_count: number;
-            holds_everything: boolean;
-            held_by_nobody: boolean;
-        }>;
-        sensitive: { reports: string[]; payroll: string[] };
     } | null;
 };
 

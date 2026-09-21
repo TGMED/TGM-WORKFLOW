@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
-import TurnoutBars from '@/components/dashboard/TurnoutBars.vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import Panel from '@/components/ui/Panel.vue';
 import StatTile from '@/components/ui/StatTile.vue';
@@ -59,31 +58,7 @@ const money = new Intl.NumberFormat(undefined, {
                 </Link>
             </div>
 
-            <div
-                class="stagger grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6"
-            >
-                <StatTile label="Active staff" :value="headline.active_staff" />
-                <StatTile
-                    label="In today"
-                    :value="headline.clocked_in_today"
-                    :caption="`of ${headline.active_staff} on the books`"
-                />
-                <StatTile
-                    label="Late today"
-                    :value="headline.late_today"
-                    :tone="headline.late_today > 0 ? 'brass' : 'default'"
-                />
-                <StatTile
-                    label="On leave"
-                    :value="headline.on_leave_today"
-                    caption="Today"
-                />
-                <StatTile
-                    label="Open requests"
-                    :value="headline.pending_requests"
-                    :tone="headline.pending_requests > 0 ? 'brass' : 'default'"
-                    caption="Waiting on somebody"
-                />
+            <div class="stagger grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <StatTile
                     label="Punctuality"
                     :value="
@@ -103,13 +78,6 @@ const money = new Intl.NumberFormat(undefined, {
                     :value="headline.left_this_month"
                     caption="This month"
                 />
-                <StatTile label="On probation" :value="headline.on_probation" />
-                <StatTile
-                    label="No site"
-                    :value="headline.unassigned_site"
-                    :tone="headline.unassigned_site > 0 ? 'brass' : 'default'"
-                    caption="Cannot clock in"
-                />
                 <StatTile
                     label="No department"
                     :value="headline.unassigned_department"
@@ -118,28 +86,11 @@ const money = new Intl.NumberFormat(undefined, {
                     "
                     caption="Nobody sees their numbers"
                 />
-                <StatTile
-                    label="Clock-ins refused"
-                    :value="headline.rejected_attempts_today"
-                    caption="Today, out of geofence"
-                />
             </div>
         </section>
 
-        <!-- 2. Attendance over time. -->
-        <div class="grid gap-5 xl:grid-cols-3">
-            <Panel
-                class="xl:col-span-2"
-                title="Turnout"
-                subtitle="The last thirty days, on time against late"
-            >
-                <TurnoutBars
-                    :days="metrics.attendance.days"
-                    :height="170"
-                    :label-every="3"
-                />
-            </Panel>
-
+        <!-- 2. Timekeeping. Turnout by day is on the admin console. -->
+        <div class="grid gap-5 xl:grid-cols-2">
             <Panel title="Timekeeping" :subtitle="metrics.month_label">
                 <div class="space-y-4">
                     <div>
@@ -204,6 +155,39 @@ const money = new Intl.NumberFormat(undefined, {
                         </div>
                     </template>
                 </div>
+            </Panel>
+            <Panel
+                title="Timekeeping"
+                :subtitle="`${metrics.month_label}. Most minutes lost first.`"
+                flush
+            >
+                <div
+                    v-if="metrics.punctuality.worst.length"
+                    class="divide-y divide-line-soft"
+                >
+                    <div
+                        v-for="person in metrics.punctuality.worst"
+                        :key="person.id"
+                        class="flex items-center justify-between gap-3 px-5 py-3"
+                    >
+                        <div class="min-w-0">
+                            <p class="truncate text-[13.5px] font-medium">
+                                {{ person.name }}
+                            </p>
+                            <p class="truncate text-[12px] text-faint">
+                                {{ person.department ?? 'No department' }} ·
+                                {{ person.days_late }} of
+                                {{ person.days_present }} days
+                            </p>
+                        </div>
+                        <StatusPill tone="brass" class="shrink-0">
+                            {{ person.late_minutes }}m
+                        </StatusPill>
+                    </div>
+                </div>
+                <p v-else class="px-5 py-6 text-[13px] text-faint">
+                    Nobody has lost a minute this month.
+                </p>
             </Panel>
         </div>
 
@@ -351,112 +335,7 @@ const money = new Intl.NumberFormat(undefined, {
             </p>
         </Panel>
 
-        <!-- 4 and 7. Sites, and the request funnel. -->
-        <div class="grid gap-5 xl:grid-cols-2">
-            <Panel
-                title="Sites"
-                subtitle="Turnout today, each in its own day"
-                flush
-            >
-                <div class="divide-y divide-line-soft">
-                    <div
-                        v-for="site in metrics.sites"
-                        :key="site.id"
-                        class="flex items-center justify-between gap-3 px-5 py-3.5"
-                    >
-                        <div class="min-w-0">
-                            <p class="truncate text-[13.5px] font-medium">
-                                {{ site.name }}
-                            </p>
-                            <p class="text-[12px] text-faint">
-                                {{ site.clocked_in }} of {{ site.headcount }} in
-                                <template v-if="site.late">
-                                    · {{ site.late }} late
-                                </template>
-                            </p>
-                        </div>
-                        <span class="tabular shrink-0 text-[13px] text-muted">
-                            {{ site.turnout }}%
-                        </span>
-                    </div>
-                    <p
-                        v-if="!metrics.sites.length"
-                        class="px-5 py-6 text-[13px] text-faint"
-                    >
-                        No active sites.
-                    </p>
-                </div>
-            </Panel>
-
-            <Panel title="Requests" :subtitle="metrics.month_label">
-                <div class="space-y-5">
-                    <div
-                        v-for="(counts, module) in {
-                            Leave: metrics.requests.leave,
-                            Lateness: metrics.requests.lateness,
-                        }"
-                        :key="module"
-                    >
-                        <div class="flex items-baseline justify-between">
-                            <span class="text-[13.5px] font-medium">
-                                {{ module }}
-                            </span>
-                            <span class="tabular text-[12.5px] text-faint">
-                                {{ counts.total }} raised
-                            </span>
-                        </div>
-                        <div
-                            class="mt-2 flex h-2 overflow-hidden rounded-full bg-line-soft"
-                        >
-                            <span
-                                class="bg-signal"
-                                :style="{
-                                    width: `${counts.total ? (counts.approved / counts.total) * 100 : 0}%`,
-                                }"
-                            />
-                            <span
-                                class="bg-alert/70"
-                                :style="{
-                                    width: `${counts.total ? (counts.rejected / counts.total) * 100 : 0}%`,
-                                }"
-                            />
-                            <span
-                                class="bg-brass/70"
-                                :style="{
-                                    width: `${counts.total ? (counts.pending / counts.total) * 100 : 0}%`,
-                                }"
-                            />
-                        </div>
-                        <p class="mt-1.5 text-[12px] text-faint">
-                            {{ counts.approved }} approved ·
-                            {{ counts.rejected }} rejected ·
-                            {{ counts.pending }} still open
-                        </p>
-                    </div>
-
-                    <div class="h-px bg-line-soft" />
-
-                    <p class="text-[13px] text-muted">
-                        <template
-                            v-if="
-                                metrics.requests.median_decision_days !== null
-                            "
-                        >
-                            Half of all decisions land within
-                            <span class="tabular font-medium text-text">
-                                {{ metrics.requests.median_decision_days }}
-                            </span>
-                            days.
-                        </template>
-                        <template v-else>
-                            Nothing has been decided this month yet.
-                        </template>
-                    </p>
-                </div>
-            </Panel>
-        </div>
-
-        <!-- 5 and 6. Movement, and probation. -->
+        <!-- 4. Movement, and probation. -->
         <div class="grid gap-5 xl:grid-cols-2">
             <Panel
                 title="Headcount"
@@ -572,85 +451,10 @@ const money = new Intl.NumberFormat(undefined, {
             </Panel>
         </div>
 
-        <!-- 8 and 9. Leave owed, and timekeeping. -->
-        <div class="grid gap-5 xl:grid-cols-2">
-            <Panel
-                title="Leave owed"
-                subtitle="Days the company still owes this year"
-                flush
-            >
-                <div
-                    v-if="metrics.leave_liability.length"
-                    class="divide-y divide-line-soft"
-                >
-                    <div
-                        v-for="type in metrics.leave_liability"
-                        :key="type.id"
-                        class="px-5 py-3.5"
-                    >
-                        <div class="flex items-baseline justify-between gap-3">
-                            <span class="text-[13.5px] font-medium">
-                                {{ type.name }}
-                            </span>
-                            <span class="tabular text-[12.5px] text-faint">
-                                {{ type.outstanding }} of
-                                {{ type.entitled }} left
-                            </span>
-                        </div>
-                        <span
-                            class="mt-2 block h-1.5 overflow-hidden rounded-full bg-line-soft"
-                        >
-                            <span
-                                class="block h-full rounded-full bg-beacon/70"
-                                :style="{ width: `${type.used_percent}%` }"
-                            />
-                        </span>
-                    </div>
-                </div>
-                <p v-else class="px-5 py-6 text-[13px] text-faint">
-                    No capped leave types to measure against.
-                </p>
-            </Panel>
-
-            <Panel
-                title="Timekeeping"
-                :subtitle="`${metrics.month_label}. Most minutes lost first.`"
-                flush
-            >
-                <div
-                    v-if="metrics.punctuality.worst.length"
-                    class="divide-y divide-line-soft"
-                >
-                    <div
-                        v-for="person in metrics.punctuality.worst"
-                        :key="person.id"
-                        class="flex items-center justify-between gap-3 px-5 py-3"
-                    >
-                        <div class="min-w-0">
-                            <p class="truncate text-[13.5px] font-medium">
-                                {{ person.name }}
-                            </p>
-                            <p class="truncate text-[12px] text-faint">
-                                {{ person.department ?? 'No department' }} ·
-                                {{ person.days_late }} of
-                                {{ person.days_present }} days
-                            </p>
-                        </div>
-                        <StatusPill tone="brass" class="shrink-0">
-                            {{ person.late_minutes }}m
-                        </StatusPill>
-                    </div>
-                </div>
-                <p v-else class="px-5 py-6 text-[13px] text-faint">
-                    Nobody has lost a minute this month.
-                </p>
-            </Panel>
-        </div>
-
-        <!-- 10, 11 and 12. Behind their own permissions. -->
+        <!-- 5. Behind their own permissions. -->
         <div
-            v-if="metrics.payroll || metrics.incidents || metrics.access"
-            class="grid gap-5 xl:grid-cols-3"
+            v-if="metrics.payroll || metrics.incidents"
+            class="grid gap-5 xl:grid-cols-2"
         >
             <Panel
                 v-if="metrics.payroll"
@@ -720,103 +524,6 @@ const money = new Intl.NumberFormat(undefined, {
                     </div>
                 </div>
             </Panel>
-
-            <Panel
-                v-if="metrics.access"
-                title="Access"
-                subtitle="Somebody with two roles is counted under both"
-                flush
-            >
-                <div class="divide-y divide-line-soft">
-                    <Link
-                        v-for="role in metrics.access.roles"
-                        :key="role.id"
-                        href="/admin/roles"
-                        class="flex items-center justify-between gap-3 px-5 py-2.5 transition-colors hover:bg-panel-raised"
-                    >
-                        <div class="min-w-0">
-                            <p class="truncate text-[13px] font-medium">
-                                {{ role.name }}
-                            </p>
-                            <p class="text-[11.5px] text-faint">
-                                <template v-if="role.holds_everything">
-                                    Every permission
-                                </template>
-                                <template v-else>
-                                    {{ role.permissions_count }} permission(s)
-                                </template>
-                            </p>
-                        </div>
-                        <span
-                            class="tabular shrink-0 text-[13px]"
-                            :class="
-                                role.held_by_nobody
-                                    ? 'text-faint'
-                                    : 'text-muted'
-                            "
-                        >
-                            {{ role.users_count }}
-                        </span>
-                    </Link>
-                </div>
-
-                <div class="border-t border-line-soft px-5 py-3">
-                    <p class="eyebrow">Confidential access</p>
-                    <p class="mt-1.5 text-[12.5px] text-muted">
-                        Reports desk:
-                        {{
-                            metrics.access.sensitive.reports.join(', ') ||
-                            'nobody'
-                        }}
-                    </p>
-                    <p class="mt-1 text-[12.5px] text-muted">
-                        Payroll:
-                        {{
-                            metrics.access.sensitive.payroll.join(', ') ||
-                            'nobody'
-                        }}
-                    </p>
-                </div>
-            </Panel>
         </div>
-
-        <!-- 13. What is stuck. -->
-        <Panel
-            v-if="metrics.requests.oldest_pending.length"
-            title="Waiting longest"
-            subtitle="The queue that needs chasing"
-            flush
-        >
-            <template #action>
-                <Link href="/approvals">
-                    <AppButton size="sm" variant="ghost">Approvals</AppButton>
-                </Link>
-            </template>
-
-            <div class="divide-y divide-line-soft">
-                <div
-                    v-for="row in metrics.requests.oldest_pending"
-                    :key="row.id"
-                    class="flex items-center justify-between gap-3 px-5 py-3"
-                >
-                    <div class="min-w-0">
-                        <p class="truncate text-[13.5px] font-medium">
-                            {{ row.staff }}
-                        </p>
-                        <p class="truncate text-[12px] text-faint">
-                            {{ row.days }}d {{ row.type }} ·
-                            {{ row.range_label }} · with
-                            {{ row.with ?? 'any approver' }}
-                        </p>
-                    </div>
-                    <StatusPill
-                        :tone="row.waiting_days >= 3 ? 'alert' : 'brass'"
-                        class="shrink-0"
-                    >
-                        {{ row.waiting_days }}d
-                    </StatusPill>
-                </div>
-            </div>
-        </Panel>
     </div>
 </template>

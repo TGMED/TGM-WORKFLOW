@@ -177,7 +177,6 @@ class CompanyMetricsTest extends TestCase
 
         $this->assertNull($metrics['payroll']);
         $this->assertNull($metrics['incidents']);
-        $this->assertNull($metrics['access']);
     }
 
     public function test_a_super_admin_sees_the_confidential_panels(): void
@@ -186,13 +185,12 @@ class CompanyMetricsTest extends TestCase
 
         $this->assertNotNull($metrics['payroll']);
         $this->assertNotNull($metrics['incidents']);
-        $this->assertNotNull($metrics['access']);
     }
 
     /**
-     * Thirteen panels is a lot of round trips. They share their reads, and a
-     * ceiling here is what stops a fourteenth panel quietly turning the page
-     * into an N+1: the count must not grow with the number of people.
+     * Every panel is a round trip. They share their reads, and a ceiling here
+     * is what stops the next panel quietly turning the page into an N+1: the
+     * count must not grow with the number of people.
      */
     public function test_the_console_does_not_cost_more_as_the_company_grows(): void
     {

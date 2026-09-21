@@ -8,18 +8,14 @@ use App\Enums\ExitReason;
 use App\Enums\PayrollRunStatus;
 use App\Enums\Permission;
 use App\Enums\ReportStatus;
-use App\Enums\RequestStatus;
 use App\Models\Attendance;
 use App\Models\ClockAttempt;
 use App\Models\Department;
 use App\Models\LatenessRequest;
 use App\Models\LeaveRequest;
-use App\Models\LeaveType;
-use App\Models\Location;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
 use App\Models\Report;
-use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
@@ -29,21 +25,13 @@ use Illuminate\Support\Collection;
  * Everything the company console counts.
  *
  * A service rather than a fat controller for two reasons: the numbers are worth
- * testing on their own, and grouping them here is what stops thirteen panels
- * becoming thirteen times the queries. Panels that measure the same thing share
+ * testing on their own, and grouping them here is what stops every panel
+ * becoming its own set of queries. Panels that measure the same thing share
  * a query — one grouped read of this month's attendance feeds the headline, the
  * department table and the punctuality lists.
  */
 class CompanyMetrics
 {
-    /**
-     * Role ids per permission, remembered for the life of one console build.
-     * Three panels ask the same question, and it is the same answer each time.
-     *
-     * @var array<string, array<int, int>>
-     */
-    protected array $roleIds = [];
-
     /**
      * The whole console. Panels behind a permission are asked for by the
      * caller rather than decided here, so this stays a set of numbers.
@@ -65,20 +53,14 @@ class CompanyMetrics
             'headline' => $this->headline($today, $monthAttendance),
             'attendance' => $this->attendance($today),
             'departments' => $this->departments($monthAttendance, $today),
-            'sites' => $this->sites(),
             'movement' => $this->movement($today),
             'probation' => $this->probation($today),
-            'requests' => $this->requests($today, $monthStart),
-            'leave_liability' => $this->leaveLiability($today->year),
             'punctuality' => $this->punctuality($monthAttendance),
             'payroll' => $viewer->hasPermission(Permission::ManagePayroll)
                 ? $this->payroll()
                 : null,
             'incidents' => $viewer->hasPermission(Permission::HandleReports)
                 ? $this->incidents()
-                : null,
-            'access' => $viewer->hasPermission(Permission::ManageRoles)
-                ? $this->access()
                 : null,
         ];
     }
@@ -347,50 +329,6 @@ class CompanyMetrics
 
     // 4. Sites.
 
-    /**
-     * @return array<int, array<string, mixed>>
-     */
-    protected function sites(): array
-    {
-        $headcounts = User::query()
-            ->active()
-            ->clocksIn()
-            ->whereNotNull('location_id')
-            ->selectRaw('location_id, count(*) as total')
-            ->groupBy('location_id')
-            ->pluck('total', 'location_id');
-
-        return Location::query()
-            ->active()
-            ->orderBy('name')
-            ->get()
-            ->map(function (Location $location) use ($headcounts): array {
-                $localDate = Carbon::now()->setTimezone($location->timezone)->toDateString();
-
-                $records = Attendance::query()
-                    ->ofActiveStaff()
-                    ->where('location_id', $location->id)
-                    ->where('work_date', $localDate)
-                    ->get(['status', 'excused_at', 'clocked_in_at']);
-
-                $headcount = (int) ($headcounts[$location->id] ?? 0);
-                $in = $records->whereNotNull('clocked_in_at')->count();
-
-                return [
-                    'id' => $location->id,
-                    'name' => $location->name,
-                    'city' => $location->city,
-                    'headcount' => $headcount,
-                    'clocked_in' => $in,
-                    'late' => $records->filter(
-                        fn (Attendance $record): bool => $record->countsAsLate(),
-                    )->count(),
-                    'turnout' => $headcount > 0 ? (int) round(($in / $headcount) * 100) : 0,
-                ];
-            })
-            ->all();
-    }
-
     // 5. Who joined and who left.
 
     /**
@@ -507,141 +445,7 @@ class CompanyMetrics
 
     // 7. Requests.
 
-    /**
-     * Volume this month, what is still open, and how long a decision takes.
-     *
-     * @return array<string, mixed>
-     */
-    protected function requests(Carbon $today, Carbon $monthStart): array
-    {
-        return [
-            'leave' => $this->moduleCounts(
-                LeaveRequest::query()->ofActiveStaff()->where('created_at', '>=', $monthStart),
-            ),
-            'lateness' => $this->moduleCounts(
-                LatenessRequest::query()->ofActiveStaff()->where('created_at', '>=', $monthStart),
-            ),
-            'median_decision_days' => $this->medianDecisionDays($monthStart),
-            'oldest_pending' => $this->oldestPending(),
-        ];
-    }
-
-    /**
-     * @param  Builder<covariant \Illuminate\Database\Eloquent\Model>  $query
-     * @return array<string, int>
-     */
-    protected function moduleCounts(Builder $query): array
-    {
-        $counts = $query
-            ->selectRaw('status, count(*) as total')
-            ->groupBy('status')
-            ->pluck('total', 'status');
-
-        return [
-            'pending' => (int) ($counts[RequestStatus::Pending->value] ?? 0),
-            'approved' => (int) ($counts[RequestStatus::Approved->value] ?? 0),
-            'rejected' => (int) ($counts[RequestStatus::Rejected->value] ?? 0),
-            'total' => (int) $counts->sum(),
-        ];
-    }
-
-    /**
-     * The middle time to a decision, in days. A median rather than a mean:
-     * one request left over a holiday would drag an average out of shape.
-     */
-    protected function medianDecisionDays(Carbon $since): ?float
-    {
-        $spans = LeaveRequest::query()
-            ->ofActiveStaff()
-            ->whereNotNull('decided_at')
-            ->where('decided_at', '>=', $since)
-            ->get(['created_at', 'decided_at'])
-            ->map(fn (LeaveRequest $leave): float => (float) $leave->created_at->diffInDays($leave->decided_at))
-            ->sort()
-            ->values();
-
-        if ($spans->isEmpty()) {
-            return null;
-        }
-
-        $middle = intdiv($spans->count(), 2);
-
-        return $spans->count() % 2 === 1
-            ? round($spans[$middle], 1)
-            : round(($spans[$middle - 1] + $spans[$middle]) / 2, 1);
-    }
-
-    /**
-     * @return array<int, array<string, mixed>>
-     */
-    protected function oldestPending(): array
-    {
-        return LeaveRequest::query()
-            ->ofActiveStaff()
-            ->with(['user:id,name', 'leaveType:id,name', 'supervisor:id,name', 'teamLead:id,name', 'head:id,name'])
-            ->pending()
-            ->orderBy('created_at')
-            ->limit(8)
-            ->get()
-            ->map(fn (LeaveRequest $leave): array => [
-                'id' => $leave->id,
-                'staff' => $leave->user->name,
-                'type' => $leave->leaveType->name,
-                'days' => $leave->days,
-                'range_label' => $leave->start_date->format('j M').' to '.$leave->end_date->format('j M'),
-                'with' => ($leave->lineAwaitingUser() ?? $leave->supervisor)?->name,
-                'waiting_days' => (int) $leave->created_at?->diffInDays(Carbon::now()),
-                'created_at' => $leave->created_at?->toIso8601String(),
-            ])
-            ->all();
-    }
-
     // 8. What leave the company still owes.
-
-    /**
-     * @return array<int, array<string, mixed>>
-     */
-    protected function leaveLiability(int $year): array
-    {
-        $managerRoles = $this->rolesWith(Permission::ApproveRequests);
-
-        $managers = User::query()->active()->clocksIn()
-            ->whereHas('roles', fn (Builder $query) => $query->whereKey($managerRoles))
-            ->count();
-        $others = User::query()->active()->clocksIn()
-            ->whereDoesntHave('roles', fn (Builder $query) => $query->whereKey($managerRoles))
-            ->count();
-
-        $committed = LeaveRequest::query()
-            ->ofActiveStaff()
-            ->committed()
-            ->inYear($year)
-            ->selectRaw('leave_type_id, sum(days) as days_used')
-            ->groupBy('leave_type_id')
-            ->pluck('days_used', 'leave_type_id');
-
-        return LeaveType::query()
-            ->active()
-            ->orderBy('name')
-            ->get()
-            ->filter(fn (LeaveType $type): bool => $type->isCapped())
-            ->map(function (LeaveType $type) use ($managers, $others, $committed): array {
-                $entitled = ($managers * ($type->days_per_year_manager ?? $type->days_per_year ?? 0))
-                    + ($others * ($type->days_per_year ?? 0));
-                $taken = (int) ($committed[$type->id] ?? 0);
-
-                return [
-                    'id' => $type->id,
-                    'name' => $type->name,
-                    'entitled' => $entitled,
-                    'taken' => $taken,
-                    'outstanding' => max(0, $entitled - $taken),
-                    'used_percent' => $entitled > 0 ? (int) round(($taken / $entitled) * 100) : 0,
-                ];
-            })
-            ->values()
-            ->all();
-    }
 
     // 9. Best and worst timekeeping.
 
@@ -784,61 +588,6 @@ class CompanyMetrics
     }
 
     // 12. Who holds what, behind the roles permission.
-
-    /**
-     * @return array<string, mixed>
-     */
-    protected function access(): array
-    {
-        $roles = Role::query()
-            ->with('rolePermissions')
-            ->withCount(['users' => fn (Builder $query) => $query->where('is_active', true)])
-            ->orderByDesc('is_system')
-            ->orderBy('name')
-            ->get();
-
-        return [
-            // Somebody holding two roles is counted under both, which is what
-            // makes this a picture of access rather than of headcount.
-            'roles' => $roles
-                ->map(fn (Role $role): array => [
-                    'id' => $role->id,
-                    'name' => $role->name,
-                    'users_count' => $role->users_count,
-                    'permissions_count' => count($role->permissions()),
-                    'holds_everything' => $role->slug === Role::SUPER_ADMIN,
-                    'held_by_nobody' => $role->users_count === 0,
-                ])
-                ->all(),
-            // The two worth naming outright: one reads what staff have raised
-            // in confidence, the other reads what everybody earns.
-            'sensitive' => [
-                'reports' => $this->holdersOf(Permission::HandleReports),
-                'payroll' => $this->holdersOf(Permission::ManagePayroll),
-            ],
-        ];
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    protected function holdersOf(Permission $permission): array
-    {
-        return User::query()
-            ->active()
-            ->whereHas('roles', fn (Builder $query) => $query->whereKey($this->rolesWith($permission)))
-            ->orderBy('name')
-            ->pluck('name')
-            ->all();
-    }
-
-    /**
-     * @return array<int, int>
-     */
-    protected function rolesWith(Permission $permission): array
-    {
-        return $this->roleIds[$permission->value] ??= Role::idsWithPermission($permission);
-    }
 
     // Shared reads.
 
