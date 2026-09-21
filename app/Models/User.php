@@ -426,6 +426,20 @@ class User extends Authenticatable implements AuditableContract
     }
 
     /**
+     * Whether this person heads a department.
+     *
+     * Their own requests skip the reporting line: there is nobody inside their
+     * unit senior to them to ask, so the request goes to the approver they
+     * named and to the people team.
+     */
+    public function headsADepartment(): bool
+    {
+        $this->loadMissing('headedDepartment');
+
+        return $this->headedDepartment !== null;
+    }
+
+    /**
      * Everyone this person is responsible for: the department they head, and
      * the team they lead. Themselves excluded — nobody manages themselves, and
      * counting them would flatter every average on their own dashboard.

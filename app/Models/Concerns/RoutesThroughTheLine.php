@@ -45,12 +45,24 @@ trait RoutesThroughTheLine
      * at their head, and a head's starts at the wider approver pool. Leaving
      * them in it would mean a request that only they could unblock, by ruling
      * on themselves.
+     *
+     * A head of department carries no line at all. They are the top of their
+     * own unit, so there is nobody inside it to ask: their request goes
+     * straight to the approver they named and to the people team. A team lead
+     * is not a head, and still goes up to theirs.
      */
     public function stampReportingLine(): void
     {
         $requester = $this->user ?? User::query()->find($this->user_id);
 
         if ($requester === null) {
+            return;
+        }
+
+        if ($requester->headsADepartment()) {
+            $this->team_lead_id = null;
+            $this->head_id = null;
+
             return;
         }
 

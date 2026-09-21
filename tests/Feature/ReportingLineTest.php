@@ -127,6 +127,39 @@ class ReportingLineTest extends TestCase
         $this->assertNull($theirs->head_id);
     }
 
+    public function test_a_head_of_department_goes_straight_past_the_line(): void
+    {
+        $lead = $this->approver($this->team);
+        $this->team->forceFill(['lead_user_id' => $lead->id])->save();
+
+        // A head who sits inside one of their own teams. Before, their request
+        // would have gone to the team lead below them first; now it goes to
+        // nobody in the line at all.
+        $head = $this->approver($this->team);
+        $this->department->forceFill(['head_user_id' => $head->id])->save();
+
+        $leave = $this->fileLeave($head, $this->person(), $this->approver());
+
+        $this->assertNull($leave->team_lead_id);
+        $this->assertNull($leave->head_id);
+    }
+
+    public function test_a_team_lead_still_goes_up_to_their_head(): void
+    {
+        $head = $this->approver();
+        $this->department->forceFill(['head_user_id' => $head->id])->save();
+
+        $lead = $this->approver($this->team);
+        $this->team->forceFill(['lead_user_id' => $lead->id])->save();
+
+        // Leading a team is not heading a department: the shortcut is the
+        // head's alone, and a lead is still answered for by theirs.
+        $leave = $this->fileLeave($lead, $this->person(), $this->approver());
+
+        $this->assertNull($leave->team_lead_id);
+        $this->assertSame($head->id, $leave->head_id);
+    }
+
     // The order of the run.
 
     public function test_the_lead_decides_before_the_head_and_the_head_before_the_supervisor(): void
