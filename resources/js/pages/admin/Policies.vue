@@ -8,9 +8,11 @@ import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
 import SelectField from '@/components/ui/SelectField.vue';
 import StatTile from '@/components/ui/StatTile.vue';
+import StatusFilter from '@/components/ui/StatusFilter.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import TextField from '@/components/ui/TextField.vue';
 import { usePaginated } from '@/composables/usePaginated';
+import { useStatusFilter } from '@/composables/useStatusFilter';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 type PolicyRow = {
@@ -114,7 +116,18 @@ function restore(policy: PolicyRow) {
     );
 }
 
-const pages = usePaginated(() => props.policies);
+const statuses = useStatusFilter(
+    () => props.policies,
+    (policy) =>
+        policy.in_force
+            ? { value: 'in_force', label: 'In force' }
+            : policy.is_upcoming
+              ? { value: 'upcoming', label: 'Upcoming' }
+              : { value: 'retired', label: 'Retired' },
+);
+const pages = usePaginated(() => statuses.rows, {
+    resetOn: () => statuses.status,
+});
 </script>
 
 <template>
@@ -145,6 +158,13 @@ const pages = usePaginated(() => props.policies);
             </div>
 
             <Panel flush title="Everything published">
+                <template v-if="statuses.useful" #action>
+                    <StatusFilter
+                        v-model="statuses.status"
+                        :filter="statuses"
+                    />
+                </template>
+
                 <div class="overflow-x-auto">
                     <table class="w-full min-w-[860px] text-[13.5px]">
                         <thead

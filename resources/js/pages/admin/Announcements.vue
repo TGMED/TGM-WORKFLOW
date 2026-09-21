@@ -6,10 +6,12 @@ import EmptyState from '@/components/ui/EmptyState.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
 import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
+import StatusFilter from '@/components/ui/StatusFilter.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import TextareaField from '@/components/ui/TextareaField.vue';
 import TextField from '@/components/ui/TextField.vue';
 import { usePaginated } from '@/composables/usePaginated';
+import { useStatusFilter } from '@/composables/useStatusFilter';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { relative, shortDate } from '@/lib/format';
 import type { AnnouncementState, AnnouncementRow } from '@/types';
@@ -118,7 +120,13 @@ function remove(row: AnnouncementRow) {
 }
 
 const livePages = usePaginated(() => live.value);
-const restPages = usePaginated(() => rest.value);
+const states = useStatusFilter(
+    () => rest.value,
+    (row) => ({ value: row.state, label: labels[row.state] }),
+);
+const restPages = usePaginated(() => states.rows, {
+    resetOn: () => states.status,
+});
 </script>
 
 <template>
@@ -258,6 +266,10 @@ const restPages = usePaginated(() => rest.value);
                 title="Drafts, scheduled and expired"
                 flush
             >
+                <template v-if="states.useful" #action>
+                    <StatusFilter v-model="states.status" :filter="states" />
+                </template>
+
                 <div class="overflow-x-auto">
                     <table class="w-full min-w-[760px] text-[13.5px]">
                         <thead

@@ -10,12 +10,15 @@ import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
 import SelectField from '@/components/ui/SelectField.vue';
 import StatTile from '@/components/ui/StatTile.vue';
+import StatusFilter from '@/components/ui/StatusFilter.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import TextareaField from '@/components/ui/TextareaField.vue';
 import TextField from '@/components/ui/TextField.vue';
 import { usePaginated } from '@/composables/usePaginated';
+import { useStatusFilter } from '@/composables/useStatusFilter';
 import AppLayout from '@/layouts/AppLayout.vue';
 import {
+    attendanceLabel,
     attendanceTone,
     dateTime,
     distance,
@@ -486,8 +489,24 @@ watch(
     },
 );
 
-const dayPages = usePaginated(() => props.attendances);
-const attemptPages = usePaginated(() => props.attempts);
+const dayStatuses = useStatusFilter(
+    () => props.attendances,
+    (record) =>
+        record.excused
+            ? { value: 'excused', label: 'Excused' }
+            : { value: record.status, label: attendanceLabel(record.status) },
+);
+const dayPages = usePaginated(() => dayStatuses.rows, {
+    resetOn: () => dayStatuses.status,
+});
+const results = useStatusFilter(
+    () => props.attempts,
+    (attempt) => ({ value: attempt.result, label: attempt.result_label }),
+    'Every outcome',
+);
+const attemptPages = usePaginated(() => results.rows, {
+    resetOn: () => results.status,
+});
 </script>
 
 <template>
@@ -827,6 +846,13 @@ const attemptPages = usePaginated(() => props.attempts);
                         </div>
 
                         <Panel v-if="tab === 'days'" flush>
+                            <template v-if="dayStatuses.useful" #action>
+                                <StatusFilter
+                                    v-model="dayStatuses.status"
+                                    :filter="dayStatuses"
+                                />
+                            </template>
+
                             <div class="overflow-x-auto">
                                 <table class="w-full min-w-[600px] text-left">
                                     <thead>
@@ -959,6 +985,14 @@ const attemptPages = usePaginated(() => props.attempts);
                         </Panel>
 
                         <Panel v-else flush>
+                            <template v-if="results.useful" #action>
+                                <StatusFilter
+                                    v-model="results.status"
+                                    :filter="results"
+                                    label="Filter by outcome"
+                                />
+                            </template>
+
                             <div class="overflow-x-auto">
                                 <table class="w-full min-w-[760px] text-left">
                                     <thead>
