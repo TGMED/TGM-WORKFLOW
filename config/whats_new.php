@@ -129,6 +129,31 @@ return [
                     'title' => 'A tidier sidebar',
                     'description' => 'Your payslips now sit under My work beside the rest of your own pages, and a heading with only one page behind it shows that page directly instead of making you open it. For the people team, Payroll sits under People, Who\'s away under Attendance, and incident reports under Conduct with the desk that handles them.',
                 ],
+                [
+                    'title' => 'Public holidays',
+                    'audience' => ['staff'],
+                    'description' => 'The days the company is off now show beside every page as they come up, and on your dashboard on the day itself. They are never taken from your leave, and the leave form says which ones it has left out.',
+                ],
+                [
+                    'title' => 'Set the year\'s public holidays',
+                    'audience' => ['locations.manage', 'attendance.report'],
+                    'description' => 'Add the days the company is off under Attendance, then Public holidays. Every site is off on them whatever its own week says, so they come off the days everyone is expected in on the attendance report and nobody is marked absent for them.',
+                ],
+                [
+                    'title' => 'Policies open in your browser',
+                    'audience' => ['staff', 'policies.manage'],
+                    'description' => 'Policies are now published as PDFs, and open in a new tab to be read rather than downloading, so there is no copy sitting in your downloads to go out of date.',
+                ],
+                [
+                    'title' => 'Invitations instead of sign-up',
+                    'audience' => ['staff.manage'],
+                    'description' => 'Nobody signs themselves up any more. Adding somebody, by hand or from a spreadsheet, emails them a link to choose their own password, so nobody has to type or pass on a password for anyone else. The staff list shows who has not got in yet, with a button to send the link again.',
+                ],
+                [
+                    'title' => 'A guided start',
+                    'audience' => ['staff'],
+                    'description' => 'Anyone with details still to give is walked through them a step at a time: about you, then family, then your bank account. Only the first step is required, and anything skipped can be filled in later from My profile.',
+                ],
             ],
             'fixes' => [
                 [
