@@ -163,6 +163,10 @@ return [
                     'title' => 'Every list is a table you can page through',
                     'description' => 'Lists that used to run on as stacked cards, from your leave and approvals to the noticeboard, are now tables with headed columns. Every list pages the same way, and you can choose to see 10, 25, 50 or 100 rows at a time.',
                 ],
+                [
+                    'title' => 'Narrow a list to one status',
+                    'description' => 'Lists with a status on every row, such as your attendance, lateness, out of office and reports, have a picker at the top to show only one kind: only the late days, say, or only what is still pending. It offers just the statuses the list holds.',
+                ],
             ],
             'fixes' => [
                 [
