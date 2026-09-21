@@ -8,8 +8,10 @@ import EmptyState from '@/components/ui/EmptyState.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
 import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
+import StatusFilter from '@/components/ui/StatusFilter.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import { usePaginated } from '@/composables/usePaginated';
+import { useStatusFilter } from '@/composables/useStatusFilter';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dateTime, duration, relative } from '@/lib/format';
 import type { RaiseOptions, RequestStatusTone, RequestTrail } from '@/types';
@@ -97,7 +99,14 @@ const rows = computed(() => {
 });
 
 const pages = usePaginated(() => rows.value, { resetOn: () => tab.value });
-const historyPages = usePaginated(() => props.history);
+const outcomes = useStatusFilter(
+    () => props.history,
+    (row) => ({ value: row.outcome, label: row.outcome }),
+    'Every outcome',
+);
+const historyPages = usePaginated(() => outcomes.rows, {
+    resetOn: () => outcomes.status,
+});
 
 const tabLabel = computed(() =>
     tab.value === 'out_of_office' ? 'out of office' : tab.value,
@@ -387,6 +396,14 @@ function submit() {
                 subtitle="The last 25 requests you ruled on."
                 flush
             >
+                <template v-if="outcomes.useful" #action>
+                    <StatusFilter
+                        v-model="outcomes.status"
+                        :filter="outcomes"
+                        label="Filter by outcome"
+                    />
+                </template>
+
                 <div class="overflow-x-auto">
                     <table class="w-full text-[13.5px]">
                         <thead

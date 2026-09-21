@@ -7,9 +7,11 @@ import ModalShell from '@/components/ui/ModalShell.vue';
 import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
 import SelectField from '@/components/ui/SelectField.vue';
+import StatusFilter from '@/components/ui/StatusFilter.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import TextField from '@/components/ui/TextField.vue';
 import { usePaginated } from '@/composables/usePaginated';
+import { useStatusFilter } from '@/composables/useStatusFilter';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dateTime } from '@/lib/format';
 
@@ -109,7 +111,13 @@ function withdraw() {
     });
 }
 
-const pages = usePaginated(() => props.recommendations);
+const statuses = useStatusFilter(
+    () => props.recommendations,
+    (row) => ({ value: row.status, label: row.status_label }),
+);
+const pages = usePaginated(() => statuses.rows, {
+    resetOn: () => statuses.status,
+});
 </script>
 
 <template>
@@ -131,6 +139,13 @@ const pages = usePaginated(() => props.recommendations);
 
         <div class="space-y-6">
             <Panel flush title="Cases you have raised">
+                <template v-if="statuses.useful" #action>
+                    <StatusFilter
+                        v-model="statuses.status"
+                        :filter="statuses"
+                    />
+                </template>
+
                 <div class="overflow-x-auto">
                     <table class="w-full min-w-[760px] text-[13.5px]">
                         <thead

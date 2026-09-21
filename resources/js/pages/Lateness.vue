@@ -6,8 +6,10 @@ import EmptyState from '@/components/ui/EmptyState.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
 import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
+import StatusFilter from '@/components/ui/StatusFilter.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import { usePaginated } from '@/composables/usePaginated';
+import { useStatusFilter } from '@/composables/useStatusFilter';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dateTime, duration } from '@/lib/format';
 import type { RequestStatusTone, RequestTrail } from '@/types';
@@ -128,7 +130,13 @@ function withdraw() {
 }
 
 const unexplainedPages = usePaginated(() => props.unexplained);
-const pages = usePaginated(() => props.requests);
+const statuses = useStatusFilter(
+    () => props.requests,
+    (row) => ({ value: row.status, label: row.status_label }),
+);
+const pages = usePaginated(() => statuses.rows, {
+    resetOn: () => statuses.status,
+});
 </script>
 
 <template>
@@ -217,6 +225,13 @@ const pages = usePaginated(() => props.requests);
                 :subtitle="`${stats.pending} awaiting a decision · ${stats.excused} excused`"
                 flush
             >
+                <template v-if="statuses.useful" #action>
+                    <StatusFilter
+                        v-model="statuses.status"
+                        :filter="statuses"
+                    />
+                </template>
+
                 <div class="overflow-x-auto">
                     <table class="w-full text-[13.5px]">
                         <thead
