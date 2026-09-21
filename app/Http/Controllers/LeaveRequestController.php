@@ -35,11 +35,15 @@ class LeaveRequestController extends Controller
         $user = $request->user();
         $year = (int) $request->integer('year', Carbon::now()->year);
 
+        // Scoped to the year the rest of the page is about, so the table, the
+        // balances and the tally underneath them are all answering for the
+        // same twelve months. Earlier years are a year away on the switcher.
         $requests = LeaveRequest::query()
             ->with(['leaveType', 'supervisor:id,name', 'reliefOfficer:id,name', 'approvals.approver:id,name'])
             ->where('user_id', $user->id)
+            ->inYear($year)
             ->orderByDesc('start_date')
-            ->limit(60)
+            ->limit(200)
             ->get();
 
         return Inertia::render('Leave', [
@@ -57,11 +61,14 @@ class LeaveRequestController extends Controller
             // has to.
             'restricted_periods' => $this->restrictedPeriods($user),
             'approvers_required' => ApprovalSetting::approversRequired(RequestModule::Leave),
+            // Every year this person has ever booked into, so the switcher
+            // offers the years that have something behind them rather than an
+            // arbitrary range.
+            'years' => $this->years($user, $year),
             'stats' => [
                 'pending' => $requests->where('status', RequestStatus::Pending)->count(),
                 'approved_days' => $requests
                     ->where('status', RequestStatus::Approved)
-                    ->filter(fn (LeaveRequest $leave): bool => $leave->start_date->year === $year)
                     ->sum('days'),
             ],
         ]);
@@ -180,6 +187,32 @@ class LeaveRequestController extends Controller
             'type' => 'success',
             'message' => 'Your leave request has been withdrawn.',
         ]);
+    }
+
+    /**
+     * The years this person has leave on file for, newest first, with the year
+     * being looked at included even when it is empty.
+     *
+     * @return array<int, int>
+     */
+    protected function years(User $user, int $year): array
+    {
+        $booked = LeaveRequest::query()
+            ->where('user_id', $user->id)
+            ->get(['start_date'])
+            ->map(fn (LeaveRequest $leave): int => $leave->start_date->year)
+            ->all();
+
+        // Collected into a plain collection rather than kept in the Eloquent
+        // one the query hands back: that one expects models, and years are
+        // integers.
+        return collect($booked)
+            ->push($year)
+            ->push(Carbon::now()->year)
+            ->unique()
+            ->sortDesc()
+            ->values()
+            ->all();
     }
 
     /**

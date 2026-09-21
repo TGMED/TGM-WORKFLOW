@@ -715,6 +715,48 @@ class LeaveRequestTest extends TestCase
                     ]]));
     }
 
+    public function test_the_table_shows_one_year_at_a_time_and_offers_the_others(): void
+    {
+        $staff = $this->staff();
+        $type = $this->annual();
+
+        foreach ([2024, 2026, 2026] as $year) {
+            LeaveRequest::factory()->create([
+                'user_id' => $staff->id,
+                'leave_type_id' => $type->id,
+                'start_date' => "{$year}-03-04",
+                'end_date' => "{$year}-03-06",
+            ]);
+        }
+
+        // The table, the balances and the tally under them all answer for the
+        // same twelve months, so the rows are scoped to the year asked for.
+        $this->actingAs($staff)
+            ->get('/leave?year=2026')
+            ->assertInertia(fn ($page) => $page
+                ->where('year', 2026)
+                ->has('requests', 2)
+                ->where('years', fn ($years) => $years->contains(2024)
+                    && $years->contains(2026)));
+
+        $this->actingAs($staff)
+            ->get('/leave?year=2024')
+            ->assertInertia(fn ($page) => $page->has('requests', 1));
+    }
+
+    public function test_a_year_with_nothing_in_it_still_offers_itself(): void
+    {
+        $staff = $this->staff();
+
+        // Nothing booked at all: the switcher must still have the year being
+        // looked at on it, or there would be no way back to it.
+        $this->actingAs($staff)
+            ->get('/leave?year=2019')
+            ->assertInertia(fn ($page) => $page
+                ->has('requests', 0)
+                ->where('years', fn ($years) => $years->contains(2019)));
+    }
+
     public function test_the_leave_page_offers_approvers_and_colleagues_to_pick_from(): void
     {
         $staff = $this->staff();
