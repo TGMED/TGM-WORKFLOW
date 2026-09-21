@@ -49,10 +49,12 @@ class OutOfOfficeController extends Controller
             // The form counts the same working days the server will count.
             'workdays' => $user->location?->workdayNumbers() ?? [1, 2, 3, 4, 5],
             // Public holidays are never counted, so the form leaves them out
-            // too and says which ones it left out.
+            // too and says which ones it left out: the company-wide ones and
+            // those of this person's own site.
             'holidays' => PublicHoliday::between(
                 Carbon::now()->subYear()->startOfYear(),
                 Carbon::now()->addYears(2)->endOfYear(),
+                $user->location_id,
             ),
             'stats' => [
                 'pending' => $requests->where('status', RequestStatus::Pending)->count(),

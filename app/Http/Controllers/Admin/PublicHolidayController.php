@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\PublicHolidayRequest;
+use App\Models\Location;
 use App\Models\PublicHoliday;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -12,8 +13,8 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * The days the whole company is off. Kept with the sites, since a holiday is
- * a day taken out of every site's week at once.
+ * The days off, company-wide or for one site. Kept with the sites, since a
+ * holiday is a day taken out of a site's week.
  */
 class PublicHolidayController extends Controller
 {
@@ -23,6 +24,7 @@ class PublicHolidayController extends Controller
         $today = Carbon::now()->startOfDay();
 
         $holidays = PublicHoliday::query()
+            ->with('location:id,name')
             ->whereYear('date', $year)
             ->orderBy('date')
             ->get();
@@ -34,10 +36,19 @@ class PublicHolidayController extends Controller
                     'id' => $holiday->id,
                     'name' => $holiday->name,
                     'date' => $holiday->date->toDateString(),
+                    'location_id' => $holiday->location_id,
+                    'location' => $holiday->location?->name,
                     'date_label' => $holiday->date->format('j F'),
                     'weekday' => $holiday->date->format('l'),
                     'past' => $holiday->date->lessThan($today),
                 ])
+                ->values(),
+            // Inactive sites too, so a holiday already set for one can still
+            // be edited without the form quietly making it company-wide.
+            'locations' => Location::query()
+                ->orderBy('name')
+                ->get(['id', 'name'])
+                ->map(fn (Location $location): array => ['value' => $location->id, 'label' => $location->name])
                 ->values(),
             // Every year that has one, and this one and next whether or not,
             // so the switcher can always reach the year being planned.

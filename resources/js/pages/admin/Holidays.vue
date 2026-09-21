@@ -5,6 +5,7 @@ import AppButton from '@/components/ui/AppButton.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
 import Panel from '@/components/ui/Panel.vue';
+import SelectField from '@/components/ui/SelectField.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import TextField from '@/components/ui/TextField.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -13,6 +14,8 @@ type HolidayRow = {
     id: number;
     name: string;
     date: string;
+    location_id: number | null;
+    location: string | null;
     date_label: string;
     weekday: string;
     past: boolean;
@@ -22,20 +25,26 @@ const props = defineProps<{
     year: number;
     years: number[];
     holidays: HolidayRow[];
+    locations: Array<{ value: number; label: string }>;
 }>();
 
 const open = ref(false);
 const editing = ref<HolidayRow | null>(null);
 
-const form = useForm({
+const form = useForm<{
+    name: string;
+    date: string;
+    location_id: number | null;
+}>({
     name: '',
     date: '',
+    location_id: null,
 });
 
 function add() {
     editing.value = null;
     form.clearErrors();
-    form.defaults({ name: '', date: '' });
+    form.defaults({ name: '', date: '', location_id: null });
     form.reset();
     open.value = true;
 }
@@ -43,7 +52,11 @@ function add() {
 function edit(row: HolidayRow) {
     editing.value = row;
     form.clearErrors();
-    form.defaults({ name: row.name, date: row.date });
+    form.defaults({
+        name: row.name,
+        date: row.date,
+        location_id: row.location_id,
+    });
     form.reset();
     open.value = true;
 }
@@ -79,14 +92,17 @@ function showYear(year: number) {
 <template>
     <Head title="Public holidays" />
 
-    <AppLayout heading="Public holidays" lede="Days every site is off at once">
+    <AppLayout
+        heading="Public holidays"
+        lede="Days off for every site, or for one"
+    >
         <template #toolbar>
             <AppButton size="sm" @click="add">Add holiday</AppButton>
         </template>
 
         <Panel
             :title="`${props.year}`"
-            subtitle="A holiday comes off the days everyone is expected in on the attendance report, and is never taken from leave. Staff see the next ones coming up beside every page."
+            subtitle="A holiday comes off the days its sites are expected in on the attendance report, and is never taken from leave. Staff see their next ones coming up beside every page."
             flush
         >
             <template #action>
@@ -106,7 +122,7 @@ function showYear(year: number) {
             <EmptyState
                 v-if="holidays.length === 0"
                 :title="`No holidays in ${year}`"
-                message="Add the days the company is closed, and they will be taken out of everyone's week."
+                message="Add the days the company or a site is closed, and they will be taken out of that week."
             >
                 <template #action>
                     <AppButton size="sm" @click="add">Add holiday</AppButton>
@@ -121,6 +137,7 @@ function showYear(year: number) {
                             <th class="eyebrow px-5 py-3 font-medium">
                                 Holiday
                             </th>
+                            <th class="eyebrow px-5 py-3 font-medium">Where</th>
                             <th class="eyebrow px-5 py-3 font-medium" />
                             <th class="px-5 py-3" />
                         </tr>
@@ -139,6 +156,9 @@ function showYear(year: number) {
                                 </p>
                             </td>
                             <td class="px-5 py-3">{{ row.name }}</td>
+                            <td class="px-5 py-3">
+                                {{ row.location ?? 'Every site' }}
+                            </td>
                             <td class="px-5 py-3">
                                 <StatusPill
                                     :tone="row.past ? 'neutral' : 'beacon'"
@@ -175,7 +195,7 @@ function showYear(year: number) {
         <ModalShell
             :open="open"
             :title="editing ? 'Edit holiday' : 'Add a public holiday'"
-            subtitle="The whole company is off, whatever each site's week says."
+            subtitle="Nobody it applies to is expected in, whatever their site's week says."
             @close="open = false"
         >
             <form id="holiday" class="space-y-4" @submit.prevent="submit">
@@ -194,6 +214,15 @@ function showYear(year: number) {
                     hint="One day. A holiday that runs over two days is two entries."
                     :error="form.errors.date"
                 />
+                <SelectField
+                    v-model="form.location_id"
+                    label="Where"
+                    :options="locations"
+                    hint="A state or local holiday is kept by the one site that is off."
+                    :error="form.errors.location_id"
+                >
+                    <option :value="null">Every site</option>
+                </SelectField>
             </form>
 
             <template #footer>

@@ -153,9 +153,9 @@ class DashboardController extends Controller
      */
     protected function locationPayload(Location $location, Carbon $localNow): array
     {
-        // A public holiday is a day off at every site, so the card says which
+        // A public holiday is a day off at the site, so the card says which
         // one rather than calling it a workday.
-        $holiday = PublicHoliday::nameOn($localNow);
+        $holiday = PublicHoliday::nameOn($localNow, $location->id);
 
         return [
             'id' => $location->id,
@@ -253,7 +253,7 @@ class DashboardController extends Controller
     protected function trend(Collection $month, Carbon $localNow, Location $location): array
     {
         $byDate = $month->keyBy(fn (Attendance $a) => $a->work_date->toDateString());
-        $holidays = PublicHoliday::between($localNow->copy()->subDays(13), $localNow);
+        $holidays = PublicHoliday::between($localNow->copy()->subDays(13), $localNow, $location->id);
         $days = [];
 
         for ($cursor = $localNow->copy()->subDays(13); $cursor->lessThanOrEqualTo($localNow); $cursor = $cursor->addDay()) {

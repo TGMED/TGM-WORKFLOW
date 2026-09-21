@@ -13,7 +13,7 @@ final class Workdays
      * never a working day, whatever the site's week says.
      *
      * @param  array<int, int>  $workdays  ISO day numbers, 1 (Mon) to 7 (Sun)
-     * @param  array<int, string>  $holidays  `Y-m-d` dates the company is off
+     * @param  array<int, string>  $holidays  `Y-m-d` dates the site is off
      */
     public static function countBetween(Carbon $start, Carbon $end, array $workdays, array $holidays = []): int
     {

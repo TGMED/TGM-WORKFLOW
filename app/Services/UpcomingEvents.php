@@ -31,7 +31,7 @@ class UpcomingEvents
         $until = $today->copy()->addDays($days);
 
         $events = [
-            ...$this->holidayEvents($today, $until),
+            ...$this->holidayEvents($user, $today, $until),
             ...$this->celebrationEvents($today, $days),
             ...$this->leaveEvents($user, $today, $until),
             ...$this->outOfOfficeEvents($user, $today, $until),
@@ -43,15 +43,15 @@ class UpcomingEvents
     }
 
     /**
-     * Days the whole company is off.
+     * Days this person is off: the company-wide holidays and their own site's.
      *
      * @return array<int, array<string, mixed>>
      */
-    protected function holidayEvents(Carbon $today, Carbon $until): array
+    protected function holidayEvents(User $user, Carbon $today, Carbon $until): array
     {
         $events = [];
 
-        foreach (PublicHoliday::between($today, $until) as $date => $name) {
+        foreach (PublicHoliday::between($today, $until, $user->location_id) as $date => $name) {
             $events[] = $this->event(Carbon::parse($date), 'holiday', $name, 'Public holiday');
         }
 

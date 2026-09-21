@@ -83,7 +83,7 @@ class StoreOutOfOfficeRequest extends FormRequest
             $this->startDate(),
             $this->endDate(),
             $workdays,
-            PublicHoliday::datesBetween($this->startDate(), $this->endDate()),
+            PublicHoliday::datesBetween($this->startDate(), $this->endDate(), $this->staff()->location_id),
         );
     }
 

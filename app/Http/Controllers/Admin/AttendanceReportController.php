@@ -398,7 +398,9 @@ class AttendanceReportController extends Controller
             return [];
         }
 
-        $holidays = PublicHoliday::datesBetween($from, $to);
+        // Holidays differ by site, so each site's are looked up once and
+        // shared by everybody who works there.
+        $holidays = [];
 
         return OutOfOfficeRequest::query()
             ->approved()
@@ -407,7 +409,7 @@ class AttendanceReportController extends Controller
             ->with('user.location:id,workdays')
             ->get()
             ->groupBy('user_id')
-            ->map(function (Collection $requests) use ($from, $to, $holidays): int {
+            ->map(function (Collection $requests) use ($from, $to, &$holidays): int {
                 $days = 0;
 
                 foreach ($requests as $away) {
@@ -416,11 +418,13 @@ class AttendanceReportController extends Controller
                     $start = $away->start_date->greaterThan($from) ? $away->start_date : $from;
                     $end = $away->end_date->lessThan($to) ? $away->end_date : $to;
 
+                    $site = $away->user->location_id;
+
                     $days += Workdays::countBetween(
                         $start,
                         $end,
                         $away->user->location?->workdayNumbers() ?? [1, 2, 3, 4, 5],
-                        $holidays,
+                        $holidays[$site ?? 0] ??= PublicHoliday::datesBetween($from, $to, $site),
                     );
                 }
 
@@ -432,19 +436,22 @@ class AttendanceReportController extends Controller
     /**
      * Workdays falling inside the range, per site. Sites keep their own week,
      * so a Saturday site is not marked absent for working one. A public
-     * holiday always comes off: nobody is expected in on one, so nobody is
-     * marked absent for staying home.
+     * holiday, company-wide or the site's own, always comes off: nobody is
+     * expected in on one, so nobody is marked absent for staying home.
      *
      * @return array<int, int>
      */
     private function expectedDays(Carbon $from, Carbon $to): array
     {
-        $holidays = PublicHoliday::datesBetween($from, $to);
-
         return Location::query()
             ->get(['id', 'workdays'])
             ->mapWithKeys(fn (Location $location): array => [
-                $location->id => Workdays::countBetween($from, $to, $location->workdayNumbers(), $holidays),
+                $location->id => Workdays::countBetween(
+                    $from,
+                    $to,
+                    $location->workdayNumbers(),
+                    PublicHoliday::datesBetween($from, $to, $location->id),
+                ),
             ])
             ->all();
     }

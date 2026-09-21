@@ -54,10 +54,12 @@ class LeaveRequestController extends Controller
             // working days the server will count when the request lands.
             'workdays' => $user->location?->workdayNumbers() ?? [1, 2, 3, 4, 5],
             // Public holidays are never counted, so the form leaves them out
-            // too and says which ones it left out.
+            // too and says which ones it left out: the company-wide ones and
+            // those of this person's own site.
             'holidays' => PublicHoliday::between(
                 Carbon::now()->subYear()->startOfYear(),
                 Carbon::now()->addYears(2)->endOfYear(),
+                $user->location_id,
             ),
             'requests' => $requests->map(fn (LeaveRequest $leave): array => $this->payload($leave))->values(),
             'supervisors' => $this->supervisors($user),

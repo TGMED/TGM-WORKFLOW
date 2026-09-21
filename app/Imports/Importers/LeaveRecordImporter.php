@@ -169,6 +169,7 @@ class LeaveRecordImporter extends BaseImporter
             Carbon::parse((string) $data['start_date']),
             Carbon::parse((string) $data['end_date']),
             $user->location?->workdayNumbers() ?? [1, 2, 3, 4, 5],
+            $user->location_id,
         );
 
         if ($days < 1) {
@@ -232,8 +233,8 @@ class LeaveRecordImporter extends BaseImporter
     /**
      * @param  array<int, int>  $workdays
      */
-    private function workingDays(Carbon $start, Carbon $end, array $workdays): int
+    private function workingDays(Carbon $start, Carbon $end, array $workdays, ?int $locationId): int
     {
-        return Workdays::countBetween($start, $end, $workdays, PublicHoliday::datesBetween($start, $end));
+        return Workdays::countBetween($start, $end, $workdays, PublicHoliday::datesBetween($start, $end, $locationId));
     }
 }
