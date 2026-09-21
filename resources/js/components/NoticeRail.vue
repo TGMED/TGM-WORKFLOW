@@ -41,6 +41,8 @@ const icons: Record<NoticeboardEvent['kind'], string> = {
     leave: 'M4.5 6.5h15M6.5 6.5V4m11 2.5V4M3.5 10.5h17M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v12A1.5 1.5 0 0 1 19 20.5H5A1.5 1.5 0 0 1 3.5 19V7A1.5 1.5 0 0 1 5 5.5Z',
     out_of_office:
         'M4 20V9.5L12 4l8 5.5V20M4 20h16M14.5 9.5h4.5m0 0-1.8-1.8m1.8 1.8-1.8 1.8',
+    holiday:
+        'M8 3v3m8-3v3M3.5 9.5h17M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v12A1.5 1.5 0 0 1 19 20.5H5A1.5 1.5 0 0 1 3.5 19V7A1.5 1.5 0 0 1 5 5.5Zm7 6.5 1 2 2.2.3-1.6 1.5.4 2.2-2-1-2 1 .4-2.2-1.6-1.5 2.2-.3 1-2Z',
 };
 
 const today = new Date().toLocaleDateString(undefined, {
@@ -149,7 +151,12 @@ const today = new Date().toLocaleDateString(undefined, {
                                 class="flex items-start gap-2"
                             >
                                 <svg
-                                    class="mt-[3px] size-3.5 shrink-0 text-faint"
+                                    class="mt-[3px] size-3.5 shrink-0"
+                                    :class="
+                                        item.kind === 'holiday'
+                                            ? 'text-beacon'
+                                            : 'text-faint'
+                                    "
                                     viewBox="0 0 24 24"
                                     fill="none"
                                     stroke="currentColor"

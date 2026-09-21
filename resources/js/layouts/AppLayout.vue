@@ -234,6 +234,12 @@ const nav: NavItem[] = [
                 icon: 'M12 21s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11Zm0-8.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
             },
             {
+                label: 'Public holidays',
+                href: '/admin/holidays',
+                permission: 'locations.manage',
+                icon: 'M8 3v3m8-3v3M3.5 9.5h17M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v12A1.5 1.5 0 0 1 19 20.5H5A1.5 1.5 0 0 1 3.5 19V7A1.5 1.5 0 0 1 5 5.5Zm7 6.5 1 2 2.2.3-1.6 1.5.4 2.2-2-1-2 1 .4-2.2-1.6-1.5 2.2-.3 1-2Z',
+            },
+            {
                 label: 'Request settings',
                 href: '/admin/request-settings',
                 permission: 'request-settings.manage',

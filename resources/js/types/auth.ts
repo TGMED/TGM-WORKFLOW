@@ -89,7 +89,7 @@ export type NoticeboardEvent = {
     day_label: string;
     /** "Today", "Tomorrow", a weekday, or a date. */
     when: string;
-    kind: 'birthday' | 'anniversary' | 'leave' | 'out_of_office';
+    kind: 'birthday' | 'anniversary' | 'leave' | 'out_of_office' | 'holiday';
     who: string;
     label: string;
 };

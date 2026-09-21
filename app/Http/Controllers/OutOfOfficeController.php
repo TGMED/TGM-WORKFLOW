@@ -8,6 +8,7 @@ use App\Enums\RequestStatus;
 use App\Http\Requests\StoreOutOfOfficeRequest;
 use App\Models\ApprovalSetting;
 use App\Models\OutOfOfficeRequest;
+use App\Models\PublicHoliday;
 use App\Services\ApprovalService;
 use App\Services\RequestNotifier;
 use Illuminate\Http\RedirectResponse;
@@ -47,6 +48,12 @@ class OutOfOfficeController extends Controller
             'kinds' => OutOfOfficeKind::options(),
             // The form counts the same working days the server will count.
             'workdays' => $user->location?->workdayNumbers() ?? [1, 2, 3, 4, 5],
+            // Public holidays are never counted, so the form leaves them out
+            // too and says which ones it left out.
+            'holidays' => PublicHoliday::between(
+                Carbon::now()->subYear()->startOfYear(),
+                Carbon::now()->addYears(2)->endOfYear(),
+            ),
             'approvers_required' => ApprovalSetting::approversRequired(RequestModule::OutOfOffice),
             'stats' => [
                 'pending' => $requests->where('status', RequestStatus::Pending)->count(),

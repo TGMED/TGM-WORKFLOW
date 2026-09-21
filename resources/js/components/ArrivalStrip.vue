@@ -13,6 +13,8 @@ type Day = {
     label: string;
     offset: number | null;
     status: string | null;
+    /** The public holiday that day, if there was one. */
+    holiday?: string | null;
     is_workday: boolean;
 };
 
@@ -141,7 +143,10 @@ const summary = computed(() => {
                             'mt-1 size-1.5 rounded-full',
                             day.is_workday ? 'bg-line' : 'bg-transparent',
                         ]"
-                        :title="day.is_workday ? 'No record' : 'Not a workday'"
+                        :title="
+                            day.holiday ??
+                            (day.is_workday ? 'No record' : 'Not a workday')
+                        "
                     />
                 </div>
 
@@ -163,7 +168,13 @@ const summary = computed(() => {
                             class="tabular mt-0.5 font-mono text-[11px] text-muted"
                         >
                             <template v-if="day.offset === null">
-                                {{ day.is_workday ? 'No record' : 'Rest day' }}
+                                {{
+                                    day.holiday
+                                        ? `Public holiday · ${day.holiday}`
+                                        : day.is_workday
+                                          ? 'No record'
+                                          : 'Rest day'
+                                }}
                             </template>
                             <template v-else-if="day.offset > 0">
                                 +{{ duration(day.offset) }} after

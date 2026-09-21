@@ -8,6 +8,7 @@ use App\Models\Attendance;
 use App\Models\Department;
 use App\Models\Location;
 use App\Models\OutOfOfficeRequest;
+use App\Models\PublicHoliday;
 use App\Models\User;
 use App\Support\Workdays;
 use Illuminate\Database\Eloquent\Builder;
@@ -397,6 +398,8 @@ class AttendanceReportController extends Controller
             return [];
         }
 
+        $holidays = PublicHoliday::datesBetween($from, $to);
+
         return OutOfOfficeRequest::query()
             ->approved()
             ->whereIn('user_id', $ids)
@@ -404,7 +407,7 @@ class AttendanceReportController extends Controller
             ->with('user.location:id,workdays')
             ->get()
             ->groupBy('user_id')
-            ->map(function (Collection $requests) use ($from, $to): int {
+            ->map(function (Collection $requests) use ($from, $to, $holidays): int {
                 $days = 0;
 
                 foreach ($requests as $away) {
@@ -417,6 +420,7 @@ class AttendanceReportController extends Controller
                         $start,
                         $end,
                         $away->user->location?->workdayNumbers() ?? [1, 2, 3, 4, 5],
+                        $holidays,
                     );
                 }
 
@@ -427,25 +431,20 @@ class AttendanceReportController extends Controller
 
     /**
      * Workdays falling inside the range, per site. Sites keep their own week,
-     * so a Saturday site is not marked absent for working one.
+     * so a Saturday site is not marked absent for working one. A public
+     * holiday always comes off: nobody is expected in on one, so nobody is
+     * marked absent for staying home.
      *
      * @return array<int, int>
      */
     private function expectedDays(Carbon $from, Carbon $to): array
     {
-        $days = [];
-
-        for ($day = $from->copy(); $day->lessThanOrEqualTo($to); $day->addDay()) {
-            $days[] = $day->isoWeekday();
-        }
+        $holidays = PublicHoliday::datesBetween($from, $to);
 
         return Location::query()
             ->get(['id', 'workdays'])
             ->mapWithKeys(fn (Location $location): array => [
-                $location->id => count(array_filter(
-                    $days,
-                    fn (int $weekday): bool => in_array($weekday, $location->workdayNumbers(), true),
-                )),
+                $location->id => Workdays::countBetween($from, $to, $location->workdayNumbers(), $holidays),
             ])
             ->all();
     }

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\LeaveRequest;
 use App\Models\OutOfOfficeRequest;
+use App\Models\PublicHoliday;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 
@@ -12,8 +13,8 @@ use Illuminate\Support\Carbon;
  *
  * Drawn from what the app already knows rather than from a diary somebody has
  * to keep: birthdays and work anniversaries off the staff records, approved
- * leave and agreed days out of the office off the requests. Nothing here is
- * entered twice.
+ * leave and agreed days out of the office off the requests, and the public
+ * holidays the people team has set. Nothing here is entered twice.
  */
 class UpcomingEvents
 {
@@ -30,12 +31,29 @@ class UpcomingEvents
         $until = $today->copy()->addDays($days);
 
         $events = [
+            ...$this->holidayEvents($today, $until),
             ...$this->celebrationEvents($today, $days),
             ...$this->leaveEvents($user, $today, $until),
             ...$this->outOfOfficeEvents($user, $today, $until),
         ];
 
         usort($events, fn (array $a, array $b): int => [$a['date'], $a['label']] <=> [$b['date'], $b['label']]);
+
+        return $events;
+    }
+
+    /**
+     * Days the whole company is off.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function holidayEvents(Carbon $today, Carbon $until): array
+    {
+        $events = [];
+
+        foreach (PublicHoliday::between($today, $until) as $date => $name) {
+            $events[] = $this->event(Carbon::parse($date), 'holiday', $name, 'Public holiday');
+        }
 
         return $events;
     }

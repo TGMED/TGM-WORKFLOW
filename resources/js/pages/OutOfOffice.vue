@@ -10,6 +10,8 @@ import StatusPill from '@/components/ui/StatusPill.vue';
 import TextField from '@/components/ui/TextField.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dateTime } from '@/lib/format';
+import { dayKey, holidayNote, holidaysBetween } from '@/lib/holidays';
+import type { Holidays } from '@/lib/holidays';
 import type { RequestStatusTone, RequestTrail } from '@/types';
 
 type Kind = {
@@ -46,6 +48,7 @@ const props = defineProps<{
     requests: Row[];
     kinds: Kind[];
     workdays: number[];
+    holidays: Holidays;
     approvers_required: number;
     stats: { pending: number; days_this_year: number };
 }>();
@@ -81,8 +84,10 @@ const workingDays = computed(() => {
         return 0;
     }
 
-    const start = new Date(form.start_date);
-    const end = new Date(form.end_date);
+    // Read as local days: a bare date string is parsed as UTC midnight, which
+    // lands on the day before anywhere west of Greenwich.
+    const start = new Date(`${form.start_date}T00:00:00`);
+    const end = new Date(`${form.end_date}T00:00:00`);
 
     if (end < start) {
         return 0;
@@ -98,13 +103,23 @@ const workingDays = computed(() => {
         // Sunday is 0 in JavaScript and 7 in the schedule the site keeps.
         const isoDay = day.getDay() === 0 ? 7 : day.getDay();
 
-        if (props.workdays.includes(isoDay)) {
+        // A public holiday is never a working day, whatever the site's week.
+        if (
+            props.workdays.includes(isoDay) &&
+            props.holidays[dayKey(day)] === undefined
+        ) {
             days += 1;
         }
     }
 
     return days;
 });
+
+const holidaysInRange = computed(() =>
+    holidayNote(
+        holidaysBetween(form.start_date, form.end_date, props.holidays),
+    ),
+);
 
 // A single day is the common case, so naming the first fills in the last.
 watch(
@@ -317,9 +332,15 @@ function withdraw() {
                     />
                 </div>
 
-                <p v-if="workingDays > 0" class="text-[12.5px] text-muted">
-                    {{ workingDays }} working
-                    {{ workingDays === 1 ? 'day' : 'days' }} at your site.
+                <p
+                    v-if="workingDays > 0 || holidaysInRange"
+                    class="text-[12.5px] text-muted"
+                >
+                    <template v-if="workingDays > 0">
+                        {{ workingDays }} working
+                        {{ workingDays === 1 ? 'day' : 'days' }} at your site.
+                    </template>
+                    {{ holidaysInRange }}
                 </p>
 
                 <TextField

@@ -8,6 +8,7 @@ use App\Models\Attendance;
 use App\Models\ClockAttempt;
 use App\Models\LeaveRequest;
 use App\Models\Location;
+use App\Models\PublicHoliday;
 use App\Models\User;
 use App\Services\LeaveBalance;
 use App\Services\Metrics\CompanyMetrics;
@@ -152,6 +153,10 @@ class DashboardController extends Controller
      */
     protected function locationPayload(Location $location, Carbon $localNow): array
     {
+        // A public holiday is a day off at every site, so the card says which
+        // one rather than calling it a workday.
+        $holiday = PublicHoliday::nameOn($localNow);
+
         return [
             'id' => $location->id,
             'name' => $location->name,
@@ -168,7 +173,8 @@ class DashboardController extends Controller
             'timezone' => $location->timezone,
             'is_active' => $location->is_active,
             'configured' => $location->hasCoordinates(),
-            'is_workday' => $location->isWorkday($localNow),
+            'holiday' => $holiday,
+            'is_workday' => $holiday === null && $location->isWorkday($localNow),
             'server_time' => $localNow->toIso8601String(),
         ];
     }
@@ -247,6 +253,7 @@ class DashboardController extends Controller
     protected function trend(Collection $month, Carbon $localNow, Location $location): array
     {
         $byDate = $month->keyBy(fn (Attendance $a) => $a->work_date->toDateString());
+        $holidays = PublicHoliday::between($localNow->copy()->subDays(13), $localNow);
         $days = [];
 
         for ($cursor = $localNow->copy()->subDays(13); $cursor->lessThanOrEqualTo($localNow); $cursor = $cursor->addDay()) {
@@ -266,7 +273,8 @@ class DashboardController extends Controller
                 'label' => $cursor->format('D'),
                 'offset' => $offset,
                 'status' => $attendance?->status->value,
-                'is_workday' => $location->isWorkday($cursor),
+                'holiday' => $holidays[$key] ?? null,
+                'is_workday' => ! isset($holidays[$key]) && $location->isWorkday($cursor),
             ];
         }
 

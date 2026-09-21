@@ -71,6 +71,8 @@ const props = defineProps<{
         timezone: string;
         is_active: boolean;
         configured: boolean;
+        /** The public holiday falling today, if there is one. */
+        holiday: string | null;
         is_workday: boolean;
         server_time: string;
     } | null;
@@ -89,6 +91,7 @@ const props = defineProps<{
         label: string;
         offset: number | null;
         status: string | null;
+        holiday: string | null;
         is_workday: boolean;
     }>;
     recent: Attendance[];
@@ -427,7 +430,14 @@ const statusPill = computed(() => {
                         <StatusPill
                             :tone="location.is_workday ? 'neutral' : 'beacon'"
                         >
-                            {{ location.is_workday ? 'Workday' : 'Rest day' }}
+                            <template v-if="location.holiday">
+                                Public holiday · {{ location.holiday }}
+                            </template>
+                            <template v-else>
+                                {{
+                                    location.is_workday ? 'Workday' : 'Rest day'
+                                }}
+                            </template>
                         </StatusPill>
                     </template>
 

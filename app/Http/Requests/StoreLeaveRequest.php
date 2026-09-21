@@ -6,6 +6,7 @@ use App\Enums\Permission;
 use App\Models\LeaveRequest;
 use App\Models\LeaveRestrictedPeriod;
 use App\Models\LeaveType;
+use App\Models\PublicHoliday;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\LeaveBalance;
@@ -145,7 +146,12 @@ class StoreLeaveRequest extends FormRequest
     {
         $workdays = $this->staff()->location?->workdayNumbers() ?? [1, 2, 3, 4, 5];
 
-        return Workdays::countBetween($this->startDate(), $this->endDate(), $workdays);
+        return Workdays::countBetween(
+            $this->startDate(),
+            $this->endDate(),
+            $workdays,
+            PublicHoliday::datesBetween($this->startDate(), $this->endDate()),
+        );
     }
 
     public function startDate(): Carbon

@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Enums\OutOfOfficeKind;
 use App\Models\LeaveRequest;
 use App\Models\OutOfOfficeRequest;
+use App\Models\PublicHoliday;
 use App\Models\User;
 use App\Support\Workdays;
 use Illuminate\Contracts\Validation\Validator;
@@ -78,7 +79,12 @@ class StoreOutOfOfficeRequest extends FormRequest
     {
         $workdays = $this->staff()->location?->workdayNumbers() ?? [1, 2, 3, 4, 5];
 
-        return Workdays::countBetween($this->startDate(), $this->endDate(), $workdays);
+        return Workdays::countBetween(
+            $this->startDate(),
+            $this->endDate(),
+            $workdays,
+            PublicHoliday::datesBetween($this->startDate(), $this->endDate()),
+        );
     }
 
     public function kind(): ?OutOfOfficeKind

@@ -10,6 +10,7 @@ use App\Http\Requests\UpdateLeaveRequest;
 use App\Models\ApprovalSetting;
 use App\Models\LeaveRequest;
 use App\Models\LeaveRestrictedPeriod;
+use App\Models\PublicHoliday;
 use App\Models\User;
 use App\Services\ApprovalService;
 use App\Services\LeaveBalance;
@@ -52,6 +53,12 @@ class LeaveRequestController extends Controller
             // The form caps its own date picker with these, counting the same
             // working days the server will count when the request lands.
             'workdays' => $user->location?->workdayNumbers() ?? [1, 2, 3, 4, 5],
+            // Public holidays are never counted, so the form leaves them out
+            // too and says which ones it left out.
+            'holidays' => PublicHoliday::between(
+                Carbon::now()->subYear()->startOfYear(),
+                Carbon::now()->addYears(2)->endOfYear(),
+            ),
             'requests' => $requests->map(fn (LeaveRequest $leave): array => $this->payload($leave))->values(),
             'supervisors' => $this->supervisors($user),
             'cover_duties' => $this->coverDuties($user),

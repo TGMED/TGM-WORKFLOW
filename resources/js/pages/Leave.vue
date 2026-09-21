@@ -10,6 +10,8 @@ import StatusPill from '@/components/ui/StatusPill.vue';
 import TextField from '@/components/ui/TextField.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dateTime } from '@/lib/format';
+import { dayKey, holidayNote, holidaysBetween } from '@/lib/holidays';
+import type { Holidays } from '@/lib/holidays';
 import type { RequestTrail } from '@/types';
 
 type Window = {
@@ -102,6 +104,7 @@ const props = defineProps<{
     year: number;
     balances: Balance[];
     workdays: number[];
+    holidays: Holidays;
     requests: LeaveRow[];
     supervisors: PersonOption[];
     relief_officers: ReliefOption[];
@@ -327,10 +330,20 @@ function toIsoDate(date: Date): string {
     return date.toISOString().slice(0, 10);
 }
 
-/** Mirrors App\Support\Workdays: Monday is 1, Sunday is 7. */
+/** Mirrors App\Support\Workdays: Monday is 1, Sunday is 7, and a public
+ *  holiday is never a working day. */
 function isWorkday(date: Date): boolean {
-    return props.workdays.includes(date.getDay() === 0 ? 7 : date.getDay());
+    return (
+        props.workdays.includes(date.getDay() === 0 ? 7 : date.getDay()) &&
+        props.holidays[dayKey(date)] === undefined
+    );
 }
+
+const holidaysInRange = computed(() =>
+    holidayNote(
+        holidaysBetween(form.start_date, form.end_date, props.holidays),
+    ),
+);
 
 // The same count the server will do, so what the form shows is what gets
 // stored rather than a calendar-day guess.
@@ -951,7 +964,7 @@ function toggleTrail(row: LeaveRow) {
                     ? 'It was sent back to you. Saving sends it round the chain again from the start.'
                     : editing
                       ? 'Nobody has ruled on it yet, so it can still be changed.'
-                      : 'Non-working days at your site are not counted.'
+                      : 'Non-working days at your site and public holidays are not counted.'
             "
             @close="modalOpen = false"
         >
@@ -1014,8 +1027,8 @@ function toggleTrail(row: LeaveRow) {
                         :error="form.errors.end_date"
                         :hint="
                             workingDays > 0
-                                ? `${workingDays} working day${workingDays === 1 ? '' : 's'} selected`
-                                : undefined
+                                ? `${workingDays} working day${workingDays === 1 ? '' : 's'} selected${holidaysInRange ? `. ${holidaysInRange}` : ''}`
+                                : (holidaysInRange ?? undefined)
                         "
                     />
                 </div>

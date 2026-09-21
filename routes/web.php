@@ -17,6 +17,7 @@ use App\Http\Controllers\Admin\PayrollController;
 use App\Http\Controllers\Admin\PayrollSettingsController;
 use App\Http\Controllers\Admin\PensionController;
 use App\Http\Controllers\Admin\PolicyController as AdminPolicyController;
+use App\Http\Controllers\Admin\PublicHolidayController;
 use App\Http\Controllers\Admin\RecommendationDeskController;
 use App\Http\Controllers\Admin\ReportController as AdminReportController;
 use App\Http\Controllers\Admin\RequestSettingsController;
@@ -317,6 +318,12 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
             Route::put('locations/{location}', [LocationController::class, 'update'])->name('locations.update');
             Route::patch('locations/{location}/toggle', [LocationController::class, 'toggle'])->name('locations.toggle');
             Route::patch('locations/{location}/reassign', [LocationController::class, 'reassign'])->name('locations.reassign');
+
+            // The days every site is off at once, kept with the sites.
+            Route::get('holidays', [PublicHolidayController::class, 'index'])->name('holidays.index');
+            Route::post('holidays', [PublicHolidayController::class, 'store'])->name('holidays.store');
+            Route::put('holidays/{holiday}', [PublicHolidayController::class, 'update'])->name('holidays.update');
+            Route::delete('holidays/{holiday}', [PublicHolidayController::class, 'destroy'])->name('holidays.destroy');
         });
 
         // Attendance across the whole company for a chosen window, as

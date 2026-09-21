@@ -12,6 +12,7 @@ use App\Imports\ImportResult;
 use App\Imports\ImportRow;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
+use App\Models\PublicHoliday;
 use App\Support\Workdays;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
@@ -233,6 +234,6 @@ class LeaveRecordImporter extends BaseImporter
      */
     private function workingDays(Carbon $start, Carbon $end, array $workdays): int
     {
-        return Workdays::countBetween($start, $end, $workdays);
+        return Workdays::countBetween($start, $end, $workdays, PublicHoliday::datesBetween($start, $end));
     }
 }
