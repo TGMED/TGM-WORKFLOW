@@ -107,16 +107,19 @@ const nav: NavItem[] = [
             {
                 label: 'Organogram',
                 href: '/organogram',
+                staffOnly: true,
                 icon: 'M9 4.5h6v4H9v-4Zm-6 11h6v4H3v-4Zm12 0h6v4h-6v-4ZM12 8.5v3m0 0H6v4m6-4h6v4',
             },
             {
                 label: 'Announcements',
                 href: '/announcements',
+                staffOnly: true,
                 icon: 'M3.5 10.5v3a1.5 1.5 0 0 0 1.5 1.5h2l5 4V5l-5 4H5a1.5 1.5 0 0 0-1.5 1.5Zm13-2.2a5 5 0 0 1 0 7.4M19 5.5a9 9 0 0 1 0 13',
             },
             {
                 label: 'Company policy',
                 href: '/policies',
+                staffOnly: true,
                 icon: 'M8 3.5h5.5L18.5 8v11a1.5 1.5 0 0 1-1.5 1.5H8A1.5 1.5 0 0 1 6.5 19V5A1.5 1.5 0 0 1 8 3.5Zm5 0V8h4.5M9.5 12.5h5m-5 3h3',
             },
         ],
@@ -231,6 +234,7 @@ const nav: NavItem[] = [
             {
                 label: 'My payslips',
                 href: '/payslips',
+                staffOnly: true,
                 icon: 'M6 3.5h12A1.5 1.5 0 0 1 19.5 5v15.5l-2.5-1.5-2.5 1.5-2.5-1.5-2.5 1.5-2.5-1.5V5A1.5 1.5 0 0 1 6 3.5ZM9 8h6M9 11.5h6M9 15h3',
             },
             {
@@ -677,6 +681,7 @@ watch(currentUrl, () => {
                             class="absolute right-0 bottom-full left-0 mb-2 overflow-hidden rounded-xl border border-line bg-panel-raised p-1 shadow-lift"
                         >
                             <Link
+                                v-if="user?.clocks_in"
                                 href="/profile"
                                 class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-muted transition-colors hover:bg-line-soft hover:text-text"
                             >

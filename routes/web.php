@@ -96,9 +96,11 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
         ->middleware('clocks-in')
         ->name('attendance.index');
 
-    // The noticeboard, open to everyone. Notices used to be a panel on the
-    // dashboard; they are long enough to want a page.
+    // The noticeboard, for the staff it is addressed to. An administrator
+    // writes notices rather than reads them, and has the fuller list of
+    // drafts and expiries at admin/announcements.
     Route::get('announcements', [PublicAnnouncementController::class, 'index'])
+        ->middleware('clocks-in')
         ->name('announcements.index');
 
     // Who the company is missing today, open to everyone: cover is easier to
@@ -129,12 +131,14 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
     Route::get('leave/{leave}/evidence', [LeaveEvidenceController::class, 'show'])
         ->name('leave.evidence');
 
-    // Somebody's own payslips. Outside the `clocks-in` group only because it
-    // reads naturally beside the rest of the personal pages; an administrator
-    // draws no salary here and simply sees an empty list.
-    Route::get('payslips', [PayslipController::class, 'index'])->name('payslips.index');
-    Route::get('payslips/{payslip}', [PayslipController::class, 'show'])->name('payslips.show');
-    Route::get('payslips/{payslip}/pdf', [PayslipController::class, 'pdf'])->name('payslips.pdf');
+    // Somebody's own payslips. An administrator draws no salary here, so
+    // these were an empty list rather than a page; payroll is at
+    // admin/payroll and is the side of it they have.
+    Route::middleware('clocks-in')->group(function (): void {
+        Route::get('payslips', [PayslipController::class, 'index'])->name('payslips.index');
+        Route::get('payslips/{payslip}', [PayslipController::class, 'show'])->name('payslips.show');
+        Route::get('payslips/{payslip}/pdf', [PayslipController::class, 'pdf'])->name('payslips.pdf');
+    });
 
     // Putting it to the people team that somebody should be let go. Guarded
     // in the form request rather than by middleware: who may raise one depends
@@ -151,14 +155,20 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
     Route::post('tours', [TourController::class, 'store'])->name('tours.store');
     Route::delete('tours', [TourController::class, 'destroy'])->name('tours.destroy');
 
-    // Who reports to whom. Open to everybody: the people who most need to
-    // know who to ask are the ones who have just arrived.
-    Route::get('organogram', [OrganogramController::class, 'index'])->name('organogram.index');
+    // Who reports to whom, for the staff who need to know who to ask. An
+    // administrator has the same chart at admin/departments, where it can
+    // be rearranged rather than only read.
+    Route::get('organogram', [OrganogramController::class, 'index'])
+        ->middleware('clocks-in')
+        ->name('organogram.index');
 
-    // The handbook and the policies under it. Open to everybody who signs in:
-    // a rule nobody can look up is not a rule anybody can follow.
-    Route::get('policies', [PolicyController::class, 'index'])->name('policies.index');
-    Route::get('policies/{policy}/file', [PolicyController::class, 'download'])->name('policies.download');
+    // The handbook and the policies under it, for the staff they bind: a
+    // rule nobody can look up is not a rule anybody can follow. An
+    // administrator keeps the library at admin/policies instead.
+    Route::middleware('clocks-in')->group(function (): void {
+        Route::get('policies', [PolicyController::class, 'index'])->name('policies.index');
+        Route::get('policies/{policy}/file', [PolicyController::class, 'download'])->name('policies.download');
+    });
 
     // Raising an incident is open to everyone who signs in, admins included:
     // there is no group of staff whose concerns the company does not want to
@@ -212,8 +222,9 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
     });
 
     // The employee's own HR record. Reachable with the profile half-filled,
-    // since this is where they go to finish it.
-    Route::prefix('profile')->name('profile.')->group(function (): void {
+    // since this is where they go to finish it, but not by an administrator:
+    // they are not on the payroll and have no record to keep.
+    Route::prefix('profile')->name('profile.')->middleware('clocks-in')->group(function (): void {
         Route::get('/', [ProfileController::class, 'edit'])->name('edit');
         Route::put('/', [ProfileController::class, 'update'])->name('update');
 
@@ -340,7 +351,9 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
         });
 
         Route::middleware('permission:announcements.manage')->group(function (): void {
-            Route::get('announcements', [PublicAnnouncementController::class, 'index'])->name('announcements.index');
+            // The admin index, not the noticeboard: this side lists drafts,
+            // scheduled and expired notices too, and is where they are written.
+            Route::get('announcements', [AnnouncementController::class, 'index'])->name('announcements.index');
             Route::post('announcements', [AnnouncementController::class, 'store'])->name('announcements.store');
             Route::put('announcements/{announcement}', [AnnouncementController::class, 'update'])->name('announcements.update');
             Route::delete('announcements/{announcement}', [AnnouncementController::class, 'destroy'])->name('announcements.destroy');
