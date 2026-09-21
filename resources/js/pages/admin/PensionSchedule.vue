@@ -4,10 +4,12 @@ import { ref } from 'vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
+import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
 import StatTile from '@/components/ui/StatTile.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import TextField from '@/components/ui/TextField.vue';
+import { usePaginated } from '@/composables/usePaginated';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dateTime, money } from '@/lib/format';
 
@@ -61,6 +63,8 @@ function submit() {
 }
 
 const show = (value: number) => money(value, 'NGN');
+
+const pages = usePaginated(() => props.lines, { perPage: 15 });
 </script>
 
 <template>
@@ -149,13 +153,7 @@ const show = (value: number) => money(value, 'NGN');
             </div>
 
             <Panel flush :title="`Schedule · ${run.period_label}`">
-                <EmptyState
-                    v-if="lines.length === 0"
-                    title="Nobody on the schedule"
-                    message="No payslip in this run carries a pension contribution."
-                />
-
-                <div v-else class="overflow-x-auto">
+                <div class="overflow-x-auto">
                     <table class="w-full min-w-[720px] text-left">
                         <thead>
                             <tr class="border-b border-line-soft">
@@ -180,8 +178,16 @@ const show = (value: number) => money(value, 'NGN');
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-line-soft">
+                            <tr v-if="lines.length === 0">
+                                <td colspan="6">
+                                    <EmptyState
+                                        title="Nobody on the schedule"
+                                        message="No payslip in this run carries a pension contribution."
+                                    />
+                                </td>
+                            </tr>
                             <tr
-                                v-for="line in lines"
+                                v-for="line in pages.paged"
                                 :key="line.user_id"
                                 class="transition-colors hover:bg-line-soft/40"
                             >
@@ -229,6 +235,15 @@ const show = (value: number) => money(value, 'NGN');
                         </tbody>
                     </table>
                 </div>
+
+                <Pagination
+                    v-model:page="pages.page"
+                    v-model:per-page="pages.perPage"
+                    :last-page="pages.lastPage"
+                    :from="pages.from"
+                    :to="pages.to"
+                    :total="pages.total"
+                />
             </Panel>
         </div>
 

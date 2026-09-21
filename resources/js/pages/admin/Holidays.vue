@@ -4,10 +4,12 @@ import { ref } from 'vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
+import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
 import SelectField from '@/components/ui/SelectField.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import TextField from '@/components/ui/TextField.vue';
+import { usePaginated } from '@/composables/usePaginated';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 type HolidayRow = {
@@ -87,6 +89,8 @@ function showYear(year: number) {
         { preserveState: true, preserveScroll: true },
     );
 }
+
+const pages = usePaginated(() => props.holidays);
 </script>
 
 <template>
@@ -119,17 +123,7 @@ function showYear(year: number) {
                 </div>
             </template>
 
-            <EmptyState
-                v-if="holidays.length === 0"
-                :title="`No holidays in ${year}`"
-                message="Add the days the company or a site is closed, and they will be taken out of that week."
-            >
-                <template #action>
-                    <AppButton size="sm" @click="add">Add holiday</AppButton>
-                </template>
-            </EmptyState>
-
-            <div v-else class="overflow-x-auto">
+            <div class="overflow-x-auto">
                 <table class="w-full text-left text-[13.5px]">
                     <thead>
                         <tr class="border-b border-line-soft">
@@ -143,8 +137,22 @@ function showYear(year: number) {
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-line-soft">
+                        <tr v-if="holidays.length === 0">
+                            <td colspan="5">
+                                <EmptyState
+                                    :title="`No holidays in ${year}`"
+                                    message="Add the days the company or a site is closed, and they will be taken out of that week."
+                                >
+                                    <template #action>
+                                        <AppButton size="sm" @click="add"
+                                            >Add holiday</AppButton
+                                        >
+                                    </template>
+                                </EmptyState>
+                            </td>
+                        </tr>
                         <tr
-                            v-for="row in holidays"
+                            v-for="row in pages.paged"
                             :key="row.id"
                             class="group"
                             :class="row.past && 'text-muted'"
@@ -190,6 +198,15 @@ function showYear(year: number) {
                     </tbody>
                 </table>
             </div>
+
+            <Pagination
+                v-model:page="pages.page"
+                v-model:per-page="pages.perPage"
+                :last-page="pages.lastPage"
+                :from="pages.from"
+                :to="pages.to"
+                :total="pages.total"
+            />
         </Panel>
 
         <ModalShell

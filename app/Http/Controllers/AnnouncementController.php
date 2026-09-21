@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Announcement;
+use App\Support\PerPage;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -22,7 +23,7 @@ class AnnouncementController extends Controller
             ->with('author:id,name')
             ->live()
             ->inReadingOrder()
-            ->paginate(15)
+            ->paginate(PerPage::from($request, 15))
             ->withQueryString()
             ->through(fn (Announcement $announcement): array => [
                 'id' => $announcement->id,

@@ -8,6 +8,7 @@ use App\Models\Department;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Services\ApprovalService;
+use App\Support\PerPage;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -58,7 +59,7 @@ class LeaveRegisterController extends Controller
         $filters = $this->filters($request);
 
         $paginator = $this->register($filters)
-            ->paginate(20)
+            ->paginate(PerPage::from($request, 20))
             ->withQueryString();
 
         return Inertia::render('admin/LeaveRegister', [

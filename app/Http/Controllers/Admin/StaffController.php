@@ -17,6 +17,7 @@ use App\Models\Team;
 use App\Models\User;
 use App\Services\Invitations;
 use App\Services\StaffExit;
+use App\Support\PerPage;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -62,7 +63,7 @@ class StaffController extends Controller
                 fn (Builder $q) => $q->where('location_id', $locationId),
             )
             ->orderBy('name')
-            ->paginate(12)
+            ->paginate(PerPage::from($request, 12))
             ->withQueryString();
 
         /** @var array<int, int> $ids */

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';
 import EmptyState from '@/components/ui/EmptyState.vue';
+import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
+import { usePaginated } from '@/composables/usePaginated';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { money } from '@/lib/format';
 
@@ -17,10 +19,12 @@ type PayslipRow = {
     pdf_url: string;
 };
 
-defineProps<{
+const props = defineProps<{
     payslips: PayslipRow[];
     latest: PayslipRow | null;
 }>();
+
+const pages = usePaginated(() => props.payslips);
 </script>
 
 <template>
@@ -86,13 +90,7 @@ defineProps<{
             </section>
 
             <Panel title="Every payslip" flush>
-                <EmptyState
-                    v-if="payslips.length === 0"
-                    title="No payslips yet"
-                    message="Once payroll finalises a month, that month's payslip appears here. If you think one is missing, ask the people team."
-                />
-
-                <div v-else class="overflow-x-auto">
+                <div class="overflow-x-auto">
                     <table class="w-full text-[13.5px]">
                         <thead
                             class="border-b border-line-soft text-left text-[12px] text-faint"
@@ -112,8 +110,16 @@ defineProps<{
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-line-soft">
+                            <tr v-if="payslips.length === 0">
+                                <td colspan="5">
+                                    <EmptyState
+                                        title="No payslips yet"
+                                        message="Once payroll finalises a month, that month's payslip appears here. If you think one is missing, ask the people team."
+                                    />
+                                </td>
+                            </tr>
                             <tr
-                                v-for="row in payslips"
+                                v-for="row in pages.paged"
                                 :key="row.id"
                                 class="transition-colors hover:bg-sunken/40"
                             >
@@ -162,6 +168,15 @@ defineProps<{
                         </tbody>
                     </table>
                 </div>
+
+                <Pagination
+                    v-model:page="pages.page"
+                    v-model:per-page="pages.perPage"
+                    :last-page="pages.lastPage"
+                    :from="pages.from"
+                    :to="pages.to"
+                    :total="pages.total"
+                />
             </Panel>
         </div>
     </AppLayout>

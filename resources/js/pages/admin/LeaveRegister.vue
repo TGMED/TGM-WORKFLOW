@@ -10,6 +10,7 @@ import SelectField from '@/components/ui/SelectField.vue';
 import StatTile from '@/components/ui/StatTile.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import TextField from '@/components/ui/TextField.vue';
+import { currentPerPage } from '@/composables/usePaginated';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dateTime } from '@/lib/format';
 import type { RequestTrail } from '@/types';
@@ -47,6 +48,7 @@ type Option = { value: string | number; label: string };
 const props = defineProps<{
     rows: {
         data: Row[];
+        per_page: number;
         links: Array<{ url: string | null; label: string; active: boolean }>;
         from: number | null;
         to: number | null;
@@ -95,6 +97,7 @@ function applyFilters(immediate = false) {
         router.get(
             '/admin/leave',
             {
+                per_page: currentPerPage(),
                 search: search.value || undefined,
                 department: department.value || undefined,
                 type: type.value || undefined,
@@ -248,13 +251,7 @@ function exportUrl() {
                     </AppButton>
                 </div>
 
-                <EmptyState
-                    v-if="rows.data.length === 0"
-                    title="Nothing matches"
-                    :message="`No leave in ${filters.year} under those filters. Widen them, or pick another year.`"
-                />
-
-                <div v-else class="overflow-x-auto">
+                <div class="overflow-x-auto">
                     <table class="w-full text-[13.5px]">
                         <thead
                             class="border-b border-line-soft text-left text-[12px] text-faint"
@@ -275,6 +272,14 @@ function exportUrl() {
                         </thead>
 
                         <tbody class="divide-y divide-line-soft">
+                            <tr v-if="rows.data.length === 0">
+                                <td colspan="7">
+                                    <EmptyState
+                                        title="Nothing matches"
+                                        :message="`No leave in ${filters.year} under those filters. Widen them, or pick another year.`"
+                                    />
+                                </td>
+                            </tr>
                             <template v-for="row in rows.data" :key="row.id">
                                 <tr
                                     class="transition-colors hover:bg-sunken/40"
@@ -421,6 +426,7 @@ function exportUrl() {
 
                     <Pagination
                         :links="rows.links"
+                        :per-page="rows.per_page"
                         :from="rows.from"
                         :to="rows.to"
                         :total="rows.total"

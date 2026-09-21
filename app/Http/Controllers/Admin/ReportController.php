@@ -9,6 +9,7 @@ use App\Http\Requests\UpdateReportRequest;
 use App\Models\Offence;
 use App\Models\Report;
 use App\Models\Sanction;
+use App\Support\PerPage;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -49,7 +50,7 @@ class ReportController extends Controller
                 fn (Builder $q) => $q->inTriageOrder(),
                 fn (Builder $q) => $q->latest(),
             )
-            ->paginate(20)
+            ->paginate(PerPage::from($request, 20))
             ->withQueryString()
             ->through(fn (Report $report): array => $this->payload($report));
 

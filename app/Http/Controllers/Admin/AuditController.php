@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Audit;
 use App\Models\User;
 use App\Support\AuditTrail;
+use App\Support\PerPage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
@@ -41,7 +42,7 @@ class AuditController extends Controller
                 fn ($query, string $to) => $query->where('created_at', '<=', Carbon::parse($to)->endOfDay()),
             )
             ->newestFirst()
-            ->paginate(30)
+            ->paginate(PerPage::from($request, 30))
             ->withQueryString()
             ->through(fn (Audit $audit): array => AuditTrail::payload($audit));
 

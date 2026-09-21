@@ -10,6 +10,7 @@ use App\Models\Location;
 use App\Models\OutOfOfficeRequest;
 use App\Models\PublicHoliday;
 use App\Models\User;
+use App\Support\PerPage;
 use App\Support\Workdays;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -66,7 +67,7 @@ class AttendanceReportController extends Controller
         $paginator = $this->staff($filters)
             ->with('location:id,name,city,timezone,workdays', 'department:id,name')
             ->orderBy('name')
-            ->paginate(15)
+            ->paginate(PerPage::from($request, 15))
             ->withQueryString();
 
         /** @var array<int, int> $ids */

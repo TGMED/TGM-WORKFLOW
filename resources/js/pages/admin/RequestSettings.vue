@@ -2,11 +2,14 @@
 import { Head, router, useForm } from '@inertiajs/vue3';
 import { computed, reactive, ref } from 'vue';
 import AppButton from '@/components/ui/AppButton.vue';
+import EmptyState from '@/components/ui/EmptyState.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
+import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
 import SelectField from '@/components/ui/SelectField.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import TextField from '@/components/ui/TextField.vue';
+import { usePaginated } from '@/composables/usePaginated';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 type ModuleRow = {
@@ -317,6 +320,9 @@ function toggle(type: LeaveTypeRow) {
         },
     );
 }
+
+const typePages = usePaginated(() => props.leave_types);
+const periodPages = usePaginated(() => props.restricted_periods);
 </script>
 
 <template>
@@ -497,8 +503,16 @@ function toggle(type: LeaveTypeRow) {
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-line-soft">
+                            <tr v-if="leave_types.length === 0">
+                                <td colspan="6">
+                                    <EmptyState
+                                        :title="'No leave types yet'"
+                                        message="Add a type so staff have something to book time off against."
+                                    />
+                                </td>
+                            </tr>
                             <tr
-                                v-for="type in leave_types"
+                                v-for="type in typePages.paged"
                                 :key="type.id"
                                 class="transition-colors hover:bg-line-soft/40"
                             >
@@ -577,6 +591,15 @@ function toggle(type: LeaveTypeRow) {
                         </tbody>
                     </table>
                 </div>
+
+                <Pagination
+                    v-model:page="typePages.page"
+                    v-model:per-page="typePages.perPage"
+                    :last-page="typePages.lastPage"
+                    :from="typePages.from"
+                    :to="typePages.to"
+                    :total="typePages.total"
+                />
             </Panel>
             <Panel
                 title="Restricted periods"
@@ -589,7 +612,7 @@ function toggle(type: LeaveTypeRow) {
                     </AppButton>
                 </template>
 
-                <div v-if="restricted_periods.length" class="overflow-x-auto">
+                <div class="overflow-x-auto">
                     <table class="w-full text-left text-[13.5px]">
                         <thead
                             class="border-b border-line-soft text-[12px] tracking-wide text-faint uppercase"
@@ -605,8 +628,16 @@ function toggle(type: LeaveTypeRow) {
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-line-soft">
+                            <tr v-if="restricted_periods.length === 0">
+                                <td colspan="5">
+                                    <EmptyState
+                                        :title="'No periods closed'"
+                                        message="Staff can book leave on any working day."
+                                    />
+                                </td>
+                            </tr>
                             <tr
-                                v-for="period in restricted_periods"
+                                v-for="period in periodPages.paged"
                                 :key="period.id"
                                 class="transition-colors hover:bg-line-soft/40"
                             >
@@ -689,10 +720,14 @@ function toggle(type: LeaveTypeRow) {
                     </table>
                 </div>
 
-                <p v-else class="px-5 py-6 text-[13.5px] text-muted">
-                    No periods are closed. Staff can book leave on any working
-                    day.
-                </p>
+                <Pagination
+                    v-model:page="periodPages.page"
+                    v-model:per-page="periodPages.perPage"
+                    :last-page="periodPages.lastPage"
+                    :from="periodPages.from"
+                    :to="periodPages.to"
+                    :total="periodPages.total"
+                />
             </Panel>
         </div>
 

@@ -11,6 +11,7 @@ import Panel from '@/components/ui/Panel.vue';
 import SelectField from '@/components/ui/SelectField.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import TextField from '@/components/ui/TextField.vue';
+import { currentPerPage } from '@/composables/usePaginated';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { attendanceTone, relative, timeOfDay } from '@/lib/format';
 
@@ -45,6 +46,7 @@ const props = defineProps<{
     invitation_days: number;
     staff: {
         data: StaffRow[];
+        per_page: number;
         links: Array<{ url: string | null; label: string; active: boolean }>;
         from: number | null;
         to: number | null;
@@ -87,6 +89,7 @@ function applyFilters(immediate = false) {
         router.get(
             '/admin/staff',
             {
+                per_page: currentPerPage(),
                 search: search.value || undefined,
                 status: status.value === 'all' ? undefined : status.value,
                 department: department.value || undefined,
@@ -253,7 +256,7 @@ const statusOptions = [
             </div>
 
             <Panel flush>
-                <div v-if="staff.data.length" class="overflow-x-auto">
+                <div class="overflow-x-auto">
                     <table class="w-full min-w-[960px] text-left">
                         <thead>
                             <tr class="border-b border-line-soft">
@@ -283,6 +286,29 @@ const statusOptions = [
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-line-soft">
+                            <tr v-if="staff.data.length === 0">
+                                <td colspan="7">
+                                    <EmptyState
+                                        title="No staff match those filters"
+                                        message="Try a different search term, or clear the filters to see the whole team."
+                                    >
+                                        <template #action>
+                                            <AppButton
+                                                variant="secondary"
+                                                size="sm"
+                                                @click="
+                                                    search = '';
+                                                    status = 'all';
+                                                    department = '';
+                                                    location = '';
+                                                "
+                                            >
+                                                Clear filters
+                                            </AppButton>
+                                        </template>
+                                    </EmptyState>
+                                </td>
+                            </tr>
                             <tr
                                 v-for="person in staff.data"
                                 :key="person.id"
@@ -526,29 +552,9 @@ const statusOptions = [
                     </table>
                 </div>
 
-                <EmptyState
-                    v-else
-                    title="No staff match those filters"
-                    message="Try a different search term, or clear the filters to see the whole team."
-                >
-                    <template #action>
-                        <AppButton
-                            variant="secondary"
-                            size="sm"
-                            @click="
-                                search = '';
-                                status = 'all';
-                                department = '';
-                                location = '';
-                            "
-                        >
-                            Clear filters
-                        </AppButton>
-                    </template>
-                </EmptyState>
-
                 <Pagination
                     :links="staff.links"
+                    :per-page="staff.per_page"
                     :from="staff.from"
                     :to="staff.to"
                     :total="staff.total"

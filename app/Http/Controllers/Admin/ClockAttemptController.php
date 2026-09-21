@@ -6,6 +6,7 @@ use App\Enums\AttemptResult;
 use App\Http\Controllers\Controller;
 use App\Models\ClockAttempt;
 use App\Models\Location;
+use App\Support\PerPage;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -47,7 +48,7 @@ class ClockAttemptController extends Controller
                     ->orWhere('employee_id', 'like', "%{$search}%"),
             ))
             ->latest()
-            ->paginate(20)
+            ->paginate(PerPage::from($request, 20))
             ->withQueryString()
             ->through(fn (ClockAttempt $a): array => [
                 'id' => $a->id,

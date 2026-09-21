@@ -9,6 +9,7 @@ import Panel from '@/components/ui/Panel.vue';
 import SelectField from '@/components/ui/SelectField.vue';
 import StatTile from '@/components/ui/StatTile.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
+import { currentPerPage } from '@/composables/usePaginated';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { duration } from '@/lib/format';
 
@@ -38,6 +39,7 @@ type Row = {
 const props = defineProps<{
     rows: {
         data: Row[];
+        per_page: number;
         links: Array<{ url: string | null; label: string; active: boolean }>;
         from: number | null;
         to: number | null;
@@ -83,6 +85,7 @@ function applyFilters(immediate = false) {
         router.get(
             '/admin/attendance',
             {
+                per_page: currentPerPage(),
                 from: from.value,
                 to: to.value,
                 search: search.value || undefined,
@@ -345,7 +348,7 @@ const hoursOf = (minutes: number) => Math.round((minutes / 60) * 10) / 10;
             </Panel>
 
             <Panel flush>
-                <div v-if="rows.data.length" class="overflow-x-auto">
+                <div class="overflow-x-auto">
                     <table class="w-full min-w-[1000px] text-left">
                         <thead>
                             <tr class="border-b border-line-soft">
@@ -384,6 +387,14 @@ const hoursOf = (minutes: number) => Math.round((minutes / 60) * 10) / 10;
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-line-soft">
+                            <tr v-if="rows.data.length === 0">
+                                <td colspan="9">
+                                    <EmptyState
+                                        title="No staff match these filters"
+                                        message="Widen the date range, or clear the search and department filters, to see attendance again."
+                                    />
+                                </td>
+                            </tr>
                             <tr
                                 v-for="row in rows.data"
                                 :key="row.id"
@@ -520,17 +531,12 @@ const hoursOf = (minutes: number) => Math.round((minutes / 60) * 10) / 10;
 
                     <Pagination
                         :links="rows.links"
+                        :per-page="rows.per_page"
                         :from="rows.from"
                         :to="rows.to"
                         :total="rows.total"
                     />
                 </div>
-
-                <EmptyState
-                    v-else
-                    title="No staff match these filters"
-                    message="Widen the date range, or clear the search and department filters, to see attendance again."
-                />
             </Panel>
         </div>
     </AppLayout>
