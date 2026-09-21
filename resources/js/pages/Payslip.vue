@@ -32,6 +32,7 @@ const props = defineProps<{
         account_tail: string | null;
     };
     company: string;
+    pdf_url: string;
 }>();
 
 function show(value: number) {
@@ -61,6 +62,7 @@ function printSheet() {
                 <AppButton size="sm" variant="secondary" @click="printSheet">
                     Print
                 </AppButton>
+                <AppButton size="sm" :href="pdf_url">Download PDF</AppButton>
             </div>
         </template>
 

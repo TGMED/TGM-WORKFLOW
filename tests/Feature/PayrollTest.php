@@ -253,6 +253,60 @@ class PayrollTest extends TestCase
             ->assertInertia(fn ($page) => $page->component('Payslip'));
     }
 
+    public function test_a_payslip_downloads_as_a_pdf(): void
+    {
+        $staff = $this->staff();
+        $this->salaryFor($staff);
+
+        $officer = $this->officer();
+        $this->actingAs($officer)->post('/admin/payroll', ['year' => 2026, 'month' => 8]);
+
+        $run = PayrollRun::query()->firstOrFail();
+        $this->actingAs($officer)->post("/admin/payroll/{$run->id}/finalise");
+
+        $payslip = Payslip::query()->firstOrFail();
+
+        $response = $this->actingAs($staff)->get("/payslips/{$payslip->id}/pdf");
+
+        $response->assertOk();
+        $response->assertHeader('content-type', 'application/pdf');
+        $this->assertStringContainsString(
+            'payslip-',
+            (string) $response->headers->get('content-disposition'),
+        );
+        $this->assertStringStartsWith('%PDF', $response->getContent());
+    }
+
+    public function test_a_draft_payslip_does_not_download(): void
+    {
+        $staff = $this->staff();
+        $this->salaryFor($staff);
+
+        $this->actingAs($this->officer())->post('/admin/payroll', ['year' => 2026, 'month' => 8]);
+
+        $payslip = Payslip::query()->firstOrFail();
+
+        $this->actingAs($staff)->get("/payslips/{$payslip->id}/pdf")->assertNotFound();
+    }
+
+    public function test_nobody_downloads_a_colleagues_payslip(): void
+    {
+        $staff = $this->staff();
+        $this->salaryFor($staff);
+
+        $officer = $this->officer();
+        $this->actingAs($officer)->post('/admin/payroll', ['year' => 2026, 'month' => 8]);
+
+        $run = PayrollRun::query()->firstOrFail();
+        $this->actingAs($officer)->post("/admin/payroll/{$run->id}/finalise");
+
+        $payslip = Payslip::query()->firstOrFail();
+
+        $this->actingAs($this->staff())
+            ->get("/payslips/{$payslip->id}/pdf")
+            ->assertNotFound();
+    }
+
     public function test_nobody_reads_a_colleagues_payslip(): void
     {
         $staff = $this->staff();

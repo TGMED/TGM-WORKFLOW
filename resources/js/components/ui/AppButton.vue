@@ -10,6 +10,12 @@ const props = withDefaults(
         disabled?: boolean;
         type?: 'button' | 'submit' | 'reset';
         block?: boolean;
+        /**
+         * Render an anchor rather than a button. For the handful of actions
+         * that are really a URL — downloading a file, chiefly — where an
+         * Inertia link would try to read a page out of the response.
+         */
+        href?: string;
     }>(),
     {
         variant: 'primary',
@@ -50,7 +56,14 @@ const classes = computed(() =>
 </script>
 
 <template>
-    <button :type="type" :class="classes" :disabled="disabled || loading">
+    <component
+        :is="href ? 'a' : 'button'"
+        :type="href ? undefined : type"
+        :href="href"
+        :class="classes"
+        :disabled="href ? undefined : disabled || loading"
+        :aria-disabled="href && (disabled || loading) ? 'true' : undefined"
+    >
         <span
             v-if="loading"
             class="absolute inset-0 grid place-items-center"
@@ -81,5 +94,5 @@ const classes = computed(() =>
         >
             <slot />
         </span>
-    </button>
+    </component>
 </template>

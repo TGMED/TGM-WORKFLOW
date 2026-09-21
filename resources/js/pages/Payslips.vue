@@ -14,6 +14,7 @@ type PayslipRow = {
     gross_pay: number;
     total_deductions: number;
     net_pay: number;
+    pdf_url: string;
 };
 
 defineProps<{
@@ -66,12 +67,22 @@ defineProps<{
                     </div>
                 </div>
 
-                <Link
-                    :href="`/payslips/${latest.id}`"
-                    class="mt-4 inline-flex text-[13px] font-medium text-beacon hover:underline"
-                >
-                    Open the full payslip
-                </Link>
+                <div class="mt-4 flex flex-wrap items-center gap-4">
+                    <Link
+                        :href="`/payslips/${latest.id}`"
+                        class="inline-flex text-[13px] font-medium text-beacon hover:underline"
+                    >
+                        Open the full payslip
+                    </Link>
+                    <!-- A plain link, not an Inertia one: the response is a
+                         file, and Inertia would try to read a page out of it. -->
+                    <a
+                        :href="latest.pdf_url"
+                        class="inline-flex text-[13px] font-medium text-muted hover:text-text hover:underline"
+                    >
+                        Download PDF
+                    </a>
+                </div>
             </section>
 
             <Panel title="Every payslip" flush>
@@ -130,12 +141,22 @@ defineProps<{
                                     {{ money(row.net_pay, row.currency) }}
                                 </td>
                                 <td class="px-5 py-3.5 text-right">
-                                    <Link
-                                        :href="`/payslips/${row.id}`"
-                                        class="text-[12.5px] font-medium text-beacon hover:underline"
+                                    <div
+                                        class="flex items-center justify-end gap-3"
                                     >
-                                        View
-                                    </Link>
+                                        <Link
+                                            :href="`/payslips/${row.id}`"
+                                            class="text-[12.5px] font-medium text-beacon hover:underline"
+                                        >
+                                            View
+                                        </Link>
+                                        <a
+                                            :href="row.pdf_url"
+                                            class="text-[12.5px] font-medium text-muted hover:text-text hover:underline"
+                                        >
+                                            PDF
+                                        </a>
+                                    </div>
                                 </td>
                             </tr>
                         </tbody>

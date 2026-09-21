@@ -132,6 +132,7 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
     // draws no salary here and simply sees an empty list.
     Route::get('payslips', [PayslipController::class, 'index'])->name('payslips.index');
     Route::get('payslips/{payslip}', [PayslipController::class, 'show'])->name('payslips.show');
+    Route::get('payslips/{payslip}/pdf', [PayslipController::class, 'pdf'])->name('payslips.pdf');
 
     // Putting it to the people team that somebody should be let go. Guarded
     // in the form request rather than by middleware: who may raise one depends
