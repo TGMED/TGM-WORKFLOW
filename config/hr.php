@@ -4,6 +4,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Invitations
+    |--------------------------------------------------------------------------
+    |
+    | There is no sign-up: the people team adds somebody and the app emails
+    | them a link to choose their own password. This is how many days that
+    | link works for before it has to be sent again from the staff list.
+    |
+    */
+
+    'invitation_days' => (int) env('HR_INVITATION_DAYS', 7),
+
+    /*
+    |--------------------------------------------------------------------------
     | Probation
     |--------------------------------------------------------------------------
     |

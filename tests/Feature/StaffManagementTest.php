@@ -58,8 +58,6 @@ class StaffManagementTest extends TestCase
             'roles' => [Role::STAFF],
             'department_id' => Department::factory()->create()->id,
             'location_id' => $this->location->id,
-            'password' => 'Correct-Horse-Battery-9',
-            'password_confirmation' => 'Correct-Horse-Battery-9',
         ])->assertSessionHasNoErrors();
 
         $this->assertDatabaseHas('users', [
@@ -76,8 +74,6 @@ class StaffManagementTest extends TestCase
             'name' => 'No Site',
             'email' => 'nosite@tgm.test',
             'roles' => [Role::STAFF],
-            'password' => 'Correct-Horse-Battery-9',
-            'password_confirmation' => 'Correct-Horse-Battery-9',
         ])->assertSessionHasErrors('location_id');
 
         $this->assertDatabaseMissing('users', ['email' => 'nosite@tgm.test']);
@@ -91,8 +87,6 @@ class StaffManagementTest extends TestCase
                 'email' => 'sneaky@tgm.test',
                 'roles' => [Role::SUPER_ADMIN],
                 'location_id' => $this->location->id,
-                'password' => 'Correct-Horse-Battery-9',
-                'password_confirmation' => 'Correct-Horse-Battery-9',
             ])
             ->assertForbidden();
 

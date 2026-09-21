@@ -12,7 +12,7 @@ import SelectField from '@/components/ui/SelectField.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import TextField from '@/components/ui/TextField.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { attendanceTone, timeOfDay } from '@/lib/format';
+import { attendanceTone, relative, timeOfDay } from '@/lib/format';
 
 type StaffRow = {
     id: number;
@@ -26,6 +26,9 @@ type StaffRow = {
     team: string | null;
     position: string | null;
     is_active: boolean;
+    /** Null once they have signed in; otherwise whether the link still works. */
+    invitation: 'invited' | 'expired' | null;
+    invited_at: string | null;
     clocks_in: boolean;
     location: { id: number; name: string; city: string | null } | null;
     late_this_month: number;
@@ -39,6 +42,7 @@ type StaffRow = {
 };
 
 const props = defineProps<{
+    invitation_days: number;
     staff: {
         data: StaffRow[];
         links: Array<{ url: string | null; label: string; active: boolean }>;
@@ -115,8 +119,6 @@ const addForm = useForm({
     hired_at: '',
     roles: ['staff'] as string[],
     location_id: null as number | null,
-    password: '',
-    password_confirmation: '',
 });
 
 function submitAdd() {
@@ -127,6 +129,22 @@ function submitAdd() {
             addOpen.value = false;
         },
     });
+}
+
+/* ---- Invitations -------------------------------------------------------- */
+const resending = ref<number | null>(null);
+
+function resendInvitation(person: StaffRow) {
+    resending.value = person.id;
+
+    router.post(
+        `/admin/staff/${person.id}/invitation`,
+        {},
+        {
+            preserveScroll: true,
+            onFinish: () => (resending.value = null),
+        },
+    );
 }
 
 /* ---- Reinstatement ----------------------------------------------------- */
@@ -411,7 +429,35 @@ const statusOptions = [
                                 </td>
 
                                 <td class="px-5 py-3">
+                                    <template
+                                        v-if="
+                                            person.is_active &&
+                                            person.invitation
+                                        "
+                                    >
+                                        <StatusPill
+                                            :tone="
+                                                person.invitation === 'invited'
+                                                    ? 'brass'
+                                                    : 'alert'
+                                            "
+                                        >
+                                            {{
+                                                person.invitation === 'invited'
+                                                    ? 'Invited'
+                                                    : 'Invite expired'
+                                            }}
+                                        </StatusPill>
+                                        <p
+                                            v-if="person.invited_at"
+                                            class="mt-1 text-[11.5px] text-faint"
+                                        >
+                                            Sent
+                                            {{ relative(person.invited_at) }}
+                                        </p>
+                                    </template>
                                     <StatusPill
+                                        v-else
                                         :tone="
                                             person.is_active
                                                 ? 'signal'
@@ -442,6 +488,18 @@ const statusOptions = [
                                                 View
                                             </AppButton>
                                         </Link>
+                                        <AppButton
+                                            v-if="
+                                                person.is_active &&
+                                                person.invitation
+                                            "
+                                            size="sm"
+                                            variant="ghost"
+                                            :loading="resending === person.id"
+                                            @click="resendInvitation(person)"
+                                        >
+                                            Resend invite
+                                        </AppButton>
                                         <Link
                                             v-if="person.is_active"
                                             :href="`/admin/staff/${person.id}`"
@@ -582,23 +640,11 @@ const statusOptions = [
 
                 <div class="h-px bg-line-soft" />
 
-                <div class="grid gap-4 sm:grid-cols-2">
-                    <TextField
-                        v-model="addForm.password"
-                        label="Temporary password"
-                        type="password"
-                        required
-                        autocomplete="new-password"
-                        :error="addForm.errors.password"
-                    />
-                    <TextField
-                        v-model="addForm.password_confirmation"
-                        label="Confirm password"
-                        type="password"
-                        required
-                        autocomplete="new-password"
-                    />
-                </div>
+                <p class="text-[13px] leading-relaxed text-muted">
+                    We will email them an invitation to choose their own
+                    password. The link works for {{ invitation_days }} days, and
+                    can be sent again from this list.
+                </p>
             </form>
 
             <template #footer>
@@ -610,7 +656,7 @@ const statusOptions = [
                     form="add-staff"
                     :loading="addForm.processing"
                 >
-                    Add staff member
+                    Add and invite
                 </AppButton>
             </template>
         </ModalShell>

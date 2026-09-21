@@ -272,8 +272,6 @@ class RolePermissionTest extends TestCase
                 'email' => 'ada@example.com',
                 'roles' => [Role::STAFF, Role::TEAM_LEAD],
                 'location_id' => Location::factory()->create()->id,
-                'password' => 'correct-horse-battery',
-                'password_confirmation' => 'correct-horse-battery',
             ])
             ->assertSessionHasErrors('roles.1');
 

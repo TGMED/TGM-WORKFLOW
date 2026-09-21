@@ -15,18 +15,23 @@ use App\Models\Location;
 use App\Models\Role;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\Invitations;
 use App\Services\StaffExit;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class StaffController extends Controller
 {
-    public function __construct(protected StaffExit $exits) {}
+    public function __construct(
+        protected StaffExit $exits,
+        protected Invitations $invitations,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -78,6 +83,8 @@ class StaffController extends Controller
             'team' => $user->team?->name,
             'position' => $user->position,
             'is_active' => $user->is_active,
+            'invitation' => $user->invitationState(),
+            'invited_at' => $user->invited_at?->toIso8601String(),
             'location' => $user->location === null ? null : [
                 'id' => $user->location->id,
                 'name' => $user->location->name,
@@ -93,6 +100,7 @@ class StaffController extends Controller
 
         return Inertia::render('admin/StaffIndex', [
             'staff' => $staff,
+            'invitation_days' => (int) config('hr.invitation_days'),
             'filters' => [
                 'search' => $search,
                 'status' => $status ?: 'all',
@@ -112,14 +120,40 @@ class StaffController extends Controller
         ]);
     }
 
+    /**
+     * Add somebody and email them their way in. The password is a long random
+     * one nobody is told: they choose their own from the invitation.
+     */
     public function store(StoreStaffRequest $request): RedirectResponse
     {
-        $user = User::query()->create($request->payload());
+        $user = User::query()->create([
+            ...$request->payload(),
+            'password' => Str::password(32),
+        ]);
         $user->roles()->sync($request->roleIds());
+
+        $this->invitations->invite($user);
 
         return back()->with('toast', [
             'type' => 'success',
-            'message' => "{$user->name} has been added to the team.",
+            'message' => "{$user->name} has been added. An invitation is on its way to {$user->email}.",
+        ]);
+    }
+
+    /**
+     * Send the invitation again, for a link that ran out or an email that
+     * went astray. The older link stops working.
+     */
+    public function invite(User $staff): RedirectResponse
+    {
+        abort_if($staff->invitationState() === null, 422, 'They have already signed in.');
+        abort_unless($staff->is_active, 422, 'Reinstate them before inviting them.');
+
+        $this->invitations->invite($staff);
+
+        return back()->with('toast', [
+            'type' => 'success',
+            'message' => "A new invitation is on its way to {$staff->email}.",
         ]);
     }
 

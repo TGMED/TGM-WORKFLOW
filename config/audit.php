@@ -95,6 +95,8 @@ return [
     'exclude' => [
         'password',
         'remember_token',
+        // Only a hash, but a hash of a live sign-in link all the same.
+        'invitation_token',
     ],
 
     /*

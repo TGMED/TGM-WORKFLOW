@@ -45,6 +45,8 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  * @property Carbon|null $email_verified_at
  * @property string $password
  * @property string|null $remember_token
+ * @property string|null $invitation_token
+ * @property Carbon|null $invited_at
  * @property string|null $whats_new_seen
  * @property array<int, string>|null $tours_seen
  * @property Carbon|null $created_at
@@ -82,7 +84,7 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
     'location_id',
     'whats_new_seen',
 ])]
-#[Hidden(['password', 'remember_token'])]
+#[Hidden(['password', 'remember_token', 'invitation_token'])]
 class User extends Authenticatable implements AuditableContract
 {
     use Auditable;
@@ -107,6 +109,7 @@ class User extends Authenticatable implements AuditableContract
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'invited_at' => 'datetime',
             'hired_at' => 'date',
             'employment_status' => EmploymentStatus::class,
             'confirmed_at' => 'date',
@@ -598,6 +601,22 @@ class User extends Authenticatable implements AuditableContract
      * Super admins administer the system rather than work a shift, so they
      * have no attendance of their own.
      */
+    /**
+     * Where this person's invitation stands: 'invited' while the link still
+     * works, 'expired' once it has run out, and null for somebody who has
+     * already got in (or was never invited, which comes to the same thing).
+     */
+    public function invitationState(): ?string
+    {
+        if ($this->invitation_token === null) {
+            return null;
+        }
+
+        $expires = $this->invited_at?->copy()->addDays((int) config('hr.invitation_days'));
+
+        return $expires !== null && $expires->isFuture() ? 'invited' : 'expired';
+    }
+
     public function clocksIn(): bool
     {
         return ! $this->isSuperAdmin();

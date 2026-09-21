@@ -29,6 +29,7 @@ use App\Http\Controllers\AnnouncementController as PublicAnnouncementController;
 use App\Http\Controllers\ApprovalController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\Auth\InvitationController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\BreakController;
@@ -74,7 +75,11 @@ Route::middleware('guest')->group(function (): void {
     Route::post('login', [AuthenticatedSessionController::class, 'store'])->middleware('throttle:10,1');
 
     // No sign-up: accounts are made by the people team, so nobody can put
-    // themselves on the staff list.
+    // themselves on the staff list. The way in is the link they are emailed.
+    Route::get('invitation/{token}', [InvitationController::class, 'show'])->name('invitation.show');
+    Route::post('invitation/{token}', [InvitationController::class, 'store'])
+        ->middleware('throttle:6,1')
+        ->name('invitation.store');
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])->name('password.request');
     Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])
@@ -276,6 +281,7 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
             // Leaving is an event with a reason and a date, not a flag being
             // flipped, so it gets its own endpoint. Coming back is the flip.
             Route::post('staff/{staff}/exit', [StaffController::class, 'exit'])->name('staff.exit');
+            Route::post('staff/{staff}/invitation', [StaffController::class, 'invite'])->name('staff.invite');
             Route::patch('staff/{staff}/reinstate', [StaffController::class, 'reinstate'])
                 ->name('staff.reinstate');
         });

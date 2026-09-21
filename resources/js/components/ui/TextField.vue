@@ -16,7 +16,7 @@ const props = withDefaults(
         min?: string | number;
         max?: string | number;
         step?: string | number;
-        // 'lg' is used on the sign-in and signup pages, where the form is the
+        // 'lg' is used on the sign-in and invitation pages, where the form is the
         // whole screen and can afford larger, easier-to-read type.
         size?: 'md' | 'lg';
     }>(),

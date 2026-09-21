@@ -6,7 +6,6 @@ use App\Enums\Permission;
 use App\Models\Role;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Password;
 
 class StoreStaffRequest extends FormRequest
 {
@@ -55,7 +54,6 @@ class StoreStaffRequest extends FormRequest
                 'integer',
                 Rule::exists('locations', 'id'),
             ],
-            'password' => ['required', 'confirmed', Password::defaults()],
         ];
     }
 

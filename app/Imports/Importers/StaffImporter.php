@@ -13,6 +13,7 @@ use App\Models\Department;
 use App\Models\Location;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\Invitations;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -24,8 +25,8 @@ use Illuminate\Validation\Rule;
  *
  * Passwords are the awkward part of a bulk load: a file of them is a file
  * nobody should be emailing around, and a blank column cannot become a blank
- * password. A row without one gets a long random password it is not told, so
- * the account exists and is reached through the forgotten-password flow.
+ * password. A new starter gets a long random password nobody is told, and an
+ * invitation to choose their own, the same as somebody added by hand.
  */
 class StaffImporter extends BaseImporter
 {
@@ -68,7 +69,7 @@ class StaffImporter extends BaseImporter
     public function notes(): array
     {
         return [
-            'Leave the password column out of the file. Anyone imported without one is given a long random password nobody is told, and reaches their account through the forgotten-password link on the sign-in page.',
+            'Leave the password column out of the file. Everyone new on an active row is emailed an invitation to choose their own password once the import is committed; checking a file sends nothing. Anybody already on the staff list is not emailed again.',
             'Everyone who works a shift belongs to a site. Only super admins may be imported without one, since they run the system rather than punch a clock.',
             'Staff arrive on probation unless the file says otherwise. Set employment_status to confirmed for anyone already past it, and give the date they were confirmed.',
             'Nobody is deactivated by leaving them out of the file. Set is_active to no on the row to deactivate somebody; the import never touches a record no row names.',
@@ -191,6 +192,12 @@ class StaffImporter extends BaseImporter
         ]);
 
         $user->roles()->sync($roles->pluck('id')->all());
+
+        // Queued until the import commits, so checking a file emails nobody.
+        // A row that leaves is_active out takes the column's default, active.
+        if ($user->is_active !== false) {
+            app(Invitations::class)->invite($user);
+        }
 
         $result->created();
     }

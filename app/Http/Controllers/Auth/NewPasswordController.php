@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\Invitations;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -39,6 +40,10 @@ class NewPasswordController extends Controller
                     'password' => $password,
                     'remember_token' => Str::random(60),
                 ])->save();
+
+                // Somebody who got in this way instead of through their
+                // invitation has no further use for the link.
+                app(Invitations::class)->spend($user);
 
                 event(new PasswordReset($user));
             },
