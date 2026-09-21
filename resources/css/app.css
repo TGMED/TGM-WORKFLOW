@@ -41,6 +41,15 @@
     --brand: #d92d22;
     --brand-soft: #fbe1de;
 
+    /*
+     * Organogram rungs. Chart colours, not status colours: they say which
+     * level of the chart you are looking at and nothing about whether it is
+     * healthy, so they stay clear of signal, brass, alert and brand.
+     */
+    --org-1: #7048c4;
+    --org-2: #13916f;
+    --org-3: #3b5bdb;
+
     --ring-track: #dde3ed;
     --shadow-panel:
         0 1px 2px rgb(16 24 40 / 0.05), 0 8px 24px -12px rgb(16 24 40 / 0.12);
@@ -73,6 +82,11 @@
      * behind it has to invert. */
     --brand: #d92d22;
     --brand-soft: #3a1512;
+
+    /* Lifted off the navy so the wires stay readable on a dark panel. */
+    --org-1: #a98bf0;
+    --org-2: #35d0a5;
+    --org-3: #7c95f5;
 
     --ring-track: #22304a;
     --shadow-panel:
@@ -111,6 +125,10 @@
     --color-beacon-soft: var(--beacon-soft);
     --color-brand: var(--brand);
     --color-brand-soft: var(--brand-soft);
+
+    --color-org-1: var(--org-1);
+    --color-org-2: var(--org-2);
+    --color-org-3: var(--org-3);
 
     --shadow-panel: var(--shadow-panel);
     --shadow-lift: var(--shadow-lift);

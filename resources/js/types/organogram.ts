@@ -14,3 +14,24 @@ export type OrgPerson = {
     below: number;
     is_you: boolean;
 };
+
+/** A team inside a department, with whoever leads it. */
+export type OrgTeam = {
+    id: number;
+    name: string;
+    lead_user_id: number | null;
+};
+
+/**
+ * A department and its teams.
+ *
+ * Deliberately not part of OrgPerson: the chart is drawn from `manager_id`,
+ * while a head and a lead are jobs that a leave request is routed through.
+ * Somebody can hold one without the other.
+ */
+export type OrgUnit = {
+    id: number;
+    name: string;
+    head_user_id: number | null;
+    teams: OrgTeam[];
+};

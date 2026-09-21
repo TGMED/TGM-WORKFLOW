@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\LeaveRestrictedPeriodController;
 use App\Http\Controllers\Admin\LeaveTypeController;
 use App\Http\Controllers\Admin\LocationController;
 use App\Http\Controllers\Admin\OffenceController;
+use App\Http\Controllers\Admin\OrganogramController as AdminOrganogramController;
 use App\Http\Controllers\Admin\PayrollController;
 use App\Http\Controllers\Admin\PayrollSettingsController;
 use App\Http\Controllers\Admin\PensionController;
@@ -276,6 +277,16 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
             Route::post('departments', [DepartmentController::class, 'store'])->name('departments.store');
             Route::put('departments/{department}', [DepartmentController::class, 'update'])->name('departments.update');
             Route::delete('departments/{department}', [DepartmentController::class, 'destroy'])->name('departments.destroy');
+
+            // The same three fields, set from the chart instead of from the
+            // list. Heads and leads are what a request's approval chain reads,
+            // so they are behind this permission wherever they are set.
+            Route::put('organogram/{user}/manager', [AdminOrganogramController::class, 'manager'])
+                ->name('organogram.manager');
+            Route::put('organogram/departments/{department}/head', [AdminOrganogramController::class, 'head'])
+                ->name('organogram.head');
+            Route::put('organogram/teams/{team}/lead', [AdminOrganogramController::class, 'lead'])
+                ->name('organogram.lead');
 
             Route::post('departments/{department}/teams', [TeamController::class, 'store'])->name('teams.store');
             Route::put('teams/{team}', [TeamController::class, 'update'])->name('teams.update');

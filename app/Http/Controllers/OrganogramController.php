@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\Permission;
+use App\Models\Department;
+use App\Models\Team;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -22,6 +25,8 @@ class OrganogramController extends Controller
 {
     public function index(Request $request): Response
     {
+        $canManage = $request->user()->hasPermission(Permission::ManageDepartments);
+
         $people = User::query()
             ->active()
             ->with(['department:id,name', 'team:id,name'])
@@ -66,6 +71,14 @@ class OrganogramController extends Controller
                 ])
                 ->values(),
             'roots' => $roots->pluck('id')->values(),
+            // Whether this reader may change the shape of the chart. Everyone
+            // reads it; only the people team rearranges it.
+            'can_manage' => $canManage,
+            // The jobs the approval chain on a request actually reads, so the
+            // one screen can answer both questions people bring to it. Sent
+            // only to somebody who may change them.
+            'units' => $canManage ? $this->units() : [],
+            'assignable' => $canManage ? $this->assignable() : [],
             'totals' => [
                 'people' => $people->count(),
                 'roots' => $roots->count(),
@@ -75,6 +88,58 @@ class OrganogramController extends Controller
             ],
             'you' => $request->user()->id,
         ]);
+    }
+
+    /**
+     * The departments and their teams, with whoever is responsible for each.
+     *
+     * Kept apart from the chart itself because they are a different thing:
+     * `manager_id` draws the picture, while a head and a lead are the jobs a
+     * leave request is routed through. Somebody can hold one without the
+     * other, and flattening them would hide exactly that.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function units(): array
+    {
+        return Department::query()
+            ->with(['teams' => fn ($query) => $query->orderBy('name')])
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Department $department): array => [
+                'id' => $department->id,
+                'name' => $department->name,
+                'head_user_id' => $department->head_user_id,
+                'teams' => $department->teams
+                    ->map(fn (Team $team): array => [
+                        'id' => $team->id,
+                        'name' => $team->name,
+                        'lead_user_id' => $team->lead_user_id,
+                    ])
+                    ->values()
+                    ->all(),
+            ])
+            ->all();
+    }
+
+    /**
+     * Everybody who can be named, for the pickers.
+     *
+     * @return array<int, array{value: int, label: string}>
+     */
+    protected function assignable(): array
+    {
+        return User::query()
+            ->active()
+            ->orderBy('name')
+            ->get(['id', 'name', 'position'])
+            ->map(fn (User $person): array => [
+                'value' => $person->id,
+                'label' => $person->position === null
+                    ? $person->name
+                    : "{$person->name} · {$person->position}",
+            ])
+            ->all();
     }
 
     /**
