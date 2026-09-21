@@ -6,8 +6,10 @@ import AppButton from '@/components/ui/AppButton.vue';
 import Avatar from '@/components/ui/Avatar.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
+import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
+import { usePaginated } from '@/composables/usePaginated';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dateTime, duration, relative } from '@/lib/format';
 import type { RaiseOptions, RequestStatusTone, RequestTrail } from '@/types';
@@ -93,6 +95,9 @@ const rows = computed(() => {
 
     return tab.value === 'lateness' ? props.lateness : props.out_of_office;
 });
+
+const pages = usePaginated(() => rows.value, { resetOn: () => tab.value });
+const historyPages = usePaginated(() => props.history);
 
 const tabLabel = computed(() =>
     tab.value === 'out_of_office' ? 'out of office' : tab.value,
@@ -208,173 +213,239 @@ function submit() {
             </div>
 
             <Panel flush>
-                <EmptyState
-                    v-if="rows.length === 0"
-                    title="Inbox clear"
-                    :message="`No ${tabLabel} requests are waiting on your decision.`"
-                />
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[860px] text-[13.5px]">
+                        <thead
+                            class="border-b border-line-soft text-left text-[12px] text-faint"
+                        >
+                            <tr>
+                                <th class="px-5 py-3 font-medium">Requester</th>
+                                <th class="px-5 py-3 font-medium">Request</th>
+                                <th class="px-5 py-3 font-medium">Progress</th>
+                                <th class="px-5 py-3 font-medium">Raised</th>
+                                <th class="px-5 py-3"></th>
+                            </tr>
+                        </thead>
 
-                <ul v-else class="divide-y divide-line-soft">
-                    <li v-for="row in rows" :key="row.id" class="px-5 py-4">
-                        <div class="flex items-start gap-3">
-                            <Avatar
-                                :initials="row.requester.initials"
-                                :name="row.requester.name"
-                                size="sm"
-                            />
+                        <tbody class="divide-y divide-line-soft">
+                            <tr v-if="rows.length === 0">
+                                <td colspan="5">
+                                    <EmptyState
+                                        title="Inbox clear"
+                                        :message="`No ${tabLabel} requests are waiting on your decision.`"
+                                    />
+                                </td>
+                            </tr>
+                            <tr
+                                v-for="row in pages.paged"
+                                :key="row.id"
+                                class="align-top transition-colors hover:bg-sunken/40"
+                            >
+                                <td class="px-5 py-3.5">
+                                    <div class="flex items-start gap-3">
+                                        <Avatar
+                                            :initials="row.requester.initials"
+                                            :name="row.requester.name"
+                                            size="sm"
+                                        />
+                                        <div class="min-w-0">
+                                            <p class="font-medium">
+                                                {{ row.requester.name }}
+                                            </p>
+                                            <p class="text-[12px] text-faint">
+                                                {{
+                                                    [
+                                                        row.requester.position,
+                                                        row.requester.location,
+                                                    ]
+                                                        .filter(Boolean)
+                                                        .join(' · ')
+                                                }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </td>
 
-                            <div class="min-w-0 flex-1">
-                                <div
-                                    class="flex flex-wrap items-baseline gap-x-2"
-                                >
+                                <td class="px-5 py-3.5">
                                     <p
-                                        class="text-[14px] font-semibold tracking-tight"
+                                        v-if="row.stage === 'relief'"
+                                        class="mb-1 inline-flex items-center gap-1.5 rounded-full bg-brand/10 px-2 py-0.5 text-[11.5px] font-medium text-brand"
                                     >
-                                        {{ row.requester.name }}
+                                        You are covering this desk
                                     </p>
-                                    <span class="text-[12px] text-faint">
-                                        {{
-                                            [
-                                                row.requester.position,
-                                                row.requester.location,
-                                            ]
-                                                .filter(Boolean)
-                                                .join(' · ')
-                                        }}
-                                    </span>
-                                </div>
-
-                                <p
-                                    v-if="row.stage === 'relief'"
-                                    class="mt-1 inline-flex items-center gap-1.5 rounded-full bg-brand/10 px-2 py-0.5 text-[11.5px] font-medium text-brand"
-                                >
-                                    You are covering this desk
-                                </p>
-
-                                <p class="mt-1 text-[13.5px] text-muted">
-                                    <template v-if="row.module === 'leave'">
-                                        {{ row.days }} working day{{
-                                            row.days === 1 ? '' : 's'
-                                        }}
-                                        of {{ row.type }},
-                                        {{ row.range_label }}
-                                    </template>
-                                    <template
-                                        v-else-if="row.module === 'lateness'"
-                                    >
-                                        {{ duration(row.minutes_late) }} late on
-                                        {{ row.day_label }}
-                                    </template>
-                                    <template v-else>
-                                        {{ row.kind_label }} for
-                                        {{ row.days }} working day{{
-                                            row.days === 1 ? '' : 's'
-                                        }}, {{ row.range_label }}
-                                        <template v-if="row.destination">
-                                            · {{ row.destination }}
+                                    <p class="text-muted">
+                                        <template v-if="row.module === 'leave'">
+                                            {{ row.days }} working day{{
+                                                row.days === 1 ? '' : 's'
+                                            }}
+                                            of {{ row.type }},
+                                            {{ row.range_label }}
                                         </template>
-                                    </template>
-                                </p>
+                                        <template
+                                            v-else-if="
+                                                row.module === 'lateness'
+                                            "
+                                        >
+                                            {{ duration(row.minutes_late) }}
+                                            late on {{ row.day_label }}
+                                        </template>
+                                        <template v-else>
+                                            {{ row.kind_label }} for
+                                            {{ row.days }} working day{{
+                                                row.days === 1 ? '' : 's'
+                                            }}, {{ row.range_label }}
+                                            <template v-if="row.destination">
+                                                · {{ row.destination }}
+                                            </template>
+                                        </template>
+                                    </p>
+                                    <p
+                                        v-if="row.reason"
+                                        class="mt-1 max-w-[24rem] text-[12.5px] leading-relaxed text-faint"
+                                    >
+                                        {{ row.reason }}
+                                    </p>
+                                </td>
 
-                                <p
-                                    v-if="row.reason"
-                                    class="mt-2 max-w-prose rounded-xl bg-sunken/60 px-3 py-2 text-[13px] leading-relaxed text-faint"
+                                <td
+                                    class="px-5 py-3.5 text-[12.5px] text-muted"
                                 >
-                                    {{ row.reason }}
-                                </p>
-
-                                <div
-                                    class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-faint"
-                                >
-                                    <span>
-                                        Raised {{ relative(row.requested_at) }}
-                                    </span>
-                                    <span v-if="row.stage === 'relief'">
+                                    <p v-if="row.stage === 'relief'">
                                         Then goes to
                                         {{ row.supervisor ?? 'an approver' }}
-                                    </span>
-                                    <span v-else>
+                                    </p>
+                                    <p v-else>
                                         {{ row.approvals_given }}/{{
                                             row.approvals_required
                                         }}
                                         approved
-                                    </span>
-                                    <span
+                                    </p>
+                                    <p
                                         v-for="step in row.trail"
                                         :key="step.id"
+                                        class="text-faint"
                                     >
                                         {{ step.approver }}
                                         {{ step.decision_label.toLowerCase() }}
                                         <template v-if="step.superseded">
                                             (earlier version)
                                         </template>
-                                    </span>
-                                </div>
-                            </div>
+                                    </p>
+                                </td>
 
-                            <div
-                                class="flex shrink-0 flex-col gap-2 sm:flex-row"
-                            >
-                                <AppButton
-                                    variant="secondary"
-                                    size="sm"
-                                    @click="start(row, 'rejected')"
+                                <td
+                                    class="px-5 py-3.5 whitespace-nowrap text-muted"
                                 >
-                                    {{
-                                        row.stage === 'relief' ||
-                                        row.module === 'leave'
-                                            ? 'Send back'
-                                            : 'Decline'
-                                    }}
-                                </AppButton>
-                                <AppButton
-                                    size="sm"
-                                    @click="start(row, 'approved')"
-                                >
-                                    {{
-                                        row.stage === 'relief'
-                                            ? 'Agree cover'
-                                            : 'Approve'
-                                    }}
-                                </AppButton>
-                            </div>
-                        </div>
-                    </li>
-                </ul>
+                                    {{ relative(row.requested_at) }}
+                                </td>
+
+                                <td class="px-5 py-3.5">
+                                    <div
+                                        class="flex items-center justify-end gap-2"
+                                    >
+                                        <AppButton
+                                            variant="secondary"
+                                            size="sm"
+                                            @click="start(row, 'rejected')"
+                                        >
+                                            {{
+                                                row.stage === 'relief' ||
+                                                row.module === 'leave'
+                                                    ? 'Send back'
+                                                    : 'Decline'
+                                            }}
+                                        </AppButton>
+                                        <AppButton
+                                            size="sm"
+                                            @click="start(row, 'approved')"
+                                        >
+                                            {{
+                                                row.stage === 'relief'
+                                                    ? 'Agree cover'
+                                                    : 'Approve'
+                                            }}
+                                        </AppButton>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <Pagination
+                    v-model:page="pages.page"
+                    v-model:per-page="pages.perPage"
+                    :last-page="pages.lastPage"
+                    :from="pages.from"
+                    :to="pages.to"
+                    :total="pages.total"
+                />
             </Panel>
 
             <Panel
-                v-if="history.length"
                 title="Your recent decisions"
                 subtitle="The last 25 requests you ruled on."
                 flush
             >
-                <ul class="divide-y divide-line-soft">
-                    <li
-                        v-for="row in history"
-                        :key="row.id"
-                        class="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5"
-                    >
-                        <div class="min-w-0">
-                            <p class="truncate text-[13.5px]">
-                                <span class="font-medium">
-                                    {{ row.requester }}
-                                </span>
-                                <span class="text-muted">
-                                    · {{ row.summary }}
-                                </span>
-                            </p>
-                            <p class="text-[12px] text-faint">
-                                You {{ row.decision_label.toLowerCase() }} this
-                                on {{ dateTime(row.decided_at) }}
-                            </p>
-                        </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-[13.5px]">
+                        <thead
+                            class="border-b border-line-soft text-left text-[12px] text-faint"
+                        >
+                            <tr>
+                                <th class="px-5 py-3 font-medium">Requester</th>
+                                <th class="px-5 py-3 font-medium">Request</th>
+                                <th class="px-5 py-3 font-medium">
+                                    Your decision
+                                </th>
+                                <th class="px-5 py-3 font-medium">Outcome</th>
+                            </tr>
+                        </thead>
 
-                        <StatusPill :tone="row.outcome_tone">
-                            {{ row.outcome }}
-                        </StatusPill>
-                    </li>
-                </ul>
+                        <tbody class="divide-y divide-line-soft">
+                            <tr v-if="history.length === 0">
+                                <td colspan="4">
+                                    <EmptyState
+                                        :title="'No decisions yet'"
+                                        message="Requests you approve, decline or send back are listed here."
+                                    />
+                                </td>
+                            </tr>
+                            <tr
+                                v-for="row in historyPages.paged"
+                                :key="row.id"
+                                class="transition-colors hover:bg-sunken/40"
+                            >
+                                <td class="px-5 py-3.5 font-medium">
+                                    {{ row.requester }}
+                                </td>
+                                <td class="px-5 py-3.5 text-muted">
+                                    {{ row.summary }}
+                                </td>
+                                <td
+                                    class="px-5 py-3.5 text-[12.5px] text-muted"
+                                >
+                                    {{ row.decision_label }} on
+                                    {{ dateTime(row.decided_at) }}
+                                </td>
+                                <td class="px-5 py-3.5">
+                                    <StatusPill :tone="row.outcome_tone">
+                                        {{ row.outcome }}
+                                    </StatusPill>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <Pagination
+                    v-model:page="historyPages.page"
+                    v-model:per-page="historyPages.perPage"
+                    :last-page="historyPages.lastPage"
+                    :from="historyPages.from"
+                    :to="historyPages.to"
+                    :total="historyPages.total"
+                />
             </Panel>
         </div>
 

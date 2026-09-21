@@ -3,10 +3,12 @@ import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import Avatar from '@/components/ui/Avatar.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
+import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
 import SelectField from '@/components/ui/SelectField.vue';
 import StatTile from '@/components/ui/StatTile.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
+import { usePaginated } from '@/composables/usePaginated';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { fullDate, shortDate } from '@/lib/format';
 import type { SharedProps } from '@/types';
@@ -126,6 +128,10 @@ function backLabel(person: Person): string {
 
     return `Back ${shortDate(person.returns_on)}`;
 }
+
+const awayPages = usePaginated(() => awayNow.value);
+const upcomingPages = usePaginated(() => upcoming.value);
+const elsewherePages = usePaginated(() => props.elsewhere);
 </script>
 
 <template>
@@ -205,213 +211,334 @@ function backLabel(person: Person): string {
                         : `${awayNow.length} people are out`
                 "
             >
-                <ul v-if="awayNow.length" class="divide-y divide-line-soft">
-                    <li
-                        v-for="person in awayNow"
-                        :key="person.id"
-                        class="flex flex-wrap items-start gap-x-4 gap-y-3 px-5 py-4 transition-colors hover:bg-line-soft/40"
-                    >
-                        <component
-                            :is="isAdmin ? Link : 'div'"
-                            :href="
-                                isAdmin
-                                    ? `/admin/staff/${person.user.id}`
-                                    : undefined
-                            "
-                            class="flex min-w-[200px] flex-1 items-start gap-3"
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[760px] text-[13.5px]">
+                        <thead
+                            class="border-b border-line-soft text-left text-[12px] text-faint"
                         >
-                            <Avatar
-                                :initials="person.user.initials"
-                                :name="person.user.name"
-                                size="sm"
-                            />
-                            <span class="min-w-0">
-                                <span
-                                    class="block truncate text-[13.5px] font-medium"
-                                >
-                                    {{ person.user.name }}
-                                </span>
-                                <span
-                                    class="block truncate text-[11.5px] text-faint"
-                                >
-                                    {{
-                                        person.user.department ??
-                                        person.user.position ??
-                                        person.user.location ??
-                                        '-'
-                                    }}
-                                </span>
-                            </span>
-                        </component>
-
-                        <div class="min-w-[200px] flex-[2]">
-                            <div class="flex flex-wrap items-center gap-2">
-                                <StatusPill tone="brass" dot>
-                                    {{ person.type }}
-                                </StatusPill>
-                                <span
-                                    class="text-[12.5px] font-medium text-muted"
+                            <tr>
+                                <th class="px-5 py-3 font-medium">Person</th>
+                                <th class="px-5 py-3 font-medium">Leave</th>
+                                <th class="px-5 py-3 font-medium">Dates</th>
+                                <th class="px-5 py-3 font-medium">Cover</th>
+                                <th class="px-5 py-3 text-right font-medium">
+                                    Back
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line-soft">
+                            <tr v-if="awayNow.length === 0">
+                                <td colspan="5">
+                                    <EmptyState
+                                        title="Everybody is in"
+                                        message="Nobody has approved leave covering today. Widen the window to see what is booked ahead."
+                                    >
+                                        <template #icon>
+                                            <svg
+                                                class="size-5"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.7"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                            >
+                                                <path
+                                                    d="M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20M9 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM16 12l2 2 4-4"
+                                                />
+                                            </svg>
+                                        </template>
+                                    </EmptyState>
+                                </td>
+                            </tr>
+                            <tr
+                                v-for="person in awayPages.paged"
+                                :key="person.id"
+                                class="transition-colors hover:bg-sunken/40"
+                            >
+                                <td class="px-5 py-3.5">
+                                    <component
+                                        :is="isAdmin ? Link : 'div'"
+                                        :href="
+                                            isAdmin
+                                                ? `/admin/staff/${person.user.id}`
+                                                : undefined
+                                        "
+                                        class="flex items-center gap-3"
+                                    >
+                                        <Avatar
+                                            :initials="person.user.initials"
+                                            :name="person.user.name"
+                                            size="sm"
+                                        />
+                                        <span class="min-w-0">
+                                            <span
+                                                class="block truncate font-medium"
+                                            >
+                                                {{ person.user.name }}
+                                            </span>
+                                            <span
+                                                class="block truncate text-[11.5px] text-faint"
+                                            >
+                                                {{
+                                                    person.user.department ??
+                                                    person.user.position ??
+                                                    person.user.location ??
+                                                    '-'
+                                                }}
+                                            </span>
+                                        </span>
+                                    </component>
+                                </td>
+                                <td class="px-5 py-3.5">
+                                    <StatusPill tone="brass" dot>
+                                        {{ person.type }}
+                                    </StatusPill>
+                                </td>
+                                <td
+                                    class="px-5 py-3.5 whitespace-nowrap text-muted"
                                 >
                                     {{ person.range_label }}
-                                </span>
-                            </div>
-                            <p
-                                v-if="person.relief_officer"
-                                class="mt-1 text-[12.5px] text-faint"
-                            >
-                                Covered by {{ person.relief_officer }}
-                            </p>
-                        </div>
+                                </td>
+                                <td class="px-5 py-3.5 text-muted">
+                                    {{ person.relief_officer ?? '-' }}
+                                </td>
+                                <td class="px-5 py-3.5 text-right">
+                                    <p class="font-medium">
+                                        {{ backLabel(person) }}
+                                    </p>
+                                    <p
+                                        class="tabular font-mono text-[11.5px] text-faint"
+                                    >
+                                        {{ person.days_left }} of
+                                        {{ person.days }} working day{{
+                                            person.days === 1 ? '' : 's'
+                                        }}
+                                        left
+                                    </p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
 
-                        <div class="text-right">
-                            <p class="text-[13px] font-medium">
-                                {{ backLabel(person) }}
-                            </p>
-                            <p
-                                class="tabular mt-0.5 font-mono text-[11.5px] text-faint"
-                            >
-                                {{ person.days_left }} of
-                                {{ person.days }} working day{{
-                                    person.days === 1 ? '' : 's'
-                                }}
-                                left
-                            </p>
-                        </div>
-                    </li>
-                </ul>
-
-                <EmptyState
-                    v-else
-                    title="Everybody is in"
-                    message="Nobody has approved leave covering today. Widen the window to see what is booked ahead."
-                >
-                    <template #icon>
-                        <svg
-                            class="size-5"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="1.7"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                        >
-                            <path
-                                d="M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20M9 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM16 12l2 2 4-4"
-                            />
-                        </svg>
-                    </template>
-                </EmptyState>
+                <Pagination
+                    v-model:page="awayPages.page"
+                    v-model:per-page="awayPages.perPage"
+                    :last-page="awayPages.lastPage"
+                    :from="awayPages.from"
+                    :to="awayPages.to"
+                    :total="awayPages.total"
+                />
             </Panel>
 
             <!-- Booked, but not started yet. Only shown once the window reaches
                  past today. -->
             <Panel
-                v-if="upcoming.length"
                 flush
                 eyebrow="Booked ahead"
                 :title="`${upcoming.length} more in this window`"
             >
-                <ul class="divide-y divide-line-soft">
-                    <li
-                        v-for="person in upcoming"
-                        :key="person.id"
-                        class="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3.5 transition-colors hover:bg-line-soft/40"
-                    >
-                        <div
-                            class="flex min-w-[200px] flex-1 items-center gap-3"
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[640px] text-[13.5px]">
+                        <thead
+                            class="border-b border-line-soft text-left text-[12px] text-faint"
                         >
-                            <Avatar
-                                :initials="person.user.initials"
-                                :name="person.user.name"
-                                size="sm"
-                            />
-                            <span class="min-w-0">
-                                <span
-                                    class="block truncate text-[13.5px] font-medium"
-                                >
-                                    {{ person.user.name }}
-                                </span>
-                                <span
-                                    class="block truncate text-[11.5px] text-faint"
-                                >
+                            <tr>
+                                <th class="px-5 py-3 font-medium">Person</th>
+                                <th class="px-5 py-3 font-medium">Leave</th>
+                                <th class="px-5 py-3 font-medium">Dates</th>
+                                <th class="px-5 py-3 text-right font-medium">
+                                    Starts
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line-soft">
+                            <tr v-if="upcoming.length === 0">
+                                <td colspan="4">
+                                    <EmptyState
+                                        :title="'Nothing booked ahead'"
+                                        message="Nobody has approved leave starting later in this window. Widen it to look further out."
+                                    />
+                                </td>
+                            </tr>
+                            <tr
+                                v-for="person in upcomingPages.paged"
+                                :key="person.id"
+                                class="transition-colors hover:bg-sunken/40"
+                            >
+                                <td class="px-5 py-3.5">
+                                    <component
+                                        :is="isAdmin ? Link : 'div'"
+                                        :href="
+                                            isAdmin
+                                                ? `/admin/staff/${person.user.id}`
+                                                : undefined
+                                        "
+                                        class="flex items-center gap-3"
+                                    >
+                                        <Avatar
+                                            :initials="person.user.initials"
+                                            :name="person.user.name"
+                                            size="sm"
+                                        />
+                                        <span class="min-w-0">
+                                            <span
+                                                class="block truncate font-medium"
+                                            >
+                                                {{ person.user.name }}
+                                            </span>
+                                            <span
+                                                class="block truncate text-[11.5px] text-faint"
+                                            >
+                                                {{
+                                                    person.user.department ??
+                                                    person.user.position ??
+                                                    person.user.location ??
+                                                    '-'
+                                                }}
+                                            </span>
+                                        </span>
+                                    </component>
+                                </td>
+                                <td class="px-5 py-3.5 text-muted">
                                     {{ person.type }} ·
                                     {{ person.days }} working day{{
                                         person.days === 1 ? '' : 's'
                                     }}
-                                </span>
-                            </span>
-                        </div>
+                                </td>
+                                <td
+                                    class="px-5 py-3.5 whitespace-nowrap text-muted"
+                                >
+                                    {{ person.range_label }}
+                                </td>
+                                <td
+                                    class="tabular px-5 py-3.5 text-right font-mono text-[12px] text-faint"
+                                >
+                                    in {{ person.starts_in }} day{{
+                                        person.starts_in === 1 ? '' : 's'
+                                    }}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
 
-                        <p class="text-[12.5px] text-muted">
-                            {{ person.range_label }}
-                        </p>
-
-                        <p
-                            class="tabular ml-auto font-mono text-[11.5px] text-faint"
-                        >
-                            in {{ person.starts_in }} day{{
-                                person.starts_in === 1 ? '' : 's'
-                            }}
-                        </p>
-                    </li>
-                </ul>
+                <Pagination
+                    v-model:page="upcomingPages.page"
+                    v-model:per-page="upcomingPages.perPage"
+                    :last-page="upcomingPages.lastPage"
+                    :from="upcomingPages.from"
+                    :to="upcomingPages.to"
+                    :total="upcomingPages.total"
+                />
             </Panel>
             <!-- At work, elsewhere. Kept apart from the away lists above: a
                  day at a client site is not a day off, and nobody should be
                  chasing cover for it. -->
             <Panel
-                v-if="elsewhere.length"
                 flush
                 eyebrow="Out of the office"
                 :title="`${elsewhere.length} working elsewhere`"
                 subtitle="Still at work, and still reachable."
             >
-                <ul class="divide-y divide-line-soft">
-                    <li
-                        v-for="person in elsewhere"
-                        :key="person.id"
-                        class="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3.5 transition-colors hover:bg-line-soft/40"
-                    >
-                        <div
-                            class="flex min-w-[200px] flex-1 items-center gap-3"
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[640px] text-[13.5px]">
+                        <thead
+                            class="border-b border-line-soft text-left text-[12px] text-faint"
                         >
-                            <Avatar
-                                :initials="person.user.initials"
-                                :name="person.user.name"
-                                size="sm"
-                            />
-                            <span class="min-w-0">
-                                <span
-                                    class="block truncate text-[13.5px] font-medium"
-                                >
-                                    {{ person.user.name }}
-                                </span>
-                                <span
-                                    class="block truncate text-[11.5px] text-faint"
+                            <tr>
+                                <th class="px-5 py-3 font-medium">Person</th>
+                                <th class="px-5 py-3 font-medium">Dates</th>
+                                <th class="px-5 py-3 font-medium">Where</th>
+                                <th class="px-5 py-3 font-medium">Contact</th>
+                                <th class="px-5 py-3 text-right font-medium">
+                                    Kind
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line-soft">
+                            <tr v-if="elsewhere.length === 0">
+                                <td colspan="5">
+                                    <EmptyState
+                                        :title="'Nobody working elsewhere'"
+                                        message="Nobody is working from home or away on company business in this window."
+                                    />
+                                </td>
+                            </tr>
+                            <tr
+                                v-for="person in elsewherePages.paged"
+                                :key="person.id"
+                                class="transition-colors hover:bg-sunken/40"
+                            >
+                                <td class="px-5 py-3.5">
+                                    <component
+                                        :is="isAdmin ? Link : 'div'"
+                                        :href="
+                                            isAdmin
+                                                ? `/admin/staff/${person.user.id}`
+                                                : undefined
+                                        "
+                                        class="flex items-center gap-3"
+                                    >
+                                        <Avatar
+                                            :initials="person.user.initials"
+                                            :name="person.user.name"
+                                            size="sm"
+                                        />
+                                        <span class="min-w-0">
+                                            <span
+                                                class="block truncate font-medium"
+                                            >
+                                                {{ person.user.name }}
+                                            </span>
+                                            <span
+                                                class="block truncate text-[11.5px] text-faint"
+                                            >
+                                                {{
+                                                    person.user.department ??
+                                                    person.user.position ??
+                                                    person.user.location ??
+                                                    '-'
+                                                }}
+                                            </span>
+                                        </span>
+                                    </component>
+                                </td>
+                                <td
+                                    class="px-5 py-3.5 whitespace-nowrap text-muted"
                                 >
                                     {{ person.range_label }}
-                                    <template v-if="person.destination">
-                                        · {{ person.destination }}
-                                    </template>
-                                </span>
-                            </span>
-                        </div>
+                                </td>
+                                <td class="px-5 py-3.5 text-muted">
+                                    {{ person.destination ?? '-' }}
+                                </td>
+                                <td
+                                    class="tabular px-5 py-3.5 font-mono text-[12px] text-muted"
+                                >
+                                    {{ person.contact_number ?? '-' }}
+                                </td>
+                                <td class="px-5 py-3.5 text-right">
+                                    <StatusPill
+                                        :tone="person.kind_tone"
+                                        :dot="person.is_out_now"
+                                    >
+                                        {{ person.kind_label }}
+                                    </StatusPill>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
 
-                        <p
-                            v-if="person.contact_number"
-                            class="tabular font-mono text-[12px] text-muted"
-                        >
-                            {{ person.contact_number }}
-                        </p>
-
-                        <StatusPill
-                            :tone="person.kind_tone"
-                            :dot="person.is_out_now"
-                        >
-                            {{ person.kind_label }}
-                        </StatusPill>
-                    </li>
-                </ul>
+                <Pagination
+                    v-model:page="elsewherePages.page"
+                    v-model:per-page="elsewherePages.perPage"
+                    :last-page="elsewherePages.lastPage"
+                    :from="elsewherePages.from"
+                    :to="elsewherePages.to"
+                    :total="elsewherePages.total"
+                />
             </Panel>
         </div>
     </AppLayout>

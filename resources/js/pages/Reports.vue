@@ -4,11 +4,13 @@ import { computed, ref } from 'vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
+import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
 import SelectField from '@/components/ui/SelectField.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import TextareaField from '@/components/ui/TextareaField.vue';
 import TextField from '@/components/ui/TextField.vue';
+import { usePaginated } from '@/composables/usePaginated';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dateTime, fullDate } from '@/lib/format';
 import type { ReportCategoryOption, ReportStatusTone } from '@/types';
@@ -102,6 +104,8 @@ function submit() {
         },
     });
 }
+
+const pages = usePaginated(() => props.reports);
 </script>
 
 <template>
@@ -167,95 +171,142 @@ function submit() {
                 "
                 flush
             >
-                <EmptyState
-                    v-if="reports.length === 0"
-                    title="You have not reported anything"
-                    message="If something has happened, raise it. Every report is read, and you will see here when it has been picked up."
-                >
-                    <template #action>
-                        <AppButton size="sm" @click="start">
-                            Make a report
-                        </AppButton>
-                    </template>
-                </EmptyState>
-
-                <ul v-else class="divide-y divide-line-soft">
-                    <li v-for="row in reports" :key="row.id" class="px-5 py-4">
-                        <div
-                            class="flex flex-wrap items-start justify-between gap-3"
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[760px] text-[13.5px]">
+                        <thead
+                            class="border-b border-line-soft text-left text-[12px] text-faint"
                         >
-                            <div class="min-w-0">
-                                <p
-                                    class="text-[14px] font-semibold tracking-tight"
+                            <tr>
+                                <th class="px-5 py-3 font-medium">Subject</th>
+                                <th class="px-5 py-3 font-medium">Category</th>
+                                <th class="px-5 py-3 font-medium">Happened</th>
+                                <th class="px-5 py-3 font-medium">Filed</th>
+                                <th class="px-5 py-3 font-medium">Status</th>
+                                <th class="px-5 py-3"></th>
+                            </tr>
+                        </thead>
+
+                        <tbody class="divide-y divide-line-soft">
+                            <tr v-if="reports.length === 0">
+                                <td colspan="6">
+                                    <EmptyState
+                                        title="You have not reported anything"
+                                        message="If something has happened, raise it. Every report is read, and you will see here when it has been picked up."
+                                    >
+                                        <template #action>
+                                            <AppButton size="sm" @click="start">
+                                                Make a report
+                                            </AppButton>
+                                        </template>
+                                    </EmptyState>
+                                </td>
+                            </tr>
+                            <template v-for="row in pages.paged" :key="row.id">
+                                <tr
+                                    class="transition-colors hover:bg-sunken/40"
                                 >
-                                    {{ row.subject }}
-                                </p>
-                                <p class="mt-0.5 text-[12.5px] text-muted">
-                                    {{ row.category_label }}
-                                    <template v-if="row.against">
-                                        · about {{ row.against }}
-                                    </template>
-                                    <template v-if="row.occurred_on">
-                                        · {{ fullDate(row.occurred_on) }}
-                                    </template>
-                                </p>
-                            </div>
+                                    <td class="px-5 py-3.5">
+                                        <p class="font-medium">
+                                            {{ row.subject }}
+                                        </p>
+                                        <p
+                                            v-if="row.against"
+                                            class="text-[12px] text-faint"
+                                        >
+                                            About {{ row.against }}
+                                        </p>
+                                    </td>
+                                    <td class="px-5 py-3.5 text-muted">
+                                        {{ row.category_label }}
+                                    </td>
+                                    <td
+                                        class="px-5 py-3.5 whitespace-nowrap text-muted"
+                                    >
+                                        {{
+                                            row.occurred_on
+                                                ? fullDate(row.occurred_on)
+                                                : '-'
+                                        }}
+                                    </td>
+                                    <td
+                                        class="px-5 py-3.5 text-[12.5px] whitespace-nowrap text-muted"
+                                    >
+                                        {{ dateTime(row.created_at) }}
+                                    </td>
+                                    <td class="px-5 py-3.5">
+                                        <StatusPill :tone="row.status_tone" dot>
+                                            {{ row.status_label }}
+                                        </StatusPill>
+                                    </td>
+                                    <td class="px-5 py-3.5 text-right">
+                                        <div
+                                            class="flex items-center justify-end gap-1"
+                                        >
+                                            <a
+                                                v-if="row.has_evidence"
+                                                :href="`/reports/${row.id}/evidence`"
+                                                class="px-2 text-[12.5px] font-medium text-beacon hover:underline"
+                                            >
+                                                Attachment
+                                            </a>
+                                            <AppButton
+                                                variant="ghost"
+                                                size="sm"
+                                                @click="
+                                                    expanded =
+                                                        expanded === row.id
+                                                            ? null
+                                                            : row.id
+                                                "
+                                            >
+                                                {{
+                                                    expanded === row.id
+                                                        ? 'Hide'
+                                                        : 'Read'
+                                                }}
+                                            </AppButton>
+                                        </div>
+                                    </td>
+                                </tr>
 
-                            <StatusPill :tone="row.status_tone" dot>
-                                {{ row.status_label }}
-                            </StatusPill>
-                        </div>
+                                <tr v-if="expanded === row.id">
+                                    <td
+                                        colspan="6"
+                                        class="bg-sunken/40 px-5 py-3"
+                                    >
+                                        <p
+                                            class="text-[13px] leading-relaxed whitespace-pre-line text-muted"
+                                        >
+                                            {{ row.body }}
+                                        </p>
+                                        <p
+                                            v-if="row.place"
+                                            class="mt-2 text-[12px] text-faint"
+                                        >
+                                            Where: {{ row.place }}
+                                        </p>
+                                        <p
+                                            v-if="row.handled_at"
+                                            class="mt-2 text-[12px] text-faint"
+                                        >
+                                            Closed
+                                            {{ dateTime(row.handled_at) }}
+                                        </p>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
 
-                        <div class="mt-3 flex flex-wrap items-center gap-3">
-                            <button
-                                type="button"
-                                class="text-[12.5px] font-medium text-muted transition-colors hover:text-text"
-                                @click="
-                                    expanded =
-                                        expanded === row.id ? null : row.id
-                                "
-                            >
-                                {{ expanded === row.id ? 'Hide' : 'Show' }} what
-                                you wrote
-                            </button>
-
-                            <a
-                                v-if="row.has_evidence"
-                                :href="`/reports/${row.id}/evidence`"
-                                class="text-[12.5px] font-medium text-beacon hover:underline"
-                            >
-                                Your attachment
-                            </a>
-
-                            <span class="text-[12px] text-faint">
-                                Filed {{ dateTime(row.created_at) }}
-                            </span>
-                        </div>
-
-                        <div
-                            v-if="expanded === row.id"
-                            class="mt-3 rounded-xl bg-sunken/50 p-3"
-                        >
-                            <p
-                                class="text-[13px] leading-relaxed whitespace-pre-line text-muted"
-                            >
-                                {{ row.body }}
-                            </p>
-                            <p
-                                v-if="row.place"
-                                class="mt-2 text-[12px] text-faint"
-                            >
-                                Where: {{ row.place }}
-                            </p>
-                            <p
-                                v-if="row.handled_at"
-                                class="mt-2 text-[12px] text-faint"
-                            >
-                                Closed {{ dateTime(row.handled_at) }}
-                            </p>
-                        </div>
-                    </li>
-                </ul>
+                <Pagination
+                    v-model:page="pages.page"
+                    v-model:per-page="pages.perPage"
+                    :last-page="pages.lastPage"
+                    :from="pages.from"
+                    :to="pages.to"
+                    :total="pages.total"
+                />
             </Panel>
         </div>
 

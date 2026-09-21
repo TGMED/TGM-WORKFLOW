@@ -4,10 +4,12 @@ import { computed, ref } from 'vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
+import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
 import SelectField from '@/components/ui/SelectField.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import TextField from '@/components/ui/TextField.vue';
+import { usePaginated } from '@/composables/usePaginated';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dateTime } from '@/lib/format';
 
@@ -106,6 +108,8 @@ function withdraw() {
         },
     });
 }
+
+const pages = usePaginated(() => props.recommendations);
 </script>
 
 <template>
@@ -127,75 +131,101 @@ function withdraw() {
 
         <div class="space-y-6">
             <Panel flush title="Cases you have raised">
-                <EmptyState
-                    v-if="recommendations.length === 0"
-                    :title="
-                        people.length === 0
-                            ? 'Nobody answers to you'
-                            : 'Nothing raised'
-                    "
-                    :message="
-                        people.length === 0
-                            ? 'This page is for managers putting a case to HR about somebody who reports to them.'
-                            : 'If it has come to this, set the case out here and HR will answer it.'
-                    "
-                />
-
-                <ul v-else class="divide-y divide-line-soft">
-                    <li
-                        v-for="row in recommendations"
-                        :key="row.id"
-                        class="px-5 py-4"
-                    >
-                        <div
-                            class="flex flex-wrap items-start justify-between gap-3"
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[760px] text-[13.5px]">
+                        <thead
+                            class="border-b border-line-soft text-left text-[12px] text-faint"
                         >
-                            <div class="min-w-0">
-                                <p
-                                    class="text-[14px] font-semibold tracking-tight"
+                            <tr>
+                                <th class="px-5 py-3 font-medium">Subject</th>
+                                <th class="px-5 py-3 font-medium">Grounds</th>
+                                <th class="px-5 py-3 font-medium">Raised</th>
+                                <th class="px-5 py-3 font-medium">Status</th>
+                                <th class="px-5 py-3"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line-soft">
+                            <tr v-if="recommendations.length === 0">
+                                <td colspan="5">
+                                    <EmptyState
+                                        :title="
+                                            people.length === 0
+                                                ? 'Nobody answers to you'
+                                                : 'Nothing raised'
+                                        "
+                                        :message="
+                                            people.length === 0
+                                                ? 'This page is for managers putting a case to HR about somebody who reports to them.'
+                                                : 'If it has come to this, set the case out here and HR will answer it.'
+                                        "
+                                    />
+                                </td>
+                            </tr>
+                            <tr
+                                v-for="row in pages.paged"
+                                :key="row.id"
+                                class="align-top transition-colors hover:bg-sunken/40"
+                            >
+                                <td class="px-5 py-3.5">
+                                    <p class="font-medium">
+                                        {{ row.subject }}
+                                    </p>
+                                    <p class="text-[12px] text-faint">
+                                        <template v-if="row.offence">
+                                            {{ row.offence }} ·
+                                        </template>
+                                        occurrence {{ row.occurrence }}
+                                    </p>
+                                </td>
+                                <td class="px-5 py-3.5">
+                                    <p
+                                        class="max-w-[26rem] text-[12.5px] leading-relaxed text-faint"
+                                    >
+                                        {{ row.grounds }}
+                                    </p>
+                                    <p
+                                        v-if="row.hr_note"
+                                        class="mt-2 max-w-[26rem] rounded-xl bg-sunken/60 px-3 py-2 text-[12.5px] leading-relaxed text-muted"
+                                    >
+                                        <span class="font-medium">
+                                            {{ row.decided_by ?? 'HR' }}:
+                                        </span>
+                                        {{ row.hr_note }}
+                                    </p>
+                                </td>
+                                <td
+                                    class="px-5 py-3.5 text-[12.5px] whitespace-nowrap text-muted"
                                 >
-                                    {{ row.subject }}
-                                </p>
-                                <p class="mt-0.5 text-[12.5px] text-muted">
-                                    <template v-if="row.offence">
-                                        {{ row.offence }} ·
-                                    </template>
-                                    occurrence {{ row.occurrence }} · raised
                                     {{ dateTime(row.created_at) }}
-                                </p>
-                                <p
-                                    class="mt-1.5 max-w-prose text-[13px] leading-relaxed text-faint"
-                                >
-                                    {{ row.grounds }}
-                                </p>
+                                </td>
+                                <td class="px-5 py-3.5">
+                                    <StatusPill :tone="row.status_tone" dot>
+                                        {{ row.status_label }}
+                                    </StatusPill>
+                                </td>
+                                <td class="px-5 py-3.5 text-right">
+                                    <AppButton
+                                        v-if="row.status === 'pending'"
+                                        size="sm"
+                                        variant="ghost"
+                                        @click="withdrawing = row"
+                                    >
+                                        Withdraw
+                                    </AppButton>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
 
-                                <p
-                                    v-if="row.hr_note"
-                                    class="mt-2 max-w-prose rounded-xl bg-sunken/60 px-3 py-2 text-[13px] leading-relaxed text-muted"
-                                >
-                                    <span class="font-medium">
-                                        {{ row.decided_by ?? 'HR' }}:
-                                    </span>
-                                    {{ row.hr_note }}
-                                </p>
-                            </div>
-
-                            <div class="flex shrink-0 items-center gap-2">
-                                <StatusPill :tone="row.status_tone" dot>
-                                    {{ row.status_label }}
-                                </StatusPill>
-                                <AppButton
-                                    v-if="row.status === 'pending'"
-                                    size="sm"
-                                    variant="ghost"
-                                    @click="withdrawing = row"
-                                >
-                                    Withdraw
-                                </AppButton>
-                            </div>
-                        </div>
-                    </li>
-                </ul>
+                <Pagination
+                    v-model:page="pages.page"
+                    v-model:per-page="pages.perPage"
+                    :last-page="pages.lastPage"
+                    :from="pages.from"
+                    :to="pages.to"
+                    :total="pages.total"
+                />
             </Panel>
         </div>
 

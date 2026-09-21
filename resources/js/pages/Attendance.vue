@@ -2,9 +2,11 @@
 import { Head, Link, router } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
+import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
 import StatTile from '@/components/ui/StatTile.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
+import { usePaginated } from '@/composables/usePaginated';
 import AppLayout from '@/layouts/AppLayout.vue';
 import {
     attendanceLabel,
@@ -84,6 +86,9 @@ const resultTone = (result: string) =>
         : result === 'out_of_range'
           ? ('alert' as const)
           : ('brass' as const);
+
+const recordPages = usePaginated(() => props.records);
+const attemptPages = usePaginated(() => props.attempts);
 </script>
 
 <template>
@@ -210,7 +215,7 @@ const resultTone = (result: string) =>
             </div>
 
             <Panel v-if="tab === 'records'" flush>
-                <div v-if="records.length" class="overflow-x-auto">
+                <div class="overflow-x-auto">
                     <table class="w-full min-w-[780px] text-left">
                         <thead>
                             <tr class="border-b border-line-soft">
@@ -240,8 +245,16 @@ const resultTone = (result: string) =>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-line-soft">
+                            <tr v-if="!records.length">
+                                <td colspan="7">
+                                    <EmptyState
+                                        :title="`Nothing recorded in ${month_label}`"
+                                        message="Days you clock in will appear here with arrival time, hours worked and how far you were from the office."
+                                    />
+                                </td>
+                            </tr>
                             <tr
-                                v-for="record in records"
+                                v-for="record in recordPages.paged"
                                 :key="record.id"
                                 class="transition-colors hover:bg-line-soft/40"
                             >
@@ -309,64 +322,102 @@ const resultTone = (result: string) =>
                     </table>
                 </div>
 
-                <EmptyState
-                    v-else
-                    :title="`Nothing recorded in ${month_label}`"
-                    message="Days you clock in will appear here with arrival time, hours worked and how far you were from the office."
+                <Pagination
+                    v-model:page="recordPages.page"
+                    v-model:per-page="recordPages.perPage"
+                    :last-page="recordPages.lastPage"
+                    :from="recordPages.from"
+                    :to="recordPages.to"
+                    :total="recordPages.total"
                 />
             </Panel>
 
             <!-- Every trial, in order. -->
             <Panel v-else flush>
-                <ul v-if="attempts.length" class="divide-y divide-line-soft">
-                    <li
-                        v-for="attempt in attempts"
-                        :key="attempt.id"
-                        class="flex flex-wrap items-start gap-x-4 gap-y-2 px-5 py-3.5 transition-colors hover:bg-line-soft/40"
-                    >
-                        <div class="min-w-0 flex-1">
-                            <div class="flex flex-wrap items-center gap-2">
-                                <StatusPill :tone="resultTone(attempt.result)">
-                                    {{ attempt.result_label }}
-                                </StatusPill>
-                                <span class="text-[13px] font-medium">
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[720px] text-left">
+                        <thead>
+                            <tr class="border-b border-line-soft">
+                                <th class="eyebrow px-5 py-3 font-medium">
+                                    Result
+                                </th>
+                                <th class="eyebrow px-5 py-3 font-medium">
+                                    Attempt
+                                </th>
+                                <th class="eyebrow px-5 py-3 font-medium">
+                                    Detail
+                                </th>
+                                <th class="eyebrow px-5 py-3 font-medium">
+                                    When
+                                </th>
+                                <th
+                                    class="eyebrow px-5 py-3 text-right font-medium"
+                                >
+                                    Distance
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line-soft">
+                            <tr v-if="!attempts.length">
+                                <td colspan="5">
+                                    <EmptyState
+                                        title="No punch attempts logged"
+                                        message="Every clock-in and clock-out you try is written here, whether it was accepted or turned away."
+                                    />
+                                </td>
+                            </tr>
+                            <tr
+                                v-for="attempt in attemptPages.paged"
+                                :key="attempt.id"
+                                class="transition-colors hover:bg-line-soft/40"
+                            >
+                                <td class="px-5 py-3">
+                                    <StatusPill
+                                        :tone="resultTone(attempt.result)"
+                                    >
+                                        {{ attempt.result_label }}
+                                    </StatusPill>
+                                </td>
+                                <td class="px-5 py-3 text-[13px] font-medium">
                                     {{ attempt.type_label }}
-                                </span>
-                            </div>
-                            <p
-                                v-if="attempt.message"
-                                class="mt-1 text-[12.5px] leading-snug text-muted"
-                            >
-                                {{ attempt.message }}
-                            </p>
-                        </div>
-
-                        <div class="text-right">
-                            <p class="tabular font-mono text-[12px] text-muted">
-                                {{ dateTime(attempt.created_at) }}
-                            </p>
-                            <p
-                                class="tabular mt-0.5 font-mono text-[11px] text-faint"
-                            >
-                                <template
-                                    v-if="attempt.distance_meters !== null"
+                                </td>
+                                <td
+                                    class="px-5 py-3 text-[12.5px] leading-snug text-muted"
                                 >
-                                    {{ distance(attempt.distance_meters) }} out
-                                </template>
-                                <template
-                                    v-if="attempt.accuracy_meters !== null"
+                                    {{ attempt.message ?? '-' }}
+                                </td>
+                                <td
+                                    class="tabular px-5 py-3 font-mono text-[12px] whitespace-nowrap text-muted"
                                 >
-                                    · ±{{ attempt.accuracy_meters }}m
-                                </template>
-                            </p>
-                        </div>
-                    </li>
-                </ul>
+                                    {{ dateTime(attempt.created_at) }}
+                                </td>
+                                <td
+                                    class="tabular px-5 py-3 text-right font-mono text-[11.5px] whitespace-nowrap text-faint"
+                                >
+                                    <template
+                                        v-if="attempt.distance_meters !== null"
+                                    >
+                                        {{ distance(attempt.distance_meters) }}
+                                        out
+                                    </template>
+                                    <template
+                                        v-if="attempt.accuracy_meters !== null"
+                                    >
+                                        · ±{{ attempt.accuracy_meters }}m
+                                    </template>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
 
-                <EmptyState
-                    v-else
-                    title="No punch attempts logged"
-                    message="Every clock-in and clock-out you try is written here, whether it was accepted or turned away."
+                <Pagination
+                    v-model:page="attemptPages.page"
+                    v-model:per-page="attemptPages.perPage"
+                    :last-page="attemptPages.lastPage"
+                    :from="attemptPages.from"
+                    :to="attemptPages.to"
+                    :total="attemptPages.total"
                 />
             </Panel>
 

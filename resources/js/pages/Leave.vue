@@ -4,10 +4,12 @@ import { computed, ref, watch } from 'vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
+import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
 import SelectField from '@/components/ui/SelectField.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import TextField from '@/components/ui/TextField.vue';
+import { usePaginated } from '@/composables/usePaginated';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dateTime } from '@/lib/format';
 import { dayKey, holidayNote, holidaysBetween } from '@/lib/holidays';
@@ -189,6 +191,10 @@ const visibleRequests = computed(() => {
             row.range_label,
         ].some((field) => field.toLowerCase().includes(term));
     });
+});
+
+const pages = usePaginated(() => visibleRequests.value, {
+    resetOn: () => [statusFilter.value, typeFilter.value, rowSearch.value],
 });
 
 const filtered = computed(
@@ -690,263 +696,271 @@ function toggleTrail(row: LeaveRow) {
                     </div>
                 </template>
 
-                <EmptyState
-                    v-if="requests.length === 0"
-                    title="No leave requested yet"
-                    :message="`Nothing booked in ${year}. When you book time off it shows here with where it has reached in the approval run.`"
+                <div
+                    class="flex flex-wrap items-end gap-3 border-b border-line-soft px-5 py-4"
                 >
-                    <template #action>
-                        <AppButton
-                            size="sm"
-                            :disabled="balances.length === 0"
-                            @click="open"
-                        >
-                            Request leave
-                        </AppButton>
-                    </template>
-                </EmptyState>
-
-                <template v-else>
-                    <div
-                        class="flex flex-wrap items-end gap-3 border-b border-line-soft px-5 py-4"
-                    >
-                        <div class="w-44">
-                            <SelectField
-                                v-model="statusFilter"
-                                label="Status"
-                                :options="statusOptions"
-                            />
-                        </div>
-                        <div class="w-52">
-                            <SelectField
-                                v-model="typeFilter"
-                                label="Leave type"
-                                :options="typeFilterOptions"
-                            />
-                        </div>
-                        <div class="min-w-[12rem] flex-1">
-                            <TextField
-                                v-model="rowSearch"
-                                label="Search"
-                                placeholder="Reason, cover, approver"
-                            />
-                        </div>
-                        <AppButton
-                            v-if="filtered"
-                            variant="ghost"
-                            size="sm"
-                            @click="clearFilters"
-                        >
-                            Clear
-                        </AppButton>
+                    <div class="w-44">
+                        <SelectField
+                            v-model="statusFilter"
+                            label="Status"
+                            :options="statusOptions"
+                        />
                     </div>
-
-                    <EmptyState
-                        v-if="visibleRequests.length === 0"
-                        title="Nothing matches those filters"
-                        message="Widen them, or clear them to see the whole year again."
+                    <div class="w-52">
+                        <SelectField
+                            v-model="typeFilter"
+                            label="Leave type"
+                            :options="typeFilterOptions"
+                        />
+                    </div>
+                    <div class="min-w-[12rem] flex-1">
+                        <TextField
+                            v-model="rowSearch"
+                            label="Search"
+                            placeholder="Reason, cover, approver"
+                        />
+                    </div>
+                    <AppButton
+                        v-if="filtered"
+                        variant="ghost"
+                        size="sm"
+                        @click="clearFilters"
                     >
-                        <template #action>
-                            <AppButton size="sm" @click="clearFilters">
-                                Clear filters
-                            </AppButton>
-                        </template>
-                    </EmptyState>
+                        Clear
+                    </AppButton>
+                </div>
 
-                    <div v-else class="overflow-x-auto">
-                        <table class="w-full text-[13.5px]">
-                            <thead
-                                class="border-b border-line-soft text-left text-[12px] text-faint"
-                            >
-                                <tr>
-                                    <th class="px-5 py-3 font-medium">Type</th>
-                                    <th class="px-5 py-3 font-medium">Dates</th>
-                                    <th
-                                        class="px-5 py-3 text-right font-medium"
+                <div class="overflow-x-auto">
+                    <table class="w-full text-[13.5px]">
+                        <thead
+                            class="border-b border-line-soft text-left text-[12px] text-faint"
+                        >
+                            <tr>
+                                <th class="px-5 py-3 font-medium">Type</th>
+                                <th class="px-5 py-3 font-medium">Dates</th>
+                                <th class="px-5 py-3 text-right font-medium">
+                                    Days
+                                </th>
+                                <th class="px-5 py-3 font-medium">
+                                    Cover and approver
+                                </th>
+                                <th class="px-5 py-3 font-medium">Status</th>
+                                <th class="px-5 py-3"></th>
+                            </tr>
+                        </thead>
+
+                        <tbody class="divide-y divide-line-soft">
+                            <!-- An empty year keeps the filters and the
+                                     column headings in place, so the page
+                                     does not change shape as leave is booked. -->
+                            <tr v-if="visibleRequests.length === 0">
+                                <td colspan="6">
+                                    <EmptyState
+                                        v-if="requests.length === 0"
+                                        title="No leave requested yet"
+                                        :message="`Nothing booked in ${year}. When you book time off it shows here with where it has reached in the approval run.`"
                                     >
-                                        Days
-                                    </th>
-                                    <th class="px-5 py-3 font-medium">
-                                        Cover and approver
-                                    </th>
-                                    <th class="px-5 py-3 font-medium">
-                                        Status
-                                    </th>
-                                    <th class="px-5 py-3"></th>
-                                </tr>
-                            </thead>
+                                        <template #action>
+                                            <AppButton
+                                                size="sm"
+                                                :disabled="
+                                                    balances.length === 0
+                                                "
+                                                @click="open"
+                                            >
+                                                Request leave
+                                            </AppButton>
+                                        </template>
+                                    </EmptyState>
 
-                            <tbody class="divide-y divide-line-soft">
-                                <template
-                                    v-for="row in visibleRequests"
-                                    :key="row.id"
+                                    <EmptyState
+                                        v-else
+                                        title="Nothing matches those filters"
+                                        message="Widen them, or clear them to see the whole year again."
+                                    >
+                                        <template #action>
+                                            <AppButton
+                                                size="sm"
+                                                @click="clearFilters"
+                                            >
+                                                Clear filters
+                                            </AppButton>
+                                        </template>
+                                    </EmptyState>
+                                </td>
+                            </tr>
+
+                            <template v-for="row in pages.paged" :key="row.id">
+                                <tr
+                                    class="transition-colors hover:bg-sunken/40"
                                 >
-                                    <tr
-                                        class="transition-colors hover:bg-sunken/40"
+                                    <td class="px-5 py-3.5">
+                                        <p class="font-medium">
+                                            {{ row.type }}
+                                        </p>
+                                        <p
+                                            v-if="row.reason"
+                                            class="max-w-[22rem] truncate text-[12px] text-faint"
+                                            :title="row.reason"
+                                        >
+                                            {{ row.reason }}
+                                        </p>
+                                    </td>
+
+                                    <td class="px-5 py-3.5 text-muted">
+                                        {{ row.range_label }}
+                                    </td>
+
+                                    <td
+                                        class="tabular px-5 py-3.5 text-right font-mono"
                                     >
-                                        <td class="px-5 py-3.5">
-                                            <p class="font-medium">
-                                                {{ row.type }}
-                                            </p>
-                                            <p
-                                                v-if="row.reason"
-                                                class="max-w-[22rem] truncate text-[12px] text-faint"
-                                                :title="row.reason"
-                                            >
-                                                {{ row.reason }}
-                                            </p>
-                                        </td>
+                                        {{ row.days }}
+                                    </td>
 
-                                        <td class="px-5 py-3.5 text-muted">
-                                            {{ row.range_label }}
-                                        </td>
+                                    <td
+                                        class="px-5 py-3.5 text-[12.5px] text-muted"
+                                    >
+                                        {{ row.relief_officer ?? '—' }}
+                                        <span class="text-faint">/</span>
+                                        {{ row.supervisor ?? '—' }}
+                                    </td>
 
-                                        <td
-                                            class="tabular px-5 py-3.5 text-right font-mono"
+                                    <td class="px-5 py-3.5">
+                                        <StatusPill :tone="row.status_tone" dot>
+                                            {{ row.status_label }}
+                                        </StatusPill>
+                                        <p
+                                            v-if="row.status === 'pending'"
+                                            class="mt-1 text-[11.5px] text-faint"
                                         >
-                                            {{ row.days }}
-                                        </td>
-
-                                        <td
-                                            class="px-5 py-3.5 text-[12.5px] text-muted"
+                                            {{ row.stage_label }}
+                                        </p>
+                                        <p
+                                            v-else-if="row.needs_resubmit"
+                                            class="mt-1 text-[11.5px] text-brass"
                                         >
-                                            {{ row.relief_officer ?? '—' }}
-                                            <span class="text-faint">/</span>
-                                            {{ row.supervisor ?? '—' }}
-                                        </td>
+                                            Sent back to you
+                                        </p>
+                                    </td>
 
-                                        <td class="px-5 py-3.5">
-                                            <StatusPill
-                                                :tone="row.status_tone"
-                                                dot
+                                    <td class="px-5 py-3.5 text-right">
+                                        <div
+                                            class="flex items-center justify-end gap-1"
+                                        >
+                                            <AppButton
+                                                v-if="row.trail.length"
+                                                variant="ghost"
+                                                size="sm"
+                                                @click="toggleTrail(row)"
                                             >
-                                                {{ row.status_label }}
-                                            </StatusPill>
-                                            <p
-                                                v-if="row.status === 'pending'"
-                                                class="mt-1 text-[11.5px] text-faint"
+                                                {{
+                                                    expanded === row.id
+                                                        ? 'Hide'
+                                                        : 'Trail'
+                                                }}
+                                            </AppButton>
+
+                                            <AppButton
+                                                v-if="row.can_edit"
+                                                :variant="
+                                                    row.needs_resubmit
+                                                        ? 'primary'
+                                                        : 'ghost'
+                                                "
+                                                size="sm"
+                                                @click="edit(row)"
                                             >
-                                                {{ row.stage_label }}
-                                            </p>
-                                            <p
-                                                v-else-if="row.needs_resubmit"
-                                                class="mt-1 text-[11.5px] text-brass"
+                                                {{
+                                                    row.needs_resubmit
+                                                        ? 'Redo'
+                                                        : 'Edit'
+                                                }}
+                                            </AppButton>
+
+                                            <AppButton
+                                                v-if="
+                                                    row.status === 'pending' ||
+                                                    row.needs_resubmit
+                                                "
+                                                variant="ghost"
+                                                size="sm"
+                                                @click="withdrawing = row"
                                             >
-                                                Sent back to you
-                                            </p>
-                                        </td>
+                                                Withdraw
+                                            </AppButton>
+                                        </div>
+                                    </td>
+                                </tr>
 
-                                        <td class="px-5 py-3.5 text-right">
-                                            <div
-                                                class="flex items-center justify-end gap-1"
-                                            >
-                                                <AppButton
-                                                    v-if="row.trail.length"
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    @click="toggleTrail(row)"
-                                                >
-                                                    {{
-                                                        expanded === row.id
-                                                            ? 'Hide'
-                                                            : 'Trail'
-                                                    }}
-                                                </AppButton>
-
-                                                <AppButton
-                                                    v-if="row.can_edit"
-                                                    :variant="
-                                                        row.needs_resubmit
-                                                            ? 'primary'
-                                                            : 'ghost'
-                                                    "
-                                                    size="sm"
-                                                    @click="edit(row)"
-                                                >
-                                                    {{
-                                                        row.needs_resubmit
-                                                            ? 'Redo'
-                                                            : 'Edit'
-                                                    }}
-                                                </AppButton>
-
-                                                <AppButton
-                                                    v-if="
-                                                        row.status ===
-                                                            'pending' ||
-                                                        row.needs_resubmit
-                                                    "
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    @click="withdrawing = row"
-                                                >
-                                                    Withdraw
-                                                </AppButton>
-                                            </div>
-                                        </td>
-                                    </tr>
-
-                                    <!-- The decision trail opens under the row
+                                <!-- The decision trail opens under the row
                                          it belongs to rather than in a modal:
                                          it is read against the request, not
                                          instead of it. -->
-                                    <tr v-if="expanded === row.id">
-                                        <td
-                                            colspan="6"
-                                            class="bg-sunken/40 px-5 py-3"
-                                        >
-                                            <ul class="space-y-2">
-                                                <li
-                                                    v-for="step in row.trail"
-                                                    :key="step.id"
-                                                    class="text-[12.5px]"
+                                <tr v-if="expanded === row.id">
+                                    <td
+                                        colspan="6"
+                                        class="bg-sunken/40 px-5 py-3"
+                                    >
+                                        <ul class="space-y-2">
+                                            <li
+                                                v-for="step in row.trail"
+                                                :key="step.id"
+                                                class="text-[12.5px]"
+                                            >
+                                                <span class="font-medium">
+                                                    {{ step.approver }}
+                                                </span>
+                                                <span class="text-muted">
+                                                    ({{
+                                                        step.stage_label.toLowerCase()
+                                                    }})
+                                                    {{
+                                                        step.decision_label.toLowerCase()
+                                                    }}
+                                                    on
+                                                    {{
+                                                        dateTime(
+                                                            step.decided_at,
+                                                        )
+                                                    }}
+                                                </span>
+                                                <span
+                                                    v-if="step.superseded"
+                                                    class="text-faint"
                                                 >
-                                                    <span class="font-medium">
-                                                        {{ step.approver }}
-                                                    </span>
-                                                    <span class="text-muted">
-                                                        ({{
-                                                            step.stage_label.toLowerCase()
-                                                        }})
-                                                        {{
-                                                            step.decision_label.toLowerCase()
-                                                        }}
-                                                        on
-                                                        {{
-                                                            dateTime(
-                                                                step.decided_at,
-                                                            )
-                                                        }}
-                                                    </span>
-                                                    <span
-                                                        v-if="step.superseded"
-                                                        class="text-faint"
-                                                    >
-                                                        · on an earlier version
-                                                    </span>
-                                                    <p
-                                                        v-if="step.comment"
-                                                        class="text-faint"
-                                                    >
-                                                        “{{ step.comment }}”
-                                                    </p>
-                                                </li>
-                                            </ul>
-                                        </td>
-                                    </tr>
-                                </template>
-                            </tbody>
-                        </table>
+                                                    · on an earlier version
+                                                </span>
+                                                <p
+                                                    v-if="step.comment"
+                                                    class="text-faint"
+                                                >
+                                                    “{{ step.comment }}”
+                                                </p>
+                                            </li>
+                                        </ul>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
 
-                        <p
-                            v-if="filtered"
-                            class="border-t border-line-soft px-5 py-3 text-[12px] text-faint"
-                        >
-                            Showing {{ visibleRequests.length }} of
-                            {{ requests.length }} requests in {{ year }}.
-                        </p>
-                    </div>
-                </template>
+                    <p
+                        v-if="filtered"
+                        class="border-t border-line-soft px-5 py-3 text-[12px] text-faint"
+                    >
+                        {{ visibleRequests.length }} of
+                        {{ requests.length }} requests in {{ year }} match.
+                    </p>
+                </div>
+
+                <Pagination
+                    v-model:page="pages.page"
+                    v-model:per-page="pages.perPage"
+                    :last-page="pages.lastPage"
+                    :from="pages.from"
+                    :to="pages.to"
+                    :total="pages.total"
+                />
             </Panel>
         </div>
 

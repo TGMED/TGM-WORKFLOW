@@ -4,8 +4,10 @@ import { computed, ref } from 'vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
+import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
+import { usePaginated } from '@/composables/usePaginated';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dateTime, duration } from '@/lib/format';
 import type { RequestStatusTone, RequestTrail } from '@/types';
@@ -124,6 +126,9 @@ function withdraw() {
         },
     });
 }
+
+const unexplainedPages = usePaginated(() => props.unexplained);
+const pages = usePaginated(() => props.requests);
 </script>
 
 <template>
@@ -159,31 +164,52 @@ function withdraw() {
                 "
                 flush
             >
-                <ul class="divide-y divide-line-soft">
-                    <li
-                        v-for="day in unexplained"
-                        :key="day.work_date"
-                        class="flex items-center justify-between gap-3 px-5 py-3.5"
-                    >
-                        <div class="min-w-0">
-                            <p class="text-[13.5px] font-medium">
-                                {{ day.day_label }}
-                            </p>
-                            <p class="text-[12.5px] text-muted">
-                                {{ duration(day.late_minutes) }} after start
-                            </p>
-                        </div>
-
-                        <AppButton
-                            variant="secondary"
-                            size="sm"
-                            :disabled="!canFile"
-                            @click="open()"
+                <div class="overflow-x-auto">
+                    <table class="w-full text-[13.5px]">
+                        <thead
+                            class="border-b border-line-soft text-left text-[12px] text-faint"
                         >
-                            Raise
-                        </AppButton>
-                    </li>
-                </ul>
+                            <tr>
+                                <th class="px-5 py-3 font-medium">Day</th>
+                                <th class="px-5 py-3 font-medium">Late by</th>
+                                <th class="px-5 py-3"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line-soft">
+                            <tr
+                                v-for="day in unexplainedPages.paged"
+                                :key="day.work_date"
+                                class="transition-colors hover:bg-sunken/40"
+                            >
+                                <td class="px-5 py-3.5 font-medium">
+                                    {{ day.day_label }}
+                                </td>
+                                <td class="px-5 py-3.5 text-muted">
+                                    {{ duration(day.late_minutes) }} after start
+                                </td>
+                                <td class="px-5 py-3.5 text-right">
+                                    <AppButton
+                                        variant="secondary"
+                                        size="sm"
+                                        :disabled="!canFile"
+                                        @click="open()"
+                                    >
+                                        Raise
+                                    </AppButton>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <Pagination
+                    v-model:page="unexplainedPages.page"
+                    v-model:per-page="unexplainedPages.perPage"
+                    :last-page="unexplainedPages.lastPage"
+                    :from="unexplainedPages.from"
+                    :to="unexplainedPages.to"
+                    :total="unexplainedPages.total"
+                />
             </Panel>
 
             <Panel
@@ -191,106 +217,156 @@ function withdraw() {
                 :subtitle="`${stats.pending} awaiting a decision · ${stats.excused} excused`"
                 flush
             >
-                <EmptyState
-                    v-if="requests.length === 0"
-                    title="Nothing filed yet"
-                    message="Say you will be late and it goes to your approver, who can excuse the day."
-                >
-                    <template #action>
-                        <AppButton
-                            size="sm"
-                            :disabled="!canFile"
-                            @click="open()"
+                <div class="overflow-x-auto">
+                    <table class="w-full text-[13.5px]">
+                        <thead
+                            class="border-b border-line-soft text-left text-[12px] text-faint"
                         >
-                            Raise for today
-                        </AppButton>
-                    </template>
-                </EmptyState>
+                            <tr>
+                                <th class="px-5 py-3 font-medium">Day</th>
+                                <th class="px-5 py-3 font-medium">Late by</th>
+                                <th class="px-5 py-3 font-medium">Reason</th>
+                                <th class="px-5 py-3 font-medium">Status</th>
+                                <th class="px-5 py-3"></th>
+                            </tr>
+                        </thead>
 
-                <ul v-else class="divide-y divide-line-soft">
-                    <li v-for="row in requests" :key="row.id" class="px-5 py-4">
-                        <div
-                            class="flex flex-wrap items-start justify-between gap-3"
-                        >
-                            <div class="min-w-0">
-                                <p
-                                    class="text-[14px] font-semibold tracking-tight"
+                        <tbody class="divide-y divide-line-soft">
+                            <tr v-if="requests.length === 0">
+                                <td colspan="5">
+                                    <EmptyState
+                                        title="Nothing filed yet"
+                                        message="Say you will be late and it goes to your approver, who can excuse the day."
+                                    >
+                                        <template #action>
+                                            <AppButton
+                                                size="sm"
+                                                :disabled="!canFile"
+                                                @click="open()"
+                                            >
+                                                Raise for today
+                                            </AppButton>
+                                        </template>
+                                    </EmptyState>
+                                </td>
+                            </tr>
+                            <template v-for="row in pages.paged" :key="row.id">
+                                <tr
+                                    class="transition-colors hover:bg-sunken/40"
                                 >
-                                    {{ row.day_label }}
-                                </p>
-                                <p class="mt-0.5 text-[13px] text-muted">
-                                    {{ duration(row.minutes_late) }} late
-                                </p>
-                                <p
-                                    class="mt-1.5 max-w-prose text-[13px] leading-relaxed text-faint"
-                                >
-                                    {{ row.reason }}
-                                </p>
-                            </div>
+                                    <td
+                                        class="px-5 py-3.5 font-medium whitespace-nowrap"
+                                    >
+                                        {{ row.day_label }}
+                                    </td>
+                                    <td
+                                        class="px-5 py-3.5 whitespace-nowrap text-muted"
+                                    >
+                                        {{ duration(row.minutes_late) }}
+                                    </td>
+                                    <td class="px-5 py-3.5">
+                                        <p
+                                            class="max-w-[22rem] truncate text-[12.5px] text-faint"
+                                            :title="row.reason"
+                                        >
+                                            {{ row.reason }}
+                                        </p>
+                                    </td>
+                                    <td class="px-5 py-3.5">
+                                        <StatusPill :tone="row.status_tone" dot>
+                                            {{ row.status_label }}
+                                        </StatusPill>
+                                        <p
+                                            v-if="row.status === 'pending'"
+                                            class="mt-1 text-[11.5px] text-faint"
+                                        >
+                                            {{ row.approvals_given }}/{{
+                                                row.approvals_required
+                                            }}
+                                            approved
+                                        </p>
+                                    </td>
+                                    <td class="px-5 py-3.5 text-right">
+                                        <div
+                                            class="flex items-center justify-end gap-1"
+                                        >
+                                            <AppButton
+                                                v-if="row.trail.length"
+                                                variant="ghost"
+                                                size="sm"
+                                                @click="
+                                                    expanded =
+                                                        expanded === row.id
+                                                            ? null
+                                                            : row.id
+                                                "
+                                            >
+                                                {{
+                                                    expanded === row.id
+                                                        ? 'Hide'
+                                                        : 'Trail'
+                                                }}
+                                            </AppButton>
+                                            <AppButton
+                                                v-if="row.status === 'pending'"
+                                                variant="ghost"
+                                                size="sm"
+                                                @click="withdrawing = row"
+                                            >
+                                                Withdraw
+                                            </AppButton>
+                                        </div>
+                                    </td>
+                                </tr>
 
-                            <div class="flex shrink-0 items-center gap-2">
-                                <StatusPill :tone="row.status_tone" dot>
-                                    {{ row.status_label }}
-                                </StatusPill>
-                                <span
-                                    v-if="row.status === 'pending'"
-                                    class="text-[12px] text-faint"
-                                >
-                                    {{ row.approvals_given }}/{{
-                                        row.approvals_required
-                                    }}
-                                    approved
-                                </span>
-                            </div>
-                        </div>
+                                <tr v-if="expanded === row.id">
+                                    <td
+                                        colspan="5"
+                                        class="bg-sunken/40 px-5 py-3"
+                                    >
+                                        <ul class="space-y-2">
+                                            <li
+                                                v-for="step in row.trail"
+                                                :key="step.id"
+                                                class="text-[12.5px]"
+                                            >
+                                                <span class="font-medium">
+                                                    {{ step.approver }}
+                                                </span>
+                                                <span class="text-muted">
+                                                    {{
+                                                        step.decision_label.toLowerCase()
+                                                    }}
+                                                    on
+                                                    {{
+                                                        dateTime(
+                                                            step.decided_at,
+                                                        )
+                                                    }}
+                                                </span>
+                                                <p
+                                                    v-if="step.comment"
+                                                    class="text-faint"
+                                                >
+                                                    “{{ step.comment }}”
+                                                </p>
+                                            </li>
+                                        </ul>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
 
-                        <div class="mt-3 flex items-center gap-3">
-                            <button
-                                v-if="row.trail.length"
-                                type="button"
-                                class="text-[12.5px] font-medium text-muted transition-colors hover:text-text"
-                                @click="
-                                    expanded =
-                                        expanded === row.id ? null : row.id
-                                "
-                            >
-                                {{ expanded === row.id ? 'Hide' : 'Show' }}
-                                decisions ({{ row.trail.length }})
-                            </button>
-
-                            <AppButton
-                                v-if="row.status === 'pending'"
-                                variant="ghost"
-                                size="sm"
-                                @click="withdrawing = row"
-                            >
-                                Withdraw
-                            </AppButton>
-                        </div>
-
-                        <ul
-                            v-if="expanded === row.id"
-                            class="mt-3 space-y-2 rounded-xl bg-sunken/50 p-3"
-                        >
-                            <li
-                                v-for="step in row.trail"
-                                :key="step.id"
-                                class="text-[12.5px]"
-                            >
-                                <span class="font-medium">
-                                    {{ step.approver }}
-                                </span>
-                                <span class="text-muted">
-                                    {{ step.decision_label.toLowerCase() }} on
-                                    {{ dateTime(step.decided_at) }}
-                                </span>
-                                <p v-if="step.comment" class="text-faint">
-                                    “{{ step.comment }}”
-                                </p>
-                            </li>
-                        </ul>
-                    </li>
-                </ul>
+                <Pagination
+                    v-model:page="pages.page"
+                    v-model:per-page="pages.perPage"
+                    :last-page="pages.lastPage"
+                    :from="pages.from"
+                    :to="pages.to"
+                    :total="pages.total"
+                />
             </Panel>
         </div>
 
