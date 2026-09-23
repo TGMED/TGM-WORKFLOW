@@ -25,6 +25,7 @@ export type Permission =
     | 'assets.manage'
     | 'departments.manage'
     | 'attendance.report'
+    | 'hr-reports.view'
     | 'leave.register'
     | 'clock-attempts.view'
     | 'announcements.manage'

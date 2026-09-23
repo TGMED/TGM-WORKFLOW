@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\AuditController;
 use App\Http\Controllers\Admin\ClockAttemptController;
 use App\Http\Controllers\Admin\ConductController as AdminConductController;
 use App\Http\Controllers\Admin\DepartmentController;
+use App\Http\Controllers\Admin\HrReportController;
 use App\Http\Controllers\Admin\ImportController;
 use App\Http\Controllers\Admin\LeaveRegisterController;
 use App\Http\Controllers\Admin\LeaveRestrictedPeriodController;
@@ -491,6 +492,13 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
         Route::middleware('permission:reports.handle')->group(function (): void {
             Route::get('reports', [AdminReportController::class, 'index'])->name('reports.index');
             Route::put('reports/{report}', [AdminReportController::class, 'update'])->name('reports.update');
+        });
+
+        // Company-wide totals, and a CSV of each. Not /admin/reports, which
+        // is the incident desk.
+        Route::middleware('permission:hr-reports.view')->group(function (): void {
+            Route::get('hr-reports', [HrReportController::class, 'index'])->name('hr-reports.index');
+            Route::get('hr-reports/{section}/export', [HrReportController::class, 'export'])->name('hr-reports.export');
         });
 
         // Finance's side of requisitions: approve, pay, and close them.

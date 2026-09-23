@@ -19,6 +19,7 @@ enum Permission: string
     case ManageAssets = 'assets.manage';
     case ManageDepartments = 'departments.manage';
     case ViewAttendanceReport = 'attendance.report';
+    case ViewHrReports = 'hr-reports.view';
     case ViewLeaveRegister = 'leave.register';
     case ViewClockAttempts = 'clock-attempts.view';
     case ManageAnnouncements = 'announcements.manage';
@@ -43,6 +44,7 @@ enum Permission: string
             self::ManageAssets => 'Manage assets',
             self::ManageDepartments => 'Manage departments and teams',
             self::ViewAttendanceReport => 'See the attendance report',
+            self::ViewHrReports => 'See the HR reports',
             self::ViewLeaveRegister => 'See the leave register',
             self::ViewClockAttempts => 'See rejected clock attempts',
             self::ManageAnnouncements => 'Manage announcements',
@@ -69,6 +71,7 @@ enum Permission: string
             self::ManageAssets => 'The asset register and its categories: add equipment, say where it is kept, and hand it to staff or take it back.',
             self::ManageDepartments => 'Create departments and the teams inside them, name who heads and leads each, and move people between them. Naming a head or a lead is what grants those roles, so this also decides who may see a group\'s numbers and decide on its requests.',
             self::ViewAttendanceReport => 'Attendance across the whole company for any window.',
+            self::ViewHrReports => 'Company-wide totals over a window, with a CSV of each: headcount and movement, attendance, leave, reviews, queries and warnings, assets and requisition spend. Totals only, by department; no names.',
             self::ViewLeaveRegister => 'Every leave request in the company, whoever it belongs to and wherever it has reached. Read-only, and it includes the reason people gave, so give it no more widely than the people team.',
             self::ViewClockAttempts => 'Clock-ins the geofence turned away, and why.',
             self::ManageAnnouncements => 'Write and publish company notices.',
@@ -91,7 +94,7 @@ enum Permission: string
     public function group(): string
     {
         return match ($this) {
-            self::ViewAdminDashboard, self::ViewAttendanceReport, self::ViewLeaveRegister, self::ViewClockAttempts, self::ViewAuditTrail => 'Visibility',
+            self::ViewAdminDashboard, self::ViewAttendanceReport, self::ViewHrReports, self::ViewLeaveRegister, self::ViewClockAttempts, self::ViewAuditTrail => 'Visibility',
             self::ManageStaff, self::IssueConduct, self::ManageLocations, self::ManageAssets, self::ManageDepartments, self::ManageAnnouncements, self::ManagePolicies => 'People and sites',
             self::ManagePayroll, self::ManageRequisitions, self::HandleReports, self::ViewPerformanceReviews => 'Confidential',
             self::ManageRequestSettings, self::ApproveRequests => 'Requests',
