@@ -21,6 +21,7 @@ use App\Http\Controllers\Admin\PublicHolidayController;
 use App\Http\Controllers\Admin\RecommendationDeskController;
 use App\Http\Controllers\Admin\ReportController as AdminReportController;
 use App\Http\Controllers\Admin\RequestSettingsController;
+use App\Http\Controllers\Admin\ReviewController as AdminReviewController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\SalaryController;
 use App\Http\Controllers\Admin\StaffController;
@@ -53,6 +54,7 @@ use App\Http\Controllers\Profile\ProfilePhotoController;
 use App\Http\Controllers\Profile\RelationController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReportEvidenceController;
+use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\Settings\NotificationSettingsController;
 use App\Http\Controllers\Settings\PushTokenController;
 use App\Http\Controllers\TerminationRecommendationController;
@@ -193,6 +195,14 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
     Route::post('bank-accounts/resolve', [BankAccountController::class, 'resolve'])
         ->middleware('throttle:20,1')
         ->name('bank-accounts.resolve');
+
+    // Reviewing a colleague's work is open to everyone who signs in. Where the
+    // reviewer stands to the subject decides who reads it, not whether it may
+    // be written: somebody with no tie to them is heard, by HR alone.
+    Route::get('reviews', [ReviewController::class, 'index'])->name('reviews.index');
+    Route::post('reviews', [ReviewController::class, 'store'])
+        ->middleware('throttle:20,1')
+        ->name('reviews.store');
 
     // Requests are raised by the people who work a shift, so admins, who do
     // not, only see the settings and the approval inbox.
@@ -449,6 +459,13 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
             Route::get('reports', [AdminReportController::class, 'index'])->name('reports.index');
             Route::put('reports/{report}', [AdminReportController::class, 'update'])->name('reports.update');
         });
+
+        // Every performance review with its author. Its own permission for the
+        // same reason as the reports desk: it names somebody the subject of a
+        // review is never told.
+        Route::get('reviews', [AdminReviewController::class, 'index'])
+            ->middleware('permission:reviews.view')
+            ->name('reviews.index');
 
         // Who may do what. Guarded by its own permission, which by default
         // only super admins hold.

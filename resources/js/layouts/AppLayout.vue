@@ -120,6 +120,11 @@ const nav: NavItem[] = [
                 icon: 'M3.5 10.5v3a1.5 1.5 0 0 0 1.5 1.5h2l5 4V5l-5 4H5a1.5 1.5 0 0 0-1.5 1.5Zm13-2.2a5 5 0 0 1 0 7.4M19 5.5a9 9 0 0 1 0 13',
             },
             {
+                label: 'Reviews',
+                href: '/reviews',
+                icon: 'M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9L12 3.5Z',
+            },
+            {
                 label: 'Company policy',
                 href: '/policies',
                 staffOnly: true,
@@ -191,6 +196,12 @@ const nav: NavItem[] = [
                 href: '/admin/reports',
                 permission: 'reports.handle',
                 icon: 'M12 8.5v4m0 3h.01M10.6 3.9 2.5 18a1.5 1.5 0 0 0 1.3 2.3h16.4a1.5 1.5 0 0 0 1.3-2.3L13.4 3.9a1.6 1.6 0 0 0-2.8 0Z',
+            },
+            {
+                label: 'Performance reviews',
+                href: '/admin/reviews',
+                permission: 'reviews.view',
+                icon: 'M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9L12 3.5Z',
             },
             {
                 label: 'Terminations',

@@ -25,6 +25,7 @@ enum Permission: string
     case ApproveRequests = 'requests.approve';
     case ManagePayroll = 'payroll.manage';
     case HandleReports = 'reports.handle';
+    case ViewPerformanceReviews = 'reviews.view';
     case ImportData = 'data.import';
     case ManageRoles = 'roles.manage';
     case ViewAuditTrail = 'audit.view';
@@ -45,6 +46,7 @@ enum Permission: string
             self::ApproveRequests => 'Decide on requests',
             self::ManagePayroll => 'Run payroll and set salaries',
             self::HandleReports => 'Read and handle incident reports',
+            self::ViewPerformanceReviews => 'Read every performance review',
             self::ImportData => 'Import data from a file',
             self::ManageRoles => 'Manage roles and permissions',
             self::ViewAuditTrail => 'See the audit trail',
@@ -67,6 +69,7 @@ enum Permission: string
             self::ApproveRequests => 'The approvals inbox, and filing a request for somebody else.',
             self::ManagePayroll => 'Salaries, the tax and pension rates, and building and signing off each month\'s payslips.',
             self::HandleReports => 'The reports desk: read what staff have raised, including who raised it, and close a case. Give this to as few people as the company can manage.',
+            self::ViewPerformanceReviews => 'Every review staff have written of each other, with who wrote it, including the private ones nobody else sees. Staff read the public reviews about themselves without the author\'s name, so this is the only place that name appears.',
             self::ImportData => 'Load records in bulk from a spreadsheet. Each sheet still answers to the permission that guards editing those records by hand, so this widens how much somebody can change at once, never what.',
             self::ManageRoles => 'Create roles and choose what each one may do.',
             self::ViewAuditTrail => 'Who changed what, and when. Read-only.',
@@ -81,7 +84,7 @@ enum Permission: string
         return match ($this) {
             self::ViewAdminDashboard, self::ViewAttendanceReport, self::ViewLeaveRegister, self::ViewClockAttempts, self::ViewAuditTrail => 'Visibility',
             self::ManageStaff, self::ManageLocations, self::ManageDepartments, self::ManageAnnouncements, self::ManagePolicies => 'People and sites',
-            self::ManagePayroll, self::HandleReports => 'Confidential',
+            self::ManagePayroll, self::HandleReports, self::ViewPerformanceReviews => 'Confidential',
             self::ManageRequestSettings, self::ApproveRequests => 'Requests',
             self::ImportData, self::ManageRoles => 'System',
         };
