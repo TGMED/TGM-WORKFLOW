@@ -120,6 +120,7 @@ const addForm = useForm({
     team_id: null as number | null,
     position: '',
     hired_at: '',
+    probation_months: '' as number | '',
     roles: ['staff'] as string[],
     location_id: null as number | null,
 });
@@ -615,6 +616,15 @@ const statusOptions = [
                         label="Start date"
                         type="date"
                         :error="addForm.errors.hired_at"
+                    />
+                    <TextField
+                        v-model="addForm.probation_months"
+                        label="Probation (months)"
+                        type="number"
+                        min="1"
+                        max="24"
+                        hint="Leave empty to follow the company's probation length."
+                        :error="addForm.errors.probation_months"
                     />
                     <SelectField
                         v-model="addForm.location_id"

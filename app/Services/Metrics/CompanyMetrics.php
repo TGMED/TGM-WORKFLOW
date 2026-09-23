@@ -11,6 +11,7 @@ use App\Enums\ReportStatus;
 use App\Models\Attendance;
 use App\Models\ClockAttempt;
 use App\Models\Department;
+use App\Models\EmploymentSettings;
 use App\Models\LatenessRequest;
 use App\Models\LeaveRequest;
 use App\Models\PayrollRun;
@@ -404,7 +405,7 @@ class CompanyMetrics
      */
     protected function probation(Carbon $today): array
     {
-        $months = (int) config('hr.probation_months', 6);
+        $months = EmploymentSettings::probationMonths();
 
         $people = User::query()
             ->active()
@@ -413,11 +414,12 @@ class CompanyMetrics
             ->whereNotNull('hired_at')
             ->with('department:id,name')
             ->orderBy('hired_at')
-            ->get(['id', 'name', 'hired_at', 'department_id', 'position']);
+            ->get(['id', 'name', 'hired_at', 'probation_months', 'department_id', 'position']);
 
         $rows = $people
             ->map(function (User $person) use ($months, $today): array {
-                $due = $person->hired_at->copy()->addMonthsNoOverflow($months);
+                // Their own length where their contract set one.
+                $due = $person->hired_at->copy()->addMonthsNoOverflow($person->probation_months ?? $months);
 
                 return [
                     'id' => $person->id,

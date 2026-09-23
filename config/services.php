@@ -38,6 +38,16 @@ return [
         'key' => env('BREVO_API_KEY'),
     ],
 
+    /*
+    | Paystack, used to look up the name on a bank account from its number, so
+    | nobody has to type it and payroll is never paid to a misspelt name.
+    */
+
+    'paystack' => [
+        'secret' => env('PAYSTACK_SECRET_KEY'),
+        'url' => env('PAYSTACK_API_URL', 'https://api.paystack.co'),
+    ],
+
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],

@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -245,15 +246,15 @@ class EmployeeProfileTest extends TestCase
      */
     public function test_bank_details_save_and_stay_optional(): void
     {
+        $this->fakeAccountLookup('UGWU VICTOR CHIDI');
         $staff = $this->staff();
 
         $this->actingAs($staff)->put('/profile/bank', [])->assertSessionHasNoErrors();
 
         $this->actingAs($staff)
             ->put('/profile/bank', [
-                'bank_name' => 'Zenith Bank',
+                'bank_code' => '057',
                 'account_number' => '1234567890',
-                'account_name' => 'Victor Ugwu',
                 'bvn' => '12345678901',
                 'rsa_number' => 'PEN100200300',
                 'nhf_number' => 'NHF/44',
@@ -263,8 +264,90 @@ class EmployeeProfileTest extends TestCase
         $profile = $staff->refresh()->profile;
 
         $this->assertSame('Zenith Bank', $profile->bank_name);
+        $this->assertSame('057', $profile->bank_code);
         $this->assertSame('1234567890', $profile->account_number);
         $this->assertSame('NHF/44', $profile->nhf_number);
+    }
+
+    public function test_the_account_name_comes_from_the_bank_not_the_form(): void
+    {
+        $this->fakeAccountLookup('UGWU VICTOR CHIDI');
+        $staff = $this->staff();
+
+        $this->actingAs($staff)
+            ->put('/profile/bank', [
+                'bank_code' => '058',
+                'account_number' => '0123456789',
+                'account_name' => 'Somebody Else',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('UGWU VICTOR CHIDI', $staff->refresh()->profile->account_name);
+    }
+
+    public function test_an_account_the_bank_does_not_know_is_refused(): void
+    {
+        $this->fakeAccountLookup(null);
+        $staff = $this->staff();
+
+        $this->actingAs($staff)
+            ->put('/profile/bank', ['bank_code' => '058', 'account_number' => '0123456789'])
+            ->assertSessionHasErrors('account_number');
+
+        $this->assertNull($staff->refresh()->profile?->account_number);
+    }
+
+    public function test_an_account_number_needs_its_bank(): void
+    {
+        $this->actingAs($this->staff())
+            ->put('/profile/bank', ['account_number' => '0123456789'])
+            ->assertSessionHasErrors('bank_code');
+    }
+
+    public function test_an_unchanged_account_is_not_looked_up_again(): void
+    {
+        $this->fakeAccountLookup('UGWU VICTOR CHIDI');
+        $staff = $this->staff();
+        $details = ['bank_code' => '058', 'account_number' => '0123456789'];
+
+        $this->actingAs($staff)->put('/profile/bank', $details)->assertSessionHasNoErrors();
+        $this->actingAs($staff->refresh())
+            ->put('/profile/bank', [...$details, 'nhf_number' => 'NHF/45'])
+            ->assertSessionHasNoErrors();
+
+        Http::assertSentCount(2); // the bank list once, the account once
+    }
+
+    public function test_the_form_can_look_an_account_up_as_it_is_typed(): void
+    {
+        $this->fakeAccountLookup('UGWU VICTOR CHIDI');
+
+        $this->actingAs($this->staff())
+            ->postJson('/bank-accounts/resolve', ['bank_code' => '058', 'account_number' => '0123456789'])
+            ->assertOk()
+            ->assertJson(['account_name' => 'UGWU VICTOR CHIDI']);
+    }
+
+    public function test_the_lookup_says_plainly_when_the_bank_does_not_know_the_account(): void
+    {
+        $this->fakeAccountLookup(null);
+
+        $this->actingAs($this->staff())
+            ->postJson('/bank-accounts/resolve', ['bank_code' => '058', 'account_number' => '0123456789'])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'That account number was not found at this bank. Check both and try again.');
+    }
+
+    public function test_the_lookup_says_so_when_paystack_is_rate_limiting(): void
+    {
+        Http::fake([
+            'api.paystack.co/bank/resolve*' => Http::response(['status' => false, 'message' => 'Test mode daily limit of 3 live bank resolves exceeded.'], 429),
+        ]);
+
+        $this->actingAs($this->staff())
+            ->postJson('/bank-accounts/resolve', ['bank_code' => '058', 'account_number' => '0123456789'])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Too many account checks have been made for now. Try again later, or ask HR to check the Paystack key.');
     }
 
     public function test_a_malformed_account_number_or_bvn_is_rejected(): void
@@ -273,9 +356,9 @@ class EmployeeProfileTest extends TestCase
             ->put('/profile/bank', [
                 'account_number' => '12345',
                 'bvn' => '123',
-                'bank_name' => 'Bank of Nowhere',
+                'bank_code' => '999',
             ])
-            ->assertSessionHasErrors(['account_number', 'bvn', 'bank_name']);
+            ->assertSessionHasErrors(['account_number', 'bvn', 'bank_code']);
     }
 
     /**

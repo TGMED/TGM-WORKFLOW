@@ -2,10 +2,14 @@
 
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AnnouncementController;
+use App\Http\Controllers\Admin\AssetCategoryController;
+use App\Http\Controllers\Admin\AssetController as AdminAssetController;
 use App\Http\Controllers\Admin\AttendanceReportController;
 use App\Http\Controllers\Admin\AuditController;
 use App\Http\Controllers\Admin\ClockAttemptController;
+use App\Http\Controllers\Admin\ConductController as AdminConductController;
 use App\Http\Controllers\Admin\DepartmentController;
+use App\Http\Controllers\Admin\HrReportController;
 use App\Http\Controllers\Admin\ImportController;
 use App\Http\Controllers\Admin\LeaveRegisterController;
 use App\Http\Controllers\Admin\LeaveRestrictedPeriodController;
@@ -21,6 +25,8 @@ use App\Http\Controllers\Admin\PublicHolidayController;
 use App\Http\Controllers\Admin\RecommendationDeskController;
 use App\Http\Controllers\Admin\ReportController as AdminReportController;
 use App\Http\Controllers\Admin\RequestSettingsController;
+use App\Http\Controllers\Admin\RequisitionController as AdminRequisitionController;
+use App\Http\Controllers\Admin\ReviewController as AdminReviewController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\SalaryController;
 use App\Http\Controllers\Admin\StaffController;
@@ -28,13 +34,17 @@ use App\Http\Controllers\Admin\TeamController;
 use App\Http\Controllers\Admin\UserPayrollSettingsController;
 use App\Http\Controllers\AnnouncementController as PublicAnnouncementController;
 use App\Http\Controllers\ApprovalController;
+use App\Http\Controllers\AssetController;
+use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\InvitationController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
+use App\Http\Controllers\BankAccountController;
 use App\Http\Controllers\BreakController;
 use App\Http\Controllers\ClockController;
+use App\Http\Controllers\ConductController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LatenessRequestController;
 use App\Http\Controllers\LeaveEvidenceController;
@@ -52,6 +62,8 @@ use App\Http\Controllers\Profile\ProfilePhotoController;
 use App\Http\Controllers\Profile\RelationController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReportEvidenceController;
+use App\Http\Controllers\RequisitionController;
+use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\Settings\NotificationSettingsController;
 use App\Http\Controllers\Settings\PushTokenController;
 use App\Http\Controllers\TerminationRecommendationController;
@@ -185,6 +197,46 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
     // report can open their own attachment, and so can the reports desk.
     Route::get('reports/{report}/evidence', [ReportEvidenceController::class, 'show'])
         ->name('reports.evidence');
+
+    // Looks a bank account up as it is typed, for a profile's own account or
+    // the payee on a requisition. Throttled: each call is a request to
+    // Paystack on the company's key.
+    Route::post('bank-accounts/resolve', [BankAccountController::class, 'resolve'])
+        ->middleware('throttle:20,1')
+        ->name('bank-accounts.resolve');
+
+    // Money asked for ahead of spending it, and the retirement that accounts
+    // for it. Open to everyone who signs in: admins buy things too.
+    Route::get('requisitions', [RequisitionController::class, 'index'])->name('requisitions.index');
+    Route::post('requisitions', [RequisitionController::class, 'store'])
+        ->middleware('throttle:20,1')
+        ->name('requisitions.store');
+    Route::delete('requisitions/{requisition}', [RequisitionController::class, 'destroy'])->name('requisitions.destroy');
+    Route::post('requisitions/{requisition}/retirement', [RequisitionController::class, 'retire'])->name('requisitions.retire');
+
+    // A quote or receipt, checked on the row: the requester and finance only.
+    Route::get('attachments/{attachment}', [AttachmentController::class, 'show'])->name('attachments.show');
+
+    // Equipment the company has handed to the person asking.
+    Route::get('assets', [AssetController::class, 'index'])
+        ->middleware('clocks-in')
+        ->name('assets.index');
+
+    // The queries, warnings and confirmations somebody has been issued. Every
+    // route checks the row belongs to the person asking.
+    Route::middleware('clocks-in')->group(function (): void {
+        Route::get('conduct', [ConductController::class, 'index'])->name('conduct.index');
+        Route::post('conduct/{action}/respond', [ConductController::class, 'respond'])->name('conduct.respond');
+        Route::post('conduct/{action}/acknowledge', [ConductController::class, 'acknowledge'])->name('conduct.acknowledge');
+    });
+
+    // Reviewing a colleague's work is open to everyone who signs in. Where the
+    // reviewer stands to the subject decides who reads it, not whether it may
+    // be written: somebody with no tie to them is heard, by HR alone.
+    Route::get('reviews', [ReviewController::class, 'index'])->name('reviews.index');
+    Route::post('reviews', [ReviewController::class, 'store'])
+        ->middleware('throttle:20,1')
+        ->name('reviews.store');
 
     // Requests are raised by the people who work a shift, so admins, who do
     // not, only see the settings and the approval inbox.
@@ -441,6 +493,49 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
             Route::get('reports', [AdminReportController::class, 'index'])->name('reports.index');
             Route::put('reports/{report}', [AdminReportController::class, 'update'])->name('reports.update');
         });
+
+        // Company-wide totals, and a CSV of each. Not /admin/reports, which
+        // is the incident desk.
+        Route::middleware('permission:hr-reports.view')->group(function (): void {
+            Route::get('hr-reports', [HrReportController::class, 'index'])->name('hr-reports.index');
+            Route::get('hr-reports/{section}/export', [HrReportController::class, 'export'])->name('hr-reports.export');
+        });
+
+        // Finance's side of requisitions: approve, pay, and close them.
+        Route::middleware('permission:requisitions.manage')->group(function (): void {
+            Route::get('requisitions', [AdminRequisitionController::class, 'index'])->name('requisitions.index');
+            Route::post('requisitions/{requisition}/decision', [AdminRequisitionController::class, 'decide'])->name('requisitions.decide');
+            Route::post('requisitions/{requisition}/payment', [AdminRequisitionController::class, 'pay'])->name('requisitions.pay');
+            Route::post('requisitions/{requisition}/retirement-review', [AdminRequisitionController::class, 'review'])->name('requisitions.review');
+        });
+
+        // The asset register and its categories.
+        Route::middleware('permission:assets.manage')->group(function (): void {
+            Route::get('assets', [AdminAssetController::class, 'index'])->name('assets.index');
+            Route::post('assets', [AdminAssetController::class, 'store'])->name('assets.store');
+            Route::put('assets/{asset}', [AdminAssetController::class, 'update'])->name('assets.update');
+            Route::post('assets/{asset}/assign', [AdminAssetController::class, 'assign'])->name('assets.assign');
+            Route::post('assets/{asset}/return', [AdminAssetController::class, 'unassign'])->name('assets.return');
+
+            Route::post('asset-categories', [AssetCategoryController::class, 'store'])->name('asset-categories.store');
+            Route::put('asset-categories/{category}', [AssetCategoryController::class, 'update'])->name('asset-categories.update');
+            Route::delete('asset-categories/{category}', [AssetCategoryController::class, 'destroy'])->name('asset-categories.destroy');
+        });
+
+        // Queries, warnings and confirmations, and how long probation runs
+        // before a confirmation falls due.
+        Route::middleware('permission:conduct.issue')->group(function (): void {
+            Route::get('conduct', [AdminConductController::class, 'index'])->name('conduct.index');
+            Route::post('conduct', [AdminConductController::class, 'store'])->name('conduct.store');
+            Route::put('conduct/probation', [AdminConductController::class, 'probation'])->name('conduct.probation');
+        });
+
+        // Every performance review with its author. Its own permission for the
+        // same reason as the reports desk: it names somebody the subject of a
+        // review is never told.
+        Route::get('reviews', [AdminReviewController::class, 'index'])
+            ->middleware('permission:reviews.view')
+            ->name('reviews.index');
 
         // Who may do what. Guarded by its own permission, which by default
         // only super admins hold.

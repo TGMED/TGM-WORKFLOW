@@ -14,9 +14,12 @@ enum Permission: string
 {
     case ViewAdminDashboard = 'admin.dashboard';
     case ManageStaff = 'staff.manage';
+    case IssueConduct = 'conduct.issue';
     case ManageLocations = 'locations.manage';
+    case ManageAssets = 'assets.manage';
     case ManageDepartments = 'departments.manage';
     case ViewAttendanceReport = 'attendance.report';
+    case ViewHrReports = 'hr-reports.view';
     case ViewLeaveRegister = 'leave.register';
     case ViewClockAttempts = 'clock-attempts.view';
     case ManageAnnouncements = 'announcements.manage';
@@ -24,7 +27,9 @@ enum Permission: string
     case ManageRequestSettings = 'request-settings.manage';
     case ApproveRequests = 'requests.approve';
     case ManagePayroll = 'payroll.manage';
+    case ManageRequisitions = 'requisitions.manage';
     case HandleReports = 'reports.handle';
+    case ViewPerformanceReviews = 'reviews.view';
     case ImportData = 'data.import';
     case ManageRoles = 'roles.manage';
     case ViewAuditTrail = 'audit.view';
@@ -34,9 +39,12 @@ enum Permission: string
         return match ($this) {
             self::ViewAdminDashboard => 'See the admin dashboard',
             self::ManageStaff => 'Manage staff',
+            self::IssueConduct => 'Issue queries, warnings and confirmations',
             self::ManageLocations => 'Manage sites',
+            self::ManageAssets => 'Manage assets',
             self::ManageDepartments => 'Manage departments and teams',
             self::ViewAttendanceReport => 'See the attendance report',
+            self::ViewHrReports => 'See the HR reports',
             self::ViewLeaveRegister => 'See the leave register',
             self::ViewClockAttempts => 'See rejected clock attempts',
             self::ManageAnnouncements => 'Manage announcements',
@@ -44,7 +52,9 @@ enum Permission: string
             self::ManageRequestSettings => 'Manage request settings',
             self::ApproveRequests => 'Decide on requests',
             self::ManagePayroll => 'Run payroll and set salaries',
+            self::ManageRequisitions => 'Approve, pay and close requisitions',
             self::HandleReports => 'Read and handle incident reports',
+            self::ViewPerformanceReviews => 'Read every performance review',
             self::ImportData => 'Import data from a file',
             self::ManageRoles => 'Manage roles and permissions',
             self::ViewAuditTrail => 'See the audit trail',
@@ -56,9 +66,12 @@ enum Permission: string
         return match ($this) {
             self::ViewAdminDashboard => 'The company-wide console: headcount, attendance and requests at a glance.',
             self::ManageStaff => 'Add people, edit their record, change their role, deactivate them.',
+            self::IssueConduct => 'Query somebody, warn them, or confirm them at the end of probation, and read their answers. Each one is emailed to the person, their head of department and the people team. This is also who sets how long probation runs.',
             self::ManageLocations => 'Add and configure sites, their geofence and their working day.',
+            self::ManageAssets => 'The asset register and its categories: add equipment, say where it is kept, and hand it to staff or take it back.',
             self::ManageDepartments => 'Create departments and the teams inside them, name who heads and leads each, and move people between them. Naming a head or a lead is what grants those roles, so this also decides who may see a group\'s numbers and decide on its requests.',
             self::ViewAttendanceReport => 'Attendance across the whole company for any window.',
+            self::ViewHrReports => 'Company-wide totals over a window, with a CSV of each: headcount and movement, attendance, leave, reviews, queries and warnings, assets and requisition spend. Totals only, by department; no names.',
             self::ViewLeaveRegister => 'Every leave request in the company, whoever it belongs to and wherever it has reached. Read-only, and it includes the reason people gave, so give it no more widely than the people team.',
             self::ViewClockAttempts => 'Clock-ins the geofence turned away, and why.',
             self::ManageAnnouncements => 'Write and publish company notices.',
@@ -66,7 +79,9 @@ enum Permission: string
             self::ManageRequestSettings => 'Leave types, their policy rules, closed periods and approval counts.',
             self::ApproveRequests => 'The approvals inbox, and filing a request for somebody else.',
             self::ManagePayroll => 'Salaries, the tax and pension rates, and building and signing off each month\'s payslips.',
+            self::ManageRequisitions => 'Every requisition staff raise: approve or decline it, record it as paid, and accept or send back the retirement that accounts for the money.',
             self::HandleReports => 'The reports desk: read what staff have raised, including who raised it, and close a case. Give this to as few people as the company can manage.',
+            self::ViewPerformanceReviews => 'Every review staff have written of each other, with who wrote it, including the private ones nobody else sees. Staff read the public reviews about themselves without the author\'s name, so this is the only place that name appears.',
             self::ImportData => 'Load records in bulk from a spreadsheet. Each sheet still answers to the permission that guards editing those records by hand, so this widens how much somebody can change at once, never what.',
             self::ManageRoles => 'Create roles and choose what each one may do.',
             self::ViewAuditTrail => 'Who changed what, and when. Read-only.',
@@ -79,9 +94,9 @@ enum Permission: string
     public function group(): string
     {
         return match ($this) {
-            self::ViewAdminDashboard, self::ViewAttendanceReport, self::ViewLeaveRegister, self::ViewClockAttempts, self::ViewAuditTrail => 'Visibility',
-            self::ManageStaff, self::ManageLocations, self::ManageDepartments, self::ManageAnnouncements, self::ManagePolicies => 'People and sites',
-            self::ManagePayroll, self::HandleReports => 'Confidential',
+            self::ViewAdminDashboard, self::ViewAttendanceReport, self::ViewHrReports, self::ViewLeaveRegister, self::ViewClockAttempts, self::ViewAuditTrail => 'Visibility',
+            self::ManageStaff, self::IssueConduct, self::ManageLocations, self::ManageAssets, self::ManageDepartments, self::ManageAnnouncements, self::ManagePolicies => 'People and sites',
+            self::ManagePayroll, self::ManageRequisitions, self::HandleReports, self::ViewPerformanceReviews => 'Confidential',
             self::ManageRequestSettings, self::ApproveRequests => 'Requests',
             self::ImportData, self::ManageRoles => 'System',
         };

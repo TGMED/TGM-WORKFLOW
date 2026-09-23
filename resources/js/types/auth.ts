@@ -20,9 +20,12 @@ export type HeldRole = {
 export type Permission =
     | 'admin.dashboard'
     | 'staff.manage'
+    | 'conduct.issue'
     | 'locations.manage'
+    | 'assets.manage'
     | 'departments.manage'
     | 'attendance.report'
+    | 'hr-reports.view'
     | 'leave.register'
     | 'clock-attempts.view'
     | 'announcements.manage'
@@ -30,7 +33,9 @@ export type Permission =
     | 'request-settings.manage'
     | 'requests.approve'
     | 'payroll.manage'
+    | 'requisitions.manage'
     | 'reports.handle'
+    | 'reviews.view'
     | 'data.import'
     | 'roles.manage'
     | 'audit.view';

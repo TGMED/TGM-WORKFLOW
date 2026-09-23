@@ -9,6 +9,7 @@ use App\Models\EmployeeAddress;
 use App\Models\EmployeeProfile;
 use App\Models\EmployeeRelation;
 use App\Models\User;
+use App\Services\Paystack\PaystackClient;
 use App\Support\Countries;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,6 +19,8 @@ use Inertia\Response;
 
 class ProfileController extends Controller
 {
+    public function __construct(protected PaystackClient $paystack) {}
+
     public function edit(Request $request): Response
     {
         return Inertia::render('Profile', $this->pageProps($request->user()));
@@ -153,6 +156,7 @@ class ProfileController extends Controller
             'initials' => $user->initials,
 
             'bank_name' => $profile->bank_name,
+            'bank_code' => $this->bankCode($profile),
             'account_number' => $profile->account_number,
             'account_name' => $profile->account_name,
             'bvn' => $profile->bvn,
@@ -196,6 +200,29 @@ class ProfileController extends Controller
     }
 
     /**
+     * The bank's Paystack code. Rows saved before the list came from Paystack
+     * hold a name only, so that name is matched to a code for the form to
+     * start from; a name Paystack spells differently is left for the person
+     * to pick again.
+     */
+    protected function bankCode(EmployeeProfile $profile): ?string
+    {
+        if ($profile->bank_code !== null || $profile->bank_name === null) {
+            return $profile->bank_code;
+        }
+
+        $name = mb_strtolower(trim($profile->bank_name));
+
+        foreach ($this->paystack->banks() as $bank) {
+            if (mb_strtolower($bank['name']) === $name) {
+                return $bank['code'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Every pick-list the page needs, in the {value, label} shape the select
      * component takes.
      *
@@ -217,7 +244,12 @@ class ProfileController extends Controller
             'religions' => $flat('religions'),
             'relationships' => $flat('relationships'),
             'address_types' => $flat('address_types'),
-            'banks' => $flat('banks'),
+            // Paystack's list rather than a fixed one: an account is looked up
+            // by the bank's code, and only Paystack's codes will resolve.
+            'banks' => array_map(
+                fn (array $bank): array => ['value' => $bank['code'], 'label' => $bank['name']],
+                $this->paystack->banks(),
+            ),
             'pension_administrators' => $flat('pension_administrators'),
             'relation_kinds' => array_map(
                 fn (RelationKind $kind): array => [

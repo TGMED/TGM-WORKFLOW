@@ -78,6 +78,21 @@ const nav: NavItem[] = [
                 icon: 'M4 20V9.5L12 4l8 5.5V20M4 20h16M9.5 20v-5h5v5M14.5 9.5h4.5m0 0-1.8-1.8m1.8 1.8-1.8 1.8',
             },
             {
+                label: 'Requisitions',
+                href: '/requisitions',
+                icon: 'M4 7.5h16v11H4v-11Zm0 3.5h16M7.5 15h3',
+            },
+            {
+                label: 'My assets',
+                href: '/assets',
+                icon: 'M4 7.5 12 3.5l8 4v9l-8 4-8-4v-9Zm0 0 8 4m0 0 8-4m-8 4v9',
+            },
+            {
+                label: 'Queries and warnings',
+                href: '/conduct',
+                icon: 'M8 3.5h5.5L18.5 8v11a1.5 1.5 0 0 1-1.5 1.5H8A1.5 1.5 0 0 1 6.5 19V5A1.5 1.5 0 0 1 8 3.5Zm5 0V8h4.5M12 11v3m0 2.5h.01',
+            },
+            {
                 label: 'My payslips',
                 href: '/payslips',
                 icon: 'M6 3.5h12A1.5 1.5 0 0 1 19.5 5v15.5l-2.5-1.5-2.5 1.5-2.5-1.5-2.5 1.5-2.5-1.5V5A1.5 1.5 0 0 1 6 3.5ZM9 8h6M9 11.5h6M9 15h3',
@@ -120,6 +135,11 @@ const nav: NavItem[] = [
                 icon: 'M3.5 10.5v3a1.5 1.5 0 0 0 1.5 1.5h2l5 4V5l-5 4H5a1.5 1.5 0 0 0-1.5 1.5Zm13-2.2a5 5 0 0 1 0 7.4M19 5.5a9 9 0 0 1 0 13',
             },
             {
+                label: 'Reviews',
+                href: '/reviews',
+                icon: 'M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9L12 3.5Z',
+            },
+            {
                 label: 'Company policy',
                 href: '/policies',
                 staffOnly: true,
@@ -132,6 +152,12 @@ const nav: NavItem[] = [
         href: '/admin',
         permission: 'admin.dashboard',
         icon: 'M3.5 5A1.5 1.5 0 0 1 5 3.5h14A1.5 1.5 0 0 1 20.5 5v14a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 19V5Zm3.5 10.5 3-3.5 2.5 2.5 4-5',
+    },
+    {
+        label: 'HR reports',
+        href: '/admin/hr-reports',
+        permission: 'hr-reports.view',
+        icon: 'M4 20V4m0 16h16M8 16v-5m4 5V8m4 8v-3',
     },
     {
         label: 'People',
@@ -154,6 +180,18 @@ const nav: NavItem[] = [
                 href: '/admin/announcements',
                 permission: 'announcements.manage',
                 icon: 'M3.5 10.5v3a1.5 1.5 0 0 0 1.5 1.5h2l5 4V5l-5 4H5a1.5 1.5 0 0 0-1.5 1.5Zm13-1.5a5 5 0 0 1 0 6',
+            },
+            {
+                label: 'Requisitions',
+                href: '/admin/requisitions',
+                permission: 'requisitions.manage',
+                icon: 'M4 7.5h16v11H4v-11Zm0 3.5h16M7.5 15h3',
+            },
+            {
+                label: 'Assets',
+                href: '/admin/assets',
+                permission: 'assets.manage',
+                icon: 'M4 7.5 12 3.5l8 4v9l-8 4-8-4v-9Zm0 0 8 4m0 0 8-4m-8 4v9',
             },
             {
                 label: 'Payroll',
@@ -191,6 +229,18 @@ const nav: NavItem[] = [
                 href: '/admin/reports',
                 permission: 'reports.handle',
                 icon: 'M12 8.5v4m0 3h.01M10.6 3.9 2.5 18a1.5 1.5 0 0 0 1.3 2.3h16.4a1.5 1.5 0 0 0 1.3-2.3L13.4 3.9a1.6 1.6 0 0 0-2.8 0Z',
+            },
+            {
+                label: 'Queries and warnings',
+                href: '/admin/conduct',
+                permission: 'conduct.issue',
+                icon: 'M8 3.5h5.5L18.5 8v11a1.5 1.5 0 0 1-1.5 1.5H8A1.5 1.5 0 0 1 6.5 19V5A1.5 1.5 0 0 1 8 3.5Zm5 0V8h4.5M12 11v3m0 2.5h.01',
+            },
+            {
+                label: 'Performance reviews',
+                href: '/admin/reviews',
+                permission: 'reviews.view',
+                icon: 'M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9L12 3.5Z',
             },
             {
                 label: 'Terminations',
