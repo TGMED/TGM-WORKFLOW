@@ -60,6 +60,7 @@ export type EmployeeProfile = {
     initials: string;
 
     bank_name: string | null;
+    bank_code: string | null;
     account_number: string | null;
     account_name: string | null;
     bvn: string | null;

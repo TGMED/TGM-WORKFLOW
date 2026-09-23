@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { useForm } from '@inertiajs/vue3';
+import AccountNameField from '@/components/banking/AccountNameField.vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import Panel from '@/components/ui/Panel.vue';
 import SelectField from '@/components/ui/SelectField.vue';
 import TextField from '@/components/ui/TextField.vue';
+import { useAccountLookup } from '@/composables/useAccountLookup';
 import type { EmployeeProfile, ProfileOptions } from '@/types';
 
 const props = defineProps<{
@@ -12,9 +14,8 @@ const props = defineProps<{
 }>();
 
 const form = useForm({
-    bank_name: props.profile.bank_name,
+    bank_code: props.profile.bank_code,
     account_number: props.profile.account_number,
-    account_name: props.profile.account_name,
     bvn: props.profile.bvn,
     swift_code: props.profile.swift_code,
     sort_code: props.profile.sort_code,
@@ -24,6 +25,11 @@ const form = useForm({
     tax_identification_number: props.profile.tax_identification_number,
     nhf_number: props.profile.nhf_number,
 });
+
+const { accountName, lookup, lookupError } = useAccountLookup(
+    () => [form.bank_code, form.account_number] as const,
+    props.profile.account_name,
+);
 
 /** Saved without a validation error, so a guided setup can move on. */
 const emit = defineEmits<{ saved: [] }>();
@@ -41,10 +47,15 @@ function submit() {
         <Panel title="Bank Details">
             <div class="space-y-4">
                 <SelectField
-                    v-model="form.bank_name"
+                    v-model="form.bank_code"
                     label="Bank Name"
                     :options="options.banks"
-                    :error="form.errors.bank_name"
+                    :error="form.errors.bank_code"
+                    :hint="
+                        options.banks.length === 0
+                            ? 'The list of banks could not be loaded. Try again later.'
+                            : undefined
+                    "
                 >
                     <option :value="null">Select Bank</option>
                 </SelectField>
@@ -53,13 +64,14 @@ function submit() {
                     v-model="form.account_number"
                     label="Account Number"
                     inputmode="numeric"
+                    autocomplete="off"
                     :error="form.errors.account_number"
                 />
 
-                <TextField
-                    v-model="form.account_name"
-                    label="Account Name"
-                    :error="form.errors.account_name"
+                <AccountNameField
+                    :name="accountName"
+                    :state="lookup"
+                    :error="lookupError"
                 />
 
                 <TextField

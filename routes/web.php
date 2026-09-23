@@ -33,6 +33,7 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\InvitationController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
+use App\Http\Controllers\BankAccountController;
 use App\Http\Controllers\BreakController;
 use App\Http\Controllers\ClockController;
 use App\Http\Controllers\DashboardController;
@@ -185,6 +186,13 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
     // report can open their own attachment, and so can the reports desk.
     Route::get('reports/{report}/evidence', [ReportEvidenceController::class, 'show'])
         ->name('reports.evidence');
+
+    // Looks a bank account up as it is typed, for a profile's own account or
+    // the payee on a requisition. Throttled: each call is a request to
+    // Paystack on the company's key.
+    Route::post('bank-accounts/resolve', [BankAccountController::class, 'resolve'])
+        ->middleware('throttle:20,1')
+        ->name('bank-accounts.resolve');
 
     // Requests are raised by the people who work a shift, so admins, who do
     // not, only see the settings and the approval inbox.

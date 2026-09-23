@@ -42,6 +42,7 @@ use Illuminate\Support\Facades\Storage;
  * @property string|null $alternate_phone
  * @property string|null $alternate_email
  * @property string|null $bank_name
+ * @property string|null $bank_code
  * @property string|null $account_number
  * @property string|null $account_name
  * @property string|null $bvn
@@ -85,6 +86,7 @@ use Illuminate\Support\Facades\Storage;
     'alternate_phone',
     'alternate_email',
     'bank_name',
+    'bank_code',
     'account_number',
     'account_name',
     'bvn',

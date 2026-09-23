@@ -17,7 +17,7 @@ class BankDetailsController extends Controller
         $request->user()
             ->profile()
             ->firstOrNew()
-            ->fill($request->validated())
+            ->fill($request->details())
             ->save();
 
         return back()->with('toast', [
