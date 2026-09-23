@@ -15,6 +15,7 @@ enum Permission: string
     case ViewAdminDashboard = 'admin.dashboard';
     case ManageStaff = 'staff.manage';
     case ManageLocations = 'locations.manage';
+    case ManageAssets = 'assets.manage';
     case ManageDepartments = 'departments.manage';
     case ViewAttendanceReport = 'attendance.report';
     case ViewLeaveRegister = 'leave.register';
@@ -36,6 +37,7 @@ enum Permission: string
             self::ViewAdminDashboard => 'See the admin dashboard',
             self::ManageStaff => 'Manage staff',
             self::ManageLocations => 'Manage sites',
+            self::ManageAssets => 'Manage assets',
             self::ManageDepartments => 'Manage departments and teams',
             self::ViewAttendanceReport => 'See the attendance report',
             self::ViewLeaveRegister => 'See the leave register',
@@ -59,6 +61,7 @@ enum Permission: string
             self::ViewAdminDashboard => 'The company-wide console: headcount, attendance and requests at a glance.',
             self::ManageStaff => 'Add people, edit their record, change their role, deactivate them.',
             self::ManageLocations => 'Add and configure sites, their geofence and their working day.',
+            self::ManageAssets => 'The asset register and its categories: add equipment, say where it is kept, and hand it to staff or take it back.',
             self::ManageDepartments => 'Create departments and the teams inside them, name who heads and leads each, and move people between them. Naming a head or a lead is what grants those roles, so this also decides who may see a group\'s numbers and decide on its requests.',
             self::ViewAttendanceReport => 'Attendance across the whole company for any window.',
             self::ViewLeaveRegister => 'Every leave request in the company, whoever it belongs to and wherever it has reached. Read-only, and it includes the reason people gave, so give it no more widely than the people team.',
@@ -83,7 +86,7 @@ enum Permission: string
     {
         return match ($this) {
             self::ViewAdminDashboard, self::ViewAttendanceReport, self::ViewLeaveRegister, self::ViewClockAttempts, self::ViewAuditTrail => 'Visibility',
-            self::ManageStaff, self::ManageLocations, self::ManageDepartments, self::ManageAnnouncements, self::ManagePolicies => 'People and sites',
+            self::ManageStaff, self::ManageLocations, self::ManageAssets, self::ManageDepartments, self::ManageAnnouncements, self::ManagePolicies => 'People and sites',
             self::ManagePayroll, self::HandleReports, self::ViewPerformanceReviews => 'Confidential',
             self::ManageRequestSettings, self::ApproveRequests => 'Requests',
             self::ImportData, self::ManageRoles => 'System',

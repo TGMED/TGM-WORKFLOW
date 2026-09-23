@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AnnouncementController;
+use App\Http\Controllers\Admin\AssetCategoryController;
+use App\Http\Controllers\Admin\AssetController as AdminAssetController;
 use App\Http\Controllers\Admin\AttendanceReportController;
 use App\Http\Controllers\Admin\AuditController;
 use App\Http\Controllers\Admin\ClockAttemptController;
@@ -29,6 +31,7 @@ use App\Http\Controllers\Admin\TeamController;
 use App\Http\Controllers\Admin\UserPayrollSettingsController;
 use App\Http\Controllers\AnnouncementController as PublicAnnouncementController;
 use App\Http\Controllers\ApprovalController;
+use App\Http\Controllers\AssetController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\InvitationController;
@@ -195,6 +198,11 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
     Route::post('bank-accounts/resolve', [BankAccountController::class, 'resolve'])
         ->middleware('throttle:20,1')
         ->name('bank-accounts.resolve');
+
+    // Equipment the company has handed to the person asking.
+    Route::get('assets', [AssetController::class, 'index'])
+        ->middleware('clocks-in')
+        ->name('assets.index');
 
     // Reviewing a colleague's work is open to everyone who signs in. Where the
     // reviewer stands to the subject decides who reads it, not whether it may
@@ -458,6 +466,19 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
         Route::middleware('permission:reports.handle')->group(function (): void {
             Route::get('reports', [AdminReportController::class, 'index'])->name('reports.index');
             Route::put('reports/{report}', [AdminReportController::class, 'update'])->name('reports.update');
+        });
+
+        // The asset register and its categories.
+        Route::middleware('permission:assets.manage')->group(function (): void {
+            Route::get('assets', [AdminAssetController::class, 'index'])->name('assets.index');
+            Route::post('assets', [AdminAssetController::class, 'store'])->name('assets.store');
+            Route::put('assets/{asset}', [AdminAssetController::class, 'update'])->name('assets.update');
+            Route::post('assets/{asset}/assign', [AdminAssetController::class, 'assign'])->name('assets.assign');
+            Route::post('assets/{asset}/return', [AdminAssetController::class, 'unassign'])->name('assets.return');
+
+            Route::post('asset-categories', [AssetCategoryController::class, 'store'])->name('asset-categories.store');
+            Route::put('asset-categories/{category}', [AssetCategoryController::class, 'update'])->name('asset-categories.update');
+            Route::delete('asset-categories/{category}', [AssetCategoryController::class, 'destroy'])->name('asset-categories.destroy');
         });
 
         // Every performance review with its author. Its own permission for the

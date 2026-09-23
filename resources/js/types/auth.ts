@@ -21,6 +21,7 @@ export type Permission =
     | 'admin.dashboard'
     | 'staff.manage'
     | 'locations.manage'
+    | 'assets.manage'
     | 'departments.manage'
     | 'attendance.report'
     | 'leave.register'
