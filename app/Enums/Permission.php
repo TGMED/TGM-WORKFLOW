@@ -14,6 +14,7 @@ enum Permission: string
 {
     case ViewAdminDashboard = 'admin.dashboard';
     case ManageStaff = 'staff.manage';
+    case IssueConduct = 'conduct.issue';
     case ManageLocations = 'locations.manage';
     case ManageAssets = 'assets.manage';
     case ManageDepartments = 'departments.manage';
@@ -37,6 +38,7 @@ enum Permission: string
         return match ($this) {
             self::ViewAdminDashboard => 'See the admin dashboard',
             self::ManageStaff => 'Manage staff',
+            self::IssueConduct => 'Issue queries, warnings and confirmations',
             self::ManageLocations => 'Manage sites',
             self::ManageAssets => 'Manage assets',
             self::ManageDepartments => 'Manage departments and teams',
@@ -62,6 +64,7 @@ enum Permission: string
         return match ($this) {
             self::ViewAdminDashboard => 'The company-wide console: headcount, attendance and requests at a glance.',
             self::ManageStaff => 'Add people, edit their record, change their role, deactivate them.',
+            self::IssueConduct => 'Query somebody, warn them, or confirm them at the end of probation, and read their answers. Each one is emailed to the person, their head of department and the people team. This is also who sets how long probation runs.',
             self::ManageLocations => 'Add and configure sites, their geofence and their working day.',
             self::ManageAssets => 'The asset register and its categories: add equipment, say where it is kept, and hand it to staff or take it back.',
             self::ManageDepartments => 'Create departments and the teams inside them, name who heads and leads each, and move people between them. Naming a head or a lead is what grants those roles, so this also decides who may see a group\'s numbers and decide on its requests.',
@@ -89,7 +92,7 @@ enum Permission: string
     {
         return match ($this) {
             self::ViewAdminDashboard, self::ViewAttendanceReport, self::ViewLeaveRegister, self::ViewClockAttempts, self::ViewAuditTrail => 'Visibility',
-            self::ManageStaff, self::ManageLocations, self::ManageAssets, self::ManageDepartments, self::ManageAnnouncements, self::ManagePolicies => 'People and sites',
+            self::ManageStaff, self::IssueConduct, self::ManageLocations, self::ManageAssets, self::ManageDepartments, self::ManageAnnouncements, self::ManagePolicies => 'People and sites',
             self::ManagePayroll, self::ManageRequisitions, self::HandleReports, self::ViewPerformanceReviews => 'Confidential',
             self::ManageRequestSettings, self::ApproveRequests => 'Requests',
             self::ImportData, self::ManageRoles => 'System',

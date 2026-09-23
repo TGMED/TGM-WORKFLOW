@@ -88,6 +88,11 @@ const nav: NavItem[] = [
                 icon: 'M4 7.5 12 3.5l8 4v9l-8 4-8-4v-9Zm0 0 8 4m0 0 8-4m-8 4v9',
             },
             {
+                label: 'Queries and warnings',
+                href: '/conduct',
+                icon: 'M8 3.5h5.5L18.5 8v11a1.5 1.5 0 0 1-1.5 1.5H8A1.5 1.5 0 0 1 6.5 19V5A1.5 1.5 0 0 1 8 3.5Zm5 0V8h4.5M12 11v3m0 2.5h.01',
+            },
+            {
                 label: 'My payslips',
                 href: '/payslips',
                 icon: 'M6 3.5h12A1.5 1.5 0 0 1 19.5 5v15.5l-2.5-1.5-2.5 1.5-2.5-1.5-2.5 1.5-2.5-1.5V5A1.5 1.5 0 0 1 6 3.5ZM9 8h6M9 11.5h6M9 15h3',
@@ -218,6 +223,12 @@ const nav: NavItem[] = [
                 href: '/admin/reports',
                 permission: 'reports.handle',
                 icon: 'M12 8.5v4m0 3h.01M10.6 3.9 2.5 18a1.5 1.5 0 0 0 1.3 2.3h16.4a1.5 1.5 0 0 0 1.3-2.3L13.4 3.9a1.6 1.6 0 0 0-2.8 0Z',
+            },
+            {
+                label: 'Queries and warnings',
+                href: '/admin/conduct',
+                permission: 'conduct.issue',
+                icon: 'M8 3.5h5.5L18.5 8v11a1.5 1.5 0 0 1-1.5 1.5H8A1.5 1.5 0 0 1 6.5 19V5A1.5 1.5 0 0 1 8 3.5Zm5 0V8h4.5M12 11v3m0 2.5h.01',
             },
             {
                 label: 'Performance reviews',

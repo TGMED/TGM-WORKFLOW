@@ -6,6 +6,7 @@ use App\Enums\EmploymentStatus;
 use App\Enums\ExitReason;
 use App\Enums\Permission;
 use App\Notifications\ResetPassword;
+use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -36,6 +37,7 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  * @property Carbon|null $hired_at
  * @property EmploymentStatus $employment_status
  * @property Carbon|null $confirmed_at
+ * @property int|null $probation_months
  * @property bool $is_active
  * @property Carbon|null $deactivated_at
  * @property ExitReason|null $exit_reason
@@ -76,6 +78,7 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
     'hired_at',
     'employment_status',
     'confirmed_at',
+    'probation_months',
     'is_active',
     'deactivated_at',
     'exit_reason',
@@ -113,6 +116,7 @@ class User extends Authenticatable implements AuditableContract
             'hired_at' => 'date',
             'employment_status' => EmploymentStatus::class,
             'confirmed_at' => 'date',
+            'probation_months' => 'integer',
             'is_active' => 'boolean',
             'deactivated_at' => 'datetime',
             'exit_reason' => ExitReason::class,
@@ -553,6 +557,24 @@ class User extends Authenticatable implements AuditableContract
     public function isConfirmed(): bool
     {
         return $this->employment_status === EmploymentStatus::Confirmed;
+    }
+
+    /**
+     * How long this person's probation runs: their own length where their
+     * contract set one, the company's otherwise.
+     */
+    public function probationLength(): int
+    {
+        return $this->probation_months ?? EmploymentSettings::probationMonths();
+    }
+
+    /**
+     * The day confirmation falls due. Null with no start date on file, since
+     * a due date guessed from nothing would only be wrong.
+     */
+    public function confirmationDueOn(): ?CarbonInterface
+    {
+        return $this->hired_at?->copy()->addMonthsNoOverflow($this->probationLength());
     }
 
     /**

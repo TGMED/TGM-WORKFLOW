@@ -56,6 +56,9 @@ const props = defineProps<{
         employment_status_tone:
             'signal' | 'brass' | 'alert' | 'beacon' | 'neutral';
         confirmed_at: string | null;
+        probation_months: number | null;
+        probation_length: number;
+        confirmation_due_on: string | null;
         email_verified_at: string | null;
         is_active: boolean;
         deactivated_at: string | null;
@@ -185,6 +188,7 @@ const form = useForm({
     manager_id: props.staff.manager_id,
     position: props.staff.position ?? '',
     hired_at: props.staff.hired_at ?? '',
+    probation_months: (props.staff.probation_months ?? '') as number | '',
     roles: [...props.staff.roles],
     location_id: props.staff.location_id,
     password: '',
@@ -365,6 +369,18 @@ const detailGroups = computed<DetailGroup[]>(() => {
                 row('Status', props.staff.employment_status_label),
                 row('Started', date(props.staff.hired_at)),
                 row('Confirmed', date(props.staff.confirmed_at)),
+                row(
+                    'Probation',
+                    `${props.staff.probation_length} months${props.staff.probation_months === null ? " (the company's length)" : ''}`,
+                ),
+                ...(props.staff.employment_status === 'probation'
+                    ? [
+                          row(
+                              'Confirmation due',
+                              date(props.staff.confirmation_due_on),
+                          ),
+                      ]
+                    : []),
                 row(
                     'Profile completed',
                     p.completed_at ? date(p.completed_at) : 'Not yet',
@@ -1213,6 +1229,15 @@ const attemptPages = usePaginated(() => results.rows, {
                         label="Start date"
                         type="date"
                         :error="form.errors.hired_at"
+                    />
+                    <TextField
+                        v-model="form.probation_months"
+                        label="Probation (months)"
+                        type="number"
+                        min="1"
+                        max="24"
+                        :hint="`Leave empty to follow the company's length. Their probation runs ${staff.probation_length} months.`"
+                        :error="form.errors.probation_months"
                     />
                     <SelectField
                         v-model="form.location_id"

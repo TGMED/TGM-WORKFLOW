@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\AssetController as AdminAssetController;
 use App\Http\Controllers\Admin\AttendanceReportController;
 use App\Http\Controllers\Admin\AuditController;
 use App\Http\Controllers\Admin\ClockAttemptController;
+use App\Http\Controllers\Admin\ConductController as AdminConductController;
 use App\Http\Controllers\Admin\DepartmentController;
 use App\Http\Controllers\Admin\ImportController;
 use App\Http\Controllers\Admin\LeaveRegisterController;
@@ -42,6 +43,7 @@ use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\BankAccountController;
 use App\Http\Controllers\BreakController;
 use App\Http\Controllers\ClockController;
+use App\Http\Controllers\ConductController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LatenessRequestController;
 use App\Http\Controllers\LeaveEvidenceController;
@@ -218,6 +220,14 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
     Route::get('assets', [AssetController::class, 'index'])
         ->middleware('clocks-in')
         ->name('assets.index');
+
+    // The queries, warnings and confirmations somebody has been issued. Every
+    // route checks the row belongs to the person asking.
+    Route::middleware('clocks-in')->group(function (): void {
+        Route::get('conduct', [ConductController::class, 'index'])->name('conduct.index');
+        Route::post('conduct/{action}/respond', [ConductController::class, 'respond'])->name('conduct.respond');
+        Route::post('conduct/{action}/acknowledge', [ConductController::class, 'acknowledge'])->name('conduct.acknowledge');
+    });
 
     // Reviewing a colleague's work is open to everyone who signs in. Where the
     // reviewer stands to the subject decides who reads it, not whether it may
@@ -502,6 +512,14 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
             Route::post('asset-categories', [AssetCategoryController::class, 'store'])->name('asset-categories.store');
             Route::put('asset-categories/{category}', [AssetCategoryController::class, 'update'])->name('asset-categories.update');
             Route::delete('asset-categories/{category}', [AssetCategoryController::class, 'destroy'])->name('asset-categories.destroy');
+        });
+
+        // Queries, warnings and confirmations, and how long probation runs
+        // before a confirmation falls due.
+        Route::middleware('permission:conduct.issue')->group(function (): void {
+            Route::get('conduct', [AdminConductController::class, 'index'])->name('conduct.index');
+            Route::post('conduct', [AdminConductController::class, 'store'])->name('conduct.store');
+            Route::put('conduct/probation', [AdminConductController::class, 'probation'])->name('conduct.probation');
         });
 
         // Every performance review with its author. Its own permission for the

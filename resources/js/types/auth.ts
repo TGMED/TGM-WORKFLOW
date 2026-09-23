@@ -20,6 +20,7 @@ export type HeldRole = {
 export type Permission =
     | 'admin.dashboard'
     | 'staff.manage'
+    | 'conduct.issue'
     | 'locations.manage'
     | 'assets.manage'
     | 'departments.manage'

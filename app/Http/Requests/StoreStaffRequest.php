@@ -36,6 +36,9 @@ class StoreStaffRequest extends FormRequest
             ],
             'position' => ['nullable', 'string', 'max:80'],
             'hired_at' => ['nullable', 'date'],
+            // Their own probation length, where their contract sets one. Left
+            // empty, they follow the company's.
+            'probation_months' => ['nullable', 'integer', 'between:1,24'],
             // A person may hold several roles. The two that come with people
             // attached are not grantable here: naming somebody a head of
             // department or a team lead also names who they are responsible
