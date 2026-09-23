@@ -23,6 +23,7 @@ use App\Http\Controllers\Admin\PublicHolidayController;
 use App\Http\Controllers\Admin\RecommendationDeskController;
 use App\Http\Controllers\Admin\ReportController as AdminReportController;
 use App\Http\Controllers\Admin\RequestSettingsController;
+use App\Http\Controllers\Admin\RequisitionController as AdminRequisitionController;
 use App\Http\Controllers\Admin\ReviewController as AdminReviewController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\SalaryController;
@@ -32,6 +33,7 @@ use App\Http\Controllers\Admin\UserPayrollSettingsController;
 use App\Http\Controllers\AnnouncementController as PublicAnnouncementController;
 use App\Http\Controllers\ApprovalController;
 use App\Http\Controllers\AssetController;
+use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\InvitationController;
@@ -57,6 +59,7 @@ use App\Http\Controllers\Profile\ProfilePhotoController;
 use App\Http\Controllers\Profile\RelationController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReportEvidenceController;
+use App\Http\Controllers\RequisitionController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\Settings\NotificationSettingsController;
 use App\Http\Controllers\Settings\PushTokenController;
@@ -198,6 +201,18 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
     Route::post('bank-accounts/resolve', [BankAccountController::class, 'resolve'])
         ->middleware('throttle:20,1')
         ->name('bank-accounts.resolve');
+
+    // Money asked for ahead of spending it, and the retirement that accounts
+    // for it. Open to everyone who signs in: admins buy things too.
+    Route::get('requisitions', [RequisitionController::class, 'index'])->name('requisitions.index');
+    Route::post('requisitions', [RequisitionController::class, 'store'])
+        ->middleware('throttle:20,1')
+        ->name('requisitions.store');
+    Route::delete('requisitions/{requisition}', [RequisitionController::class, 'destroy'])->name('requisitions.destroy');
+    Route::post('requisitions/{requisition}/retirement', [RequisitionController::class, 'retire'])->name('requisitions.retire');
+
+    // A quote or receipt, checked on the row: the requester and finance only.
+    Route::get('attachments/{attachment}', [AttachmentController::class, 'show'])->name('attachments.show');
 
     // Equipment the company has handed to the person asking.
     Route::get('assets', [AssetController::class, 'index'])
@@ -466,6 +481,14 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
         Route::middleware('permission:reports.handle')->group(function (): void {
             Route::get('reports', [AdminReportController::class, 'index'])->name('reports.index');
             Route::put('reports/{report}', [AdminReportController::class, 'update'])->name('reports.update');
+        });
+
+        // Finance's side of requisitions: approve, pay, and close them.
+        Route::middleware('permission:requisitions.manage')->group(function (): void {
+            Route::get('requisitions', [AdminRequisitionController::class, 'index'])->name('requisitions.index');
+            Route::post('requisitions/{requisition}/decision', [AdminRequisitionController::class, 'decide'])->name('requisitions.decide');
+            Route::post('requisitions/{requisition}/payment', [AdminRequisitionController::class, 'pay'])->name('requisitions.pay');
+            Route::post('requisitions/{requisition}/retirement-review', [AdminRequisitionController::class, 'review'])->name('requisitions.review');
         });
 
         // The asset register and its categories.

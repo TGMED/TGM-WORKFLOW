@@ -33,6 +33,9 @@ enum NotificationTopic: string
     /** Somebody has been recommended for termination, or that case was answered. */
     case TerminationRecommended = 'termination_recommended';
 
+    /** A requisition or its retirement was raised, decided or paid. */
+    case Requisition = 'requisition';
+
     public function label(): string
     {
         return match ($this) {
@@ -45,6 +48,7 @@ enum NotificationTopic: string
             self::Department => 'Department changes',
             self::ApprovalOverdue => 'Requests left waiting',
             self::TerminationRecommended => 'Terminations recommended',
+            self::Requisition => 'Requisitions',
         };
     }
 
@@ -60,6 +64,7 @@ enum NotificationTopic: string
             self::Department => 'You were moved into a department, or named to run one.',
             self::ApprovalOverdue => 'A request has sat undecided long enough that somebody should chase it.',
             self::TerminationRecommended => 'A case has been put to HR that somebody be let go, or one you raised has been answered.',
+            self::Requisition => 'A requisition you raised was approved, declined or paid, or one is waiting on finance.',
         };
     }
 

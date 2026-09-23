@@ -78,6 +78,11 @@ const nav: NavItem[] = [
                 icon: 'M4 20V9.5L12 4l8 5.5V20M4 20h16M9.5 20v-5h5v5M14.5 9.5h4.5m0 0-1.8-1.8m1.8 1.8-1.8 1.8',
             },
             {
+                label: 'Requisitions',
+                href: '/requisitions',
+                icon: 'M4 7.5h16v11H4v-11Zm0 3.5h16M7.5 15h3',
+            },
+            {
                 label: 'My assets',
                 href: '/assets',
                 icon: 'M4 7.5 12 3.5l8 4v9l-8 4-8-4v-9Zm0 0 8 4m0 0 8-4m-8 4v9',
@@ -164,6 +169,12 @@ const nav: NavItem[] = [
                 href: '/admin/announcements',
                 permission: 'announcements.manage',
                 icon: 'M3.5 10.5v3a1.5 1.5 0 0 0 1.5 1.5h2l5 4V5l-5 4H5a1.5 1.5 0 0 0-1.5 1.5Zm13-1.5a5 5 0 0 1 0 6',
+            },
+            {
+                label: 'Requisitions',
+                href: '/admin/requisitions',
+                permission: 'requisitions.manage',
+                icon: 'M4 7.5h16v11H4v-11Zm0 3.5h16M7.5 15h3',
             },
             {
                 label: 'Assets',

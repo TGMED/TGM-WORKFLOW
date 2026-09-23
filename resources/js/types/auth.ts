@@ -31,6 +31,7 @@ export type Permission =
     | 'request-settings.manage'
     | 'requests.approve'
     | 'payroll.manage'
+    | 'requisitions.manage'
     | 'reports.handle'
     | 'reviews.view'
     | 'data.import'

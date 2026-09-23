@@ -25,6 +25,7 @@ enum Permission: string
     case ManageRequestSettings = 'request-settings.manage';
     case ApproveRequests = 'requests.approve';
     case ManagePayroll = 'payroll.manage';
+    case ManageRequisitions = 'requisitions.manage';
     case HandleReports = 'reports.handle';
     case ViewPerformanceReviews = 'reviews.view';
     case ImportData = 'data.import';
@@ -47,6 +48,7 @@ enum Permission: string
             self::ManageRequestSettings => 'Manage request settings',
             self::ApproveRequests => 'Decide on requests',
             self::ManagePayroll => 'Run payroll and set salaries',
+            self::ManageRequisitions => 'Approve, pay and close requisitions',
             self::HandleReports => 'Read and handle incident reports',
             self::ViewPerformanceReviews => 'Read every performance review',
             self::ImportData => 'Import data from a file',
@@ -71,6 +73,7 @@ enum Permission: string
             self::ManageRequestSettings => 'Leave types, their policy rules, closed periods and approval counts.',
             self::ApproveRequests => 'The approvals inbox, and filing a request for somebody else.',
             self::ManagePayroll => 'Salaries, the tax and pension rates, and building and signing off each month\'s payslips.',
+            self::ManageRequisitions => 'Every requisition staff raise: approve or decline it, record it as paid, and accept or send back the retirement that accounts for the money.',
             self::HandleReports => 'The reports desk: read what staff have raised, including who raised it, and close a case. Give this to as few people as the company can manage.',
             self::ViewPerformanceReviews => 'Every review staff have written of each other, with who wrote it, including the private ones nobody else sees. Staff read the public reviews about themselves without the author\'s name, so this is the only place that name appears.',
             self::ImportData => 'Load records in bulk from a spreadsheet. Each sheet still answers to the permission that guards editing those records by hand, so this widens how much somebody can change at once, never what.',
@@ -87,7 +90,7 @@ enum Permission: string
         return match ($this) {
             self::ViewAdminDashboard, self::ViewAttendanceReport, self::ViewLeaveRegister, self::ViewClockAttempts, self::ViewAuditTrail => 'Visibility',
             self::ManageStaff, self::ManageLocations, self::ManageAssets, self::ManageDepartments, self::ManageAnnouncements, self::ManagePolicies => 'People and sites',
-            self::ManagePayroll, self::HandleReports, self::ViewPerformanceReviews => 'Confidential',
+            self::ManagePayroll, self::ManageRequisitions, self::HandleReports, self::ViewPerformanceReviews => 'Confidential',
             self::ManageRequestSettings, self::ApproveRequests => 'Requests',
             self::ImportData, self::ManageRoles => 'System',
         };
