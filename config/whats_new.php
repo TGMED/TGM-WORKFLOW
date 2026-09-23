@@ -30,6 +30,61 @@ return [
 
     'releases' => [
         [
+            'version' => '2026.09.3',
+            'date' => '2026-09-23',
+            'features' => [
+                [
+                    'title' => 'Review a colleague\'s work',
+                    'description' => 'Anyone can now write a performance review of a colleague, with a rating and a few words, from Reviews under The company. You choose whether the person reads it or only HR does, and they never see who wrote it. A review of somebody you do not work with goes to HR only.',
+                ],
+                [
+                    'title' => 'Your bank account checked with your bank',
+                    'audience' => ['staff'],
+                    'description' => 'When you add your bank details, pick your bank and type your account number: the name on the account fills in from the bank itself, so salary is never paid to a misspelt name.',
+                ],
+                [
+                    'title' => 'Raise a requisition, then retire it',
+                    'description' => 'Ask finance for money ahead of spending it from Requisitions under My work. Name who is to be paid by bank and account number and the account name fills in from the bank. Quotes are optional. Once it is paid, retire it with what you spent and any receipts.',
+                ],
+                [
+                    'title' => 'See the equipment in your care',
+                    'audience' => ['staff'],
+                    'description' => 'My assets lists the company equipment assigned to you, where it is kept, and since when.',
+                ],
+                [
+                    'title' => 'Queries, warnings and your confirmation, in writing',
+                    'audience' => ['staff'],
+                    'description' => 'Formal letters from HR now arrive by email and sit under Queries and warnings. Answer a query there, or mark a warning as read.',
+                ],
+                [
+                    'title' => 'Issue queries and warnings, and confirm staff',
+                    'audience' => ['conduct.issue'],
+                    'description' => 'Issue a query with a date to answer by, a warning, or a confirmation that moves somebody off probation. Each is emailed to the person, their head of department and HR. The company probation length is set on the same page, and each person can be given their own on their staff record.',
+                ],
+                [
+                    'title' => 'An asset register',
+                    'audience' => ['assets.manage'],
+                    'description' => 'Record equipment by category, with the site and spot it is kept at, and hand it to staff or take it back. Every hand it has passed through is kept.',
+                ],
+                [
+                    'title' => 'A requisitions desk for finance',
+                    'audience' => ['requisitions.manage'],
+                    'description' => 'Approve or decline requisitions, record them as paid, and accept or send back the retirement that accounts for the money.',
+                ],
+                [
+                    'title' => 'HR reports',
+                    'audience' => ['hr-reports.view'],
+                    'description' => 'Headcount, attendance, leave, reviews, queries and warnings, assets and requisition spend, totalled by department over any window, each downloadable as a CSV.',
+                ],
+                [
+                    'title' => 'Every performance review in one place',
+                    'audience' => ['reviews.view'],
+                    'description' => 'HR can read every review staff have written, with who wrote it and where they stand to the person, including the private ones the subject is never shown.',
+                ],
+            ],
+            'fixes' => [],
+        ],
+        [
             'version' => '2026.09.2',
             'date' => '2026-09-21',
             'features' => [
