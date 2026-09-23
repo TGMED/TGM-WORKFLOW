@@ -118,7 +118,11 @@ const {
         </div>
 
         <!-- Tabs -->
-        <div class="mb-6 flex gap-1 overflow-x-auto border-b border-line">
+        <!-- overflow-y-hidden: the tabs sit 1px into the border (-mb-px), which
+             overflow-x-auto would otherwise turn into a vertical scrollbar. -->
+        <div
+            class="mb-6 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-line"
+        >
             <button
                 v-for="item in tabs"
                 :key="item.id"
