@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import AppButton from '@/components/ui/AppButton.vue';
+import CheckboxGroupField from '@/components/ui/CheckboxGroupField.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
 import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
-import SelectField from '@/components/ui/SelectField.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import TextField from '@/components/ui/TextField.vue';
 import { usePaginated } from '@/composables/usePaginated';
@@ -16,8 +16,8 @@ type HolidayRow = {
     id: number;
     name: string;
     date: string;
-    location_id: number | null;
-    location: string | null;
+    location_ids: number[];
+    locations: string[];
     date_label: string;
     weekday: string;
     past: boolean;
@@ -33,20 +33,41 @@ const props = defineProps<{
 const open = ref(false);
 const editing = ref<HolidayRow | null>(null);
 
+// The checkbox list works in strings; the ids go back as numbers.
+const siteOptions = computed(() =>
+    props.locations.map((site) => ({
+        value: String(site.value),
+        label: site.label,
+    })),
+);
+
 const form = useForm<{
     name: string;
     date: string;
-    location_id: number | null;
+    location_ids: string[];
 }>({
     name: '',
     date: '',
-    location_id: null,
+    location_ids: [],
 });
+
+form.transform((data) => ({
+    ...data,
+    location_ids: data.location_ids.map(Number),
+}));
+
+const siteError = computed(
+    () =>
+        form.errors.location_ids ??
+        Object.entries(form.errors).find(([key]) =>
+            key.startsWith('location_ids.'),
+        )?.[1],
+);
 
 function add() {
     editing.value = null;
     form.clearErrors();
-    form.defaults({ name: '', date: '', location_id: null });
+    form.defaults({ name: '', date: '', location_ids: [] });
     form.reset();
     open.value = true;
 }
@@ -57,7 +78,7 @@ function edit(row: HolidayRow) {
     form.defaults({
         name: row.name,
         date: row.date,
-        location_id: row.location_id,
+        location_ids: row.location_ids.map(String),
     });
     form.reset();
     open.value = true;
@@ -98,7 +119,7 @@ const pages = usePaginated(() => props.holidays);
 
     <AppLayout
         heading="Public holidays"
-        lede="Days off for every site, or for one"
+        lede="Days off for every site, or for some"
     >
         <template #toolbar>
             <AppButton size="sm" @click="add">Add holiday</AppButton>
@@ -165,7 +186,11 @@ const pages = usePaginated(() => props.holidays);
                             </td>
                             <td class="px-5 py-3">{{ row.name }}</td>
                             <td class="px-5 py-3">
-                                {{ row.location ?? 'Every site' }}
+                                {{
+                                    row.locations.length
+                                        ? row.locations.join(', ')
+                                        : 'Every site'
+                                }}
                             </td>
                             <td class="px-5 py-3">
                                 <StatusPill
@@ -231,15 +256,13 @@ const pages = usePaginated(() => props.holidays);
                     hint="One day. A holiday that runs over two days is two entries."
                     :error="form.errors.date"
                 />
-                <SelectField
-                    v-model="form.location_id"
+                <CheckboxGroupField
+                    v-model="form.location_ids"
                     label="Where"
-                    :options="locations"
-                    hint="A state or local holiday is kept by the one site that is off."
-                    :error="form.errors.location_id"
-                >
-                    <option :value="null">Every site</option>
-                </SelectField>
+                    :options="siteOptions"
+                    hint="Leave every site unticked for a company-wide holiday. Tick the sites that are off for a state or local one."
+                    :error="siteError"
+                />
             </form>
 
             <template #footer>

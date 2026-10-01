@@ -9,11 +9,12 @@ use App\Models\PublicHoliday;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * The days off, company-wide or for one site. Kept with the sites, since a
+ * The days off, company-wide or for some sites. Kept with the sites, since a
  * holiday is a day taken out of a site's week.
  */
 class PublicHolidayController extends Controller
@@ -24,7 +25,7 @@ class PublicHolidayController extends Controller
         $today = Carbon::now()->startOfDay();
 
         $holidays = PublicHoliday::query()
-            ->with('location:id,name')
+            ->with('locations:id,name')
             ->whereYear('date', $year)
             ->orderBy('date')
             ->get();
@@ -36,8 +37,8 @@ class PublicHolidayController extends Controller
                     'id' => $holiday->id,
                     'name' => $holiday->name,
                     'date' => $holiday->date->toDateString(),
-                    'location_id' => $holiday->location_id,
-                    'location' => $holiday->location?->name,
+                    'location_ids' => $holiday->locations->pluck('id')->sort()->values(),
+                    'locations' => $holiday->locations->pluck('name')->sort()->values(),
                     'date_label' => $holiday->date->format('j F'),
                     'weekday' => $holiday->date->format('l'),
                     'past' => $holiday->date->lessThan($today),
@@ -64,14 +65,22 @@ class PublicHolidayController extends Controller
 
     public function store(PublicHolidayRequest $request): RedirectResponse
     {
-        $holiday = PublicHoliday::query()->create($request->validated());
+        $holiday = DB::transaction(function () use ($request): PublicHoliday {
+            $holiday = PublicHoliday::query()->create($request->safe()->only(['name', 'date']));
+            $holiday->locations()->sync($request->locationIds());
+
+            return $holiday;
+        });
 
         return $this->done("{$holiday->name} has been added.", $holiday);
     }
 
     public function update(PublicHolidayRequest $request, PublicHoliday $holiday): RedirectResponse
     {
-        $holiday->update($request->validated());
+        DB::transaction(function () use ($request, $holiday): void {
+            $holiday->update($request->safe()->only(['name', 'date']));
+            $holiday->locations()->sync($request->locationIds());
+        });
 
         return $this->done("{$holiday->name} has been updated.", $holiday);
     }

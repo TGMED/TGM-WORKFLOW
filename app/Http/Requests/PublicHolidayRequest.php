@@ -23,8 +23,9 @@ class PublicHolidayRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:120'],
             'date' => ['required', 'date'],
-            // Empty for a day every site is off, or the one site that keeps it.
-            'location_id' => ['nullable', 'integer', Rule::exists('locations', 'id')->whereNull('deleted_at')],
+            // Empty for a day every site is off, or the sites that keep it.
+            'location_ids' => ['nullable', 'array'],
+            'location_ids.*' => ['integer', 'distinct', Rule::exists('locations', 'id')->whereNull('deleted_at')],
         ];
     }
 
@@ -34,7 +35,7 @@ class PublicHolidayRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'location_id.exists' => 'Choose a site from the list.',
+            'location_ids.*.exists' => 'Choose sites from the list.',
         ];
     }
 
@@ -50,6 +51,16 @@ class PublicHolidayRequest extends FormRequest
     }
 
     /**
+     * The sites that keep the holiday, none when every site does.
+     *
+     * @return list<int>
+     */
+    public function locationIds(): array
+    {
+        return array_values(array_map('intval', (array) $this->input('location_ids', [])));
+    }
+
+    /**
      * One holiday a day for any one site: two names for the same day would
      * count it off twice in nobody's favour, and read as a mistake. A
      * company-wide holiday already covers every site, so a site's own holiday
@@ -59,25 +70,31 @@ class PublicHolidayRequest extends FormRequest
     {
         /** @var PublicHoliday|null $holiday */
         $holiday = $this->route('holiday');
-        $locationId = $this->filled('location_id') ? $this->integer('location_id') : null;
+        $locationIds = $this->locationIds();
 
         $clash = PublicHoliday::query()
-            ->with('location:id,name')
+            ->with('locations:id,name')
             ->where('date', $this->date('date')?->toDateString())
             ->when($holiday !== null, fn ($query) => $query->whereKeyNot($holiday->id))
-            ->when($locationId !== null, fn ($query) => $query->observedAt($locationId))
+            ->when($locationIds !== [], fn ($query) => $query->observedAt($locationIds))
             ->first();
 
         if ($clash === null) {
             return;
         }
 
-        $site = $clash->location->name ?? 'Another site';
+        // Only the sites the two have in common, when this one is not
+        // company-wide, so the message names the overlap.
+        $overlap = $clash->locations
+            ->when($locationIds !== [], fn ($sites) => $sites->whereIn('id', $locationIds))
+            ->pluck('name');
+        $sites = $overlap->join(', ', ' and ');
+        $has = $overlap->count() === 1 ? 'has' : 'have';
 
         $validator->errors()->add('date', match (true) {
-            $clash->location_id === null => "Every site is already off that day for {$clash->name}.",
-            $locationId === null => "{$site} already has {$clash->name} that day. Take it off before making the day company-wide.",
-            default => "{$site} already has {$clash->name} that day.",
+            $clash->locations->isEmpty() => "Every site is already off that day for {$clash->name}.",
+            $locationIds === [] => "{$sites} already {$has} {$clash->name} that day. Take it off before making the day company-wide.",
+            default => "{$sites} already {$has} {$clash->name} that day.",
         });
     }
 }

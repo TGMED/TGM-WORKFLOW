@@ -204,39 +204,60 @@ class PublicHolidayTest extends TestCase
         $admin = $this->admin();
 
         $this->actingAs($admin)
-            ->post('/admin/holidays', ['name' => 'Eid', 'date' => '2026-11-02', 'location_id' => $this->location->id])
+            ->post('/admin/holidays', ['name' => 'Eid', 'date' => '2026-11-02', 'location_ids' => [$this->location->id]])
             ->assertSessionHasNoErrors();
 
         $holiday = PublicHoliday::query()->firstOrFail();
-        $this->assertSame($this->location->id, $holiday->location_id);
+        $this->assertSame([$this->location->id], $holiday->locations()->pluck('locations.id')->all());
 
         $this->actingAs($admin)
             ->get('/admin/holidays?year=2026')
             ->assertInertia(fn ($page) => $page
-                ->where('holidays.0.location_id', $this->location->id)
-                ->where('holidays.0.location', $this->location->name)
+                ->where('holidays.0.location_ids', [$this->location->id])
+                ->where('holidays.0.locations', [$this->location->name])
                 ->has('locations', 1));
 
         // Cleared back to every site.
         $this->actingAs($admin)
-            ->put("/admin/holidays/{$holiday->id}", ['name' => 'Eid', 'date' => '2026-11-02', 'location_id' => null])
+            ->put("/admin/holidays/{$holiday->id}", ['name' => 'Eid', 'date' => '2026-11-02', 'location_ids' => []])
             ->assertSessionHasNoErrors();
-        $this->assertNull($holiday->refresh()->location_id);
+        $this->assertSame(0, $holiday->locations()->count());
+    }
+
+    public function test_a_holiday_can_be_kept_by_several_sites(): void
+    {
+        $second = Location::factory()->create(['workdays' => [1, 2, 3, 4, 5]]);
+        $third = Location::factory()->create(['workdays' => [1, 2, 3, 4, 5]]);
+        $date = Carbon::now()->addDays(5)->toDateString();
+
+        $this->actingAs($this->admin())
+            ->post('/admin/holidays', ['name' => 'State day', 'date' => $date, 'location_ids' => [$this->location->id, $second->id]])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame([$date => 'State day'], PublicHoliday::between(Carbon::parse($date), Carbon::parse($date), $this->location->id));
+        $this->assertSame([$date => 'State day'], PublicHoliday::between(Carbon::parse($date), Carbon::parse($date), $second->id));
+        $this->assertSame([], PublicHoliday::between(Carbon::parse($date), Carbon::parse($date), $third->id));
+
+        // A site already off that day cannot be given another holiday, even
+        // alongside one that is free.
+        $this->actingAs($this->admin())
+            ->post('/admin/holidays', ['name' => 'Again', 'date' => $date, 'location_ids' => [$third->id, $second->id]])
+            ->assertSessionHasErrors('date');
     }
 
     public function test_one_holiday_a_day_for_any_one_site(): void
     {
         $other = Location::factory()->create();
-        PublicHoliday::factory()->create(['date' => '2026-11-02', 'location_id' => $this->location->id]);
+        PublicHoliday::factory()->hasAttached($this->location)->create(['date' => '2026-11-02']);
 
         // Another site may be off the same day.
         $this->actingAs($this->admin())
-            ->post('/admin/holidays', ['name' => 'Local day', 'date' => '2026-11-02', 'location_id' => $other->id])
+            ->post('/admin/holidays', ['name' => 'Local day', 'date' => '2026-11-02', 'location_ids' => [$other->id]])
             ->assertSessionHasNoErrors();
 
         // The same site may not, twice.
         $this->actingAs($this->admin())
-            ->post('/admin/holidays', ['name' => 'Again', 'date' => '2026-11-02', 'location_id' => $this->location->id])
+            ->post('/admin/holidays', ['name' => 'Again', 'date' => '2026-11-02', 'location_ids' => [$this->location->id]])
             ->assertSessionHasErrors('date');
 
         // Nor can the day go company-wide over a site's own holiday.
@@ -248,16 +269,16 @@ class PublicHolidayTest extends TestCase
         PublicHoliday::factory()->create(['date' => '2026-12-25']);
 
         $this->actingAs($this->admin())
-            ->post('/admin/holidays', ['name' => 'Christmas here', 'date' => '2026-12-25', 'location_id' => $other->id])
+            ->post('/admin/holidays', ['name' => 'Christmas here', 'date' => '2026-12-25', 'location_ids' => [$other->id]])
             ->assertSessionHasErrors('date');
     }
 
     public function test_editing_a_holiday_does_not_clash_with_itself(): void
     {
-        $holiday = PublicHoliday::factory()->create(['date' => '2026-11-02', 'location_id' => $this->location->id]);
+        $holiday = PublicHoliday::factory()->hasAttached($this->location)->create(['date' => '2026-11-02']);
 
         $this->actingAs($this->admin())
-            ->put("/admin/holidays/{$holiday->id}", ['name' => 'Renamed', 'date' => '2026-11-02', 'location_id' => $this->location->id])
+            ->put("/admin/holidays/{$holiday->id}", ['name' => 'Renamed', 'date' => '2026-11-02', 'location_ids' => [$this->location->id]])
             ->assertSessionHasNoErrors();
     }
 
@@ -265,9 +286,8 @@ class PublicHolidayTest extends TestCase
     {
         $monday = Carbon::now()->addWeeks(2)->startOfWeek();
         $elsewhere = Location::factory()->create(['workdays' => [1, 2, 3, 4, 5]]);
-        PublicHoliday::factory()->create([
+        PublicHoliday::factory()->hasAttached($elsewhere)->create([
             'date' => $monday->copy()->addDays(2)->toDateString(),
-            'location_id' => $elsewhere->id,
         ]);
 
         $this->actingAs($this->staff())
@@ -289,8 +309,8 @@ class PublicHolidayTest extends TestCase
         $elsewhere = Location::factory()->create();
         $ours = Carbon::now()->addDays(3)->toDateString();
         $theirs = Carbon::now()->addDays(4)->toDateString();
-        PublicHoliday::factory()->create(['name' => 'Our day', 'date' => $ours, 'location_id' => $this->location->id]);
-        PublicHoliday::factory()->create(['name' => 'Their day', 'date' => $theirs, 'location_id' => $elsewhere->id]);
+        PublicHoliday::factory()->hasAttached($this->location)->create(['name' => 'Our day', 'date' => $ours]);
+        PublicHoliday::factory()->hasAttached($elsewhere)->create(['name' => 'Their day', 'date' => $theirs]);
 
         $this->actingAs($this->staff())
             ->get('/leave')
@@ -304,7 +324,7 @@ class PublicHolidayTest extends TestCase
     public function test_the_attendance_report_only_excuses_the_site_that_is_off(): void
     {
         $elsewhere = Location::factory()->create(['timezone' => 'Africa/Lagos', 'workdays' => [1, 2, 3, 4, 5]]);
-        PublicHoliday::factory()->create(['name' => 'Local day', 'date' => '2026-10-01', 'location_id' => $elsewhere->id]);
+        PublicHoliday::factory()->hasAttached($elsewhere)->create(['name' => 'Local day', 'date' => '2026-10-01']);
 
         $this->staff();
 
