@@ -34,6 +34,14 @@ type StaffRow = {
     location: { id: number; name: string; city: string | null } | null;
     late_this_month: number;
     present_this_month: number;
+    /** Annual and sick leave this year. A null allowance means uncapped. */
+    leave: Array<{
+        slug: string;
+        name: string;
+        allowance: number | null;
+        used: number;
+        remaining: number | null;
+    }>;
     today: {
         status: string;
         clocked_in_at: string | null;
@@ -44,6 +52,7 @@ type StaffRow = {
 
 const props = defineProps<{
     invitation_days: number;
+    leave_year: number;
     staff: {
         data: StaffRow[];
         per_page: number;
@@ -258,7 +267,7 @@ const statusOptions = [
 
             <Panel flush>
                 <div class="overflow-x-auto">
-                    <table class="w-full min-w-[960px] text-left">
+                    <table class="w-full min-w-[1120px] text-left">
                         <thead>
                             <tr class="border-b border-line-soft">
                                 <th class="eyebrow px-5 py-3 font-medium">
@@ -277,6 +286,9 @@ const statusOptions = [
                                     This month
                                 </th>
                                 <th class="eyebrow px-5 py-3 font-medium">
+                                    Leave {{ leave_year }}
+                                </th>
+                                <th class="eyebrow px-5 py-3 font-medium">
                                     Account
                                 </th>
                                 <th
@@ -288,7 +300,7 @@ const statusOptions = [
                         </thead>
                         <tbody class="divide-y divide-line-soft">
                             <tr v-if="staff.data.length === 0">
-                                <td colspan="7">
+                                <td colspan="8">
                                     <EmptyState
                                         title="No staff match those filters"
                                         message="Try a different search term, or clear the filters to see the whole team."
@@ -453,6 +465,38 @@ const statusOptions = [
                                     >
                                         · {{ person.late_this_month }} late
                                     </span>
+                                </td>
+
+                                <td
+                                    class="tabular px-5 py-3 font-mono text-[12.5px] whitespace-nowrap"
+                                >
+                                    <div
+                                        v-for="balance in person.leave"
+                                        :key="balance.slug"
+                                        :title="`${balance.name}: ${balance.used} used${balance.remaining === null ? '' : `, ${balance.remaining} of ${balance.allowance} left`}`"
+                                    >
+                                        <span class="text-faint">
+                                            {{
+                                                balance.name.replace(
+                                                    / leave$/i,
+                                                    '',
+                                                )
+                                            }}
+                                        </span>
+                                        <span class="text-muted">
+                                            {{ balance.used }} used
+                                        </span>
+                                        <span
+                                            v-if="balance.remaining !== null"
+                                            :class="
+                                                balance.remaining === 0
+                                                    ? 'text-alert'
+                                                    : 'text-signal'
+                                            "
+                                        >
+                                            · {{ balance.remaining }} left
+                                        </span>
+                                    </div>
                                 </td>
 
                                 <td class="px-5 py-3">

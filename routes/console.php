@@ -1,6 +1,7 @@
 <?php
 
 use App\Console\Commands\EscalateStaleApprovals;
+use App\Console\Commands\SendApprovalReminders;
 use App\Console\Commands\SendBirthdayGreetings;
 use App\Console\Commands\SendDueAnnouncements;
 use App\Console\Commands\SendWorkAnniversaryGreetings;
@@ -35,6 +36,14 @@ Schedule::command(SendWorkAnniversaryGreetings::class)
 // arriving at a sensible hour rather than in the middle of the night.
 Schedule::command(EscalateStaleApprovals::class)
     ->hourly()
+    ->withoutOverlapping();
+
+// The approvers' morning reminder. Weekdays only: nobody decides leave on a
+// Sunday, and Monday's email covers the weekend anyway.
+Schedule::command(SendApprovalReminders::class)
+    ->weekdays()
+    ->dailyAt((string) config('hr.approval_reminders.at', '08:00'))
+    ->timezone((string) config('hr.approval_reminders.timezone', 'Africa/Lagos'))
     ->withoutOverlapping();
 
 // Horizon's metrics graphs are built from snapshots rather than kept live, so

@@ -201,6 +201,9 @@ class StaffExit
     protected function tellThoseLosingCover(Collection $cover, User $staff): void
     {
         foreach ($cover as $leave) {
+            // Can be null despite the relation's type: a soft-deleted
+            // requester no longer resolves.
+            /** @var User|null $requester */
             $requester = $leave->user;
 
             if ($requester === null || ! $requester->is_active) {

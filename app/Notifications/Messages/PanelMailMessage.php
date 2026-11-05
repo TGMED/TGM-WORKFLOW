@@ -25,7 +25,10 @@ class PanelMailMessage extends MailMessage
     public function panel(Htmlable|string|null ...$blocks): static
     {
         $blocks = array_filter(
-            array_map(static fn ($block) => trim((string) $block), $blocks),
+            array_map(
+                static fn (Htmlable|string|null $block): string => trim($block instanceof Htmlable ? $block->toHtml() : (string) $block),
+                $blocks,
+            ),
             static fn (string $block) => $block !== '',
         );
 

@@ -11,11 +11,14 @@ use App\Models\Attendance;
 use App\Models\ClockAttempt;
 use App\Models\Department;
 use App\Models\EmployeeProfile;
+use App\Models\LeaveRequest;
+use App\Models\LeaveType;
 use App\Models\Location;
 use App\Models\Role;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\Invitations;
+use App\Services\LeaveBalance;
 use App\Services\StaffExit;
 use App\Support\PerPage;
 use Illuminate\Database\Eloquent\Builder;
@@ -32,6 +35,7 @@ class StaffController extends Controller
     public function __construct(
         protected StaffExit $exits,
         protected Invitations $invitations,
+        protected LeaveBalance $balances,
     ) {}
 
     public function index(Request $request): Response
@@ -72,7 +76,16 @@ class StaffController extends Controller
         $monthly = $this->monthlyTotals($ids, $monthStart);
         $todays = $this->todaysAttendance($ids);
 
+        $leaveYear = Carbon::now()->year;
+        $leaveTypes = LeaveType::query()
+            ->active()
+            ->whereIn('slug', ['annual', 'sick'])
+            ->orderBy('name')
+            ->get();
+        $leaveUsed = $this->leaveUsed($ids, $leaveTypes, $leaveYear);
+
         $staff = $paginator->through(fn (User $user): array => [
+            'leave' => $this->leaveStanding($user, $leaveTypes, $leaveUsed[$user->id] ?? []),
             'id' => $user->id,
             'employee_id' => $user->employee_id,
             'name' => $user->name,
@@ -102,6 +115,7 @@ class StaffController extends Controller
         return Inertia::render('admin/StaffIndex', [
             'staff' => $staff,
             'invitation_days' => (int) config('hr.invitation_days'),
+            'leave_year' => $leaveYear,
             'filters' => [
                 'search' => $search,
                 'status' => $status ?: 'all',
@@ -240,6 +254,22 @@ class StaffController extends Controller
                 ],
             ],
             'profile' => $this->profilePayload($staff),
+            // Every active type, worked out exactly as the person's own leave
+            // page does, so HR and the employee see the same numbers.
+            'leave_year' => $localNow->year,
+            'leave' => collect($this->balances->summary($staff, $localNow->year))
+                ->map(fn (array $type): array => [
+                    'slug' => $type['slug'],
+                    'name' => $type['name'],
+                    'is_paid' => $type['is_paid'],
+                    'allowance' => $type['allowance'],
+                    'used' => $type['used'],
+                    'remaining' => $type['remaining'],
+                    'eligible' => $type['eligible'],
+                    'ineligible_reason' => $type['ineligible_reason'],
+                    'window_label' => $type['window']['label'] ?? null,
+                ])
+                ->all(),
             'stats' => $this->monthStats($thisMonth),
             'attendances' => $attendances->map(fn (Attendance $a): array => [
                 'id' => $a->id,
@@ -529,6 +559,62 @@ class StaffController extends Controller
                 'late' => $rows->filter(fn (Attendance $a): bool => $a->countsAsLate())->count(),
             ])
             ->all();
+    }
+
+    /**
+     * Annual and sick leave taken this year, per listed staff member and type,
+     * in one grouped query. Counts the same way the leave form does: pending
+     * requests are included, since those days are already promised.
+     *
+     * @param  array<int, int>  $ids
+     * @param  Collection<int, LeaveType>  $types
+     * @return array<int, array<int, int>> user id => [leave type id => days]
+     */
+    protected function leaveUsed(array $ids, Collection $types, int $year): array
+    {
+        if ($ids === [] || $types->isEmpty()) {
+            return [];
+        }
+
+        $used = [];
+
+        LeaveRequest::query()
+            ->whereIn('user_id', $ids)
+            ->whereIn('leave_type_id', $types->pluck('id'))
+            ->committed()
+            ->inYear($year)
+            ->selectRaw('user_id, leave_type_id, sum(days) as days_used')
+            ->groupBy('user_id', 'leave_type_id')
+            ->toBase()
+            ->get()
+            ->each(function (object $row) use (&$used): void {
+                $used[(int) $row->user_id][(int) $row->leave_type_id] = (int) $row->days_used;
+            });
+
+        return $used;
+    }
+
+    /**
+     * Each type's standing for one person: allowance, days used and days left.
+     *
+     * @param  Collection<int, LeaveType>  $types
+     * @param  array<int, int>  $used  leave type id => days
+     * @return array<int, array{slug: string, name: string, allowance: int|null, used: int, remaining: int|null}>
+     */
+    protected function leaveStanding(User $user, Collection $types, array $used): array
+    {
+        return $types->map(function (LeaveType $type) use ($user, $used): array {
+            $allowance = $type->allowanceFor($user);
+            $taken = $used[$type->id] ?? 0;
+
+            return [
+                'slug' => $type->slug,
+                'name' => $type->name,
+                'allowance' => $allowance,
+                'used' => $taken,
+                'remaining' => $allowance === null ? null : max(0, $allowance - $taken),
+            ];
+        })->values()->all();
     }
 
     /**

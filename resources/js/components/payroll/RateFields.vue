@@ -1,4 +1,10 @@
 <script setup lang="ts">
+/*
+ * This component edits the Inertia form it is handed, in place, on purpose:
+ * the parent owns the form and submits it, and these are just its fields.
+ * The form is reactive, so writing to it is safe here.
+ */
+/* eslint-disable vue/no-mutating-props */
 import { computed } from 'vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import TextField from '@/components/ui/TextField.vue';
@@ -56,6 +62,7 @@ function removeBand(index: number) {
 </script>
 
 <template>
+    <!-- eslint-disable vue/no-mutating-props -->
     <div class="space-y-6">
         <section>
             <h3 class="eyebrow">How a package splits</h3>
