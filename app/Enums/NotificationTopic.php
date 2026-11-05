@@ -39,6 +39,9 @@ enum NotificationTopic: string
     /** A requisition or its retirement was raised, decided or paid. */
     case Requisition = 'requisition';
 
+    /** The super admin's morning list of every request still pending. */
+    case ApprovalReminder = 'approval_reminder';
+
     public function label(): string
     {
         return match ($this) {
@@ -53,6 +56,7 @@ enum NotificationTopic: string
             self::TerminationRecommended => 'Terminations recommended',
             self::StaffAction => 'Queries, warnings and confirmations',
             self::Requisition => 'Requisitions',
+            self::ApprovalReminder => 'Daily pending-requests summary',
         };
     }
 
@@ -70,6 +74,7 @@ enum NotificationTopic: string
             self::TerminationRecommended => 'A case has been put to HR that somebody be let go, or one you raised has been answered.',
             self::StaffAction => 'You, or somebody in your department, has been queried, warned or confirmed, or a query has been answered.',
             self::Requisition => 'A requisition you raised was approved, declined or paid, or one is waiting on finance.',
+            self::ApprovalReminder => 'Each working morning, every request still waiting for a decision and who it is with. Sent to super admins.',
         };
     }
 
