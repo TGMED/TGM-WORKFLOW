@@ -4,7 +4,10 @@ namespace Tests\Feature;
 
 use App\Enums\EmploymentStatus;
 use App\Enums\ExitReason;
+use App\Enums\RequestStatus;
 use App\Models\Department;
+use App\Models\LeaveRequest;
+use App\Models\LeaveType;
 use App\Models\Location;
 use App\Models\Role;
 use App\Models\User;
@@ -47,6 +50,96 @@ class StaffManagementTest extends TestCase
         User::factory(3)->create(['location_id' => $this->location->id]);
 
         $this->actingAs($this->admin())->get('/admin/staff')->assertOk();
+    }
+
+    public function test_the_staff_list_shows_annual_and_sick_leave_used_and_left(): void
+    {
+        Carbon::setTestNow('2026-06-15 10:00:00');
+
+        $annual = LeaveType::query()->where('slug', 'annual')->firstOrFail();
+        $sick = LeaveType::query()->where('slug', 'sick')->firstOrFail();
+        $annual->update(['days_per_year' => 20, 'days_per_year_manager' => null]);
+        $sick->update(['days_per_year' => 10, 'days_per_year_manager' => null]);
+
+        $person = User::factory()->create([
+            'name' => 'Ada Leave',
+            'location_id' => $this->location->id,
+        ]);
+
+        $request = fn (LeaveType $type, string $start, int $days, RequestStatus $status) => LeaveRequest::factory()->create([
+            'user_id' => $person->id,
+            'leave_type_id' => $type->id,
+            'start_date' => $start,
+            'end_date' => Carbon::parse($start)->addDays($days - 1),
+            'days' => $days,
+            'status' => $status,
+        ]);
+
+        // Approved and pending both count; refused and last year's do not.
+        $request($annual, '2026-03-02', 5, RequestStatus::Approved);
+        $request($annual, '2026-07-06', 2, RequestStatus::Pending);
+        $request($annual, '2026-04-06', 4, RequestStatus::Rejected);
+        $request($annual, '2025-11-03', 6, RequestStatus::Approved);
+        $request($sick, '2026-02-09', 3, RequestStatus::Approved);
+
+        $this->actingAs($this->admin())
+            ->get('/admin/staff?search=Ada+Leave')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('leave_year', 2026)
+                ->has('staff.data', 1)
+                ->where('staff.data.0.leave', [
+                    ['slug' => 'annual', 'name' => $annual->name, 'allowance' => 20, 'used' => 7, 'remaining' => 13],
+                    ['slug' => 'sick', 'name' => $sick->name, 'allowance' => 10, 'used' => 3, 'remaining' => 7],
+                ]));
+    }
+
+    public function test_a_staff_profile_shows_every_leave_type_used_and_left(): void
+    {
+        Carbon::setTestNow('2026-06-15 10:00:00');
+
+        $annual = LeaveType::query()->where('slug', 'annual')->firstOrFail();
+        $annual->update(['days_per_year' => 20, 'days_per_year_manager' => null]);
+        $personal = LeaveType::query()->where('slug', 'personal')->firstOrFail();
+
+        $person = User::factory()->create(['location_id' => $this->location->id]);
+
+        LeaveRequest::factory()->create([
+            'user_id' => $person->id,
+            'leave_type_id' => $annual->id,
+            'start_date' => '2026-03-02',
+            'end_date' => '2026-03-06',
+            'days' => 5,
+            'status' => RequestStatus::Approved,
+        ]);
+        LeaveRequest::factory()->create([
+            'user_id' => $person->id,
+            'leave_type_id' => $personal->id,
+            'start_date' => '2026-04-13',
+            'end_date' => '2026-04-14',
+            'days' => 2,
+            'status' => RequestStatus::Pending,
+        ]);
+
+        $activeTypes = LeaveType::query()->active()->count();
+
+        $this->actingAs($this->admin())
+            ->get("/admin/staff/{$person->id}")
+            ->assertOk()
+            ->assertInertia(function (Assert $page) use ($activeTypes): void {
+                $page->where('leave_year', 2026)->has('leave', $activeTypes);
+
+                $leave = collect($page->toArray()['props']['leave'])->keyBy('slug');
+
+                $this->assertSame(
+                    ['allowance' => 20, 'used' => 5, 'remaining' => 15],
+                    collect($leave['annual'])->only('allowance', 'used', 'remaining')->all(),
+                );
+                $this->assertSame(
+                    ['allowance' => null, 'used' => 2, 'remaining' => null],
+                    collect($leave['personal'])->only('allowance', 'used', 'remaining')->all(),
+                );
+            });
     }
 
     public function test_super_admins_can_add_staff(): void

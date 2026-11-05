@@ -84,6 +84,19 @@ const props = defineProps<{
             radius_meters: number;
         } | null;
     };
+    leave_year: number;
+    /** Every active leave type. A null allowance means no yearly limit. */
+    leave: Array<{
+        slug: string;
+        name: string;
+        is_paid: boolean;
+        allowance: number | null;
+        used: number;
+        remaining: number | null;
+        eligible: boolean;
+        ineligible_reason: string | null;
+        window_label: string | null;
+    }>;
     stats: {
         days_present: number;
         days_late: number;
@@ -743,6 +756,104 @@ const attemptPages = usePaginated(() => results.rows, {
                 </div>
 
                 <div class="space-y-5">
+                    <!--
+                        Leave standing for the year, every active type. Capped
+                        types show a bar; uncapped ones just count the days.
+                        Pending requests are counted, as on the leave form.
+                    -->
+                    <Panel
+                        title="Leave"
+                        :subtitle="`${leave_year} · approved and pending requests count as used`"
+                    >
+                        <p
+                            v-if="leave.length === 0"
+                            class="text-[13px] text-muted"
+                        >
+                            No leave types are switched on.
+                        </p>
+                        <div
+                            v-else
+                            class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+                        >
+                            <div
+                                v-for="type in leave"
+                                :key="type.slug"
+                                class="rounded-xl border border-line-soft bg-sunken/40 p-4"
+                                :class="{ 'opacity-60': !type.eligible }"
+                            >
+                                <div
+                                    class="flex items-start justify-between gap-2"
+                                >
+                                    <p class="text-[13.5px] font-medium">
+                                        {{ type.name }}
+                                    </p>
+                                    <span
+                                        v-if="!type.is_paid"
+                                        class="eyebrow shrink-0 text-faint"
+                                    >
+                                        Unpaid
+                                    </span>
+                                </div>
+
+                                <p class="tabular mt-2 font-mono text-[12.5px]">
+                                    <span class="text-muted">
+                                        {{ type.used }}
+                                        {{ type.used === 1 ? 'day' : 'days' }}
+                                        used
+                                    </span>
+                                    <template v-if="type.remaining !== null">
+                                        <span class="text-faint"> · </span>
+                                        <span
+                                            :class="
+                                                type.remaining === 0
+                                                    ? 'text-alert'
+                                                    : 'text-signal'
+                                            "
+                                        >
+                                            {{ type.remaining }} of
+                                            {{ type.allowance }} left
+                                        </span>
+                                    </template>
+                                    <span v-else class="text-faint">
+                                        · no yearly limit
+                                    </span>
+                                </p>
+
+                                <div
+                                    v-if="type.allowance"
+                                    class="mt-2 h-1.5 overflow-hidden rounded-full bg-line-soft"
+                                >
+                                    <div
+                                        class="h-full rounded-full"
+                                        :class="
+                                            type.remaining === 0
+                                                ? 'bg-alert'
+                                                : 'bg-signal'
+                                        "
+                                        :style="{
+                                            width: `${Math.min(100, (type.used / type.allowance) * 100)}%`,
+                                        }"
+                                    />
+                                </div>
+
+                                <p
+                                    v-if="
+                                        !type.eligible && type.ineligible_reason
+                                    "
+                                    class="mt-2 text-[12px] text-faint"
+                                >
+                                    {{ type.ineligible_reason }}
+                                </p>
+                                <p
+                                    v-else-if="type.window_label"
+                                    class="mt-2 text-[12px] text-faint"
+                                >
+                                    Can be taken {{ type.window_label }}
+                                </p>
+                            </div>
+                        </div>
+                    </Panel>
+
                     <!--
                         The record itself. Fifty-odd fields is a mile of ribbon
                         in one column and a comfortable read across three, so it
