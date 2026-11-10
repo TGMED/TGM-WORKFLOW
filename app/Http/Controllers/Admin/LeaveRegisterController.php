@@ -134,11 +134,11 @@ class LeaveRegisterController extends Controller
                 'user:id,name,employee_id,department_id',
                 'user.department:id,name',
                 'leaveType:id,name',
-                'supervisor:id,name',
+                'supervisor:id,name,position',
                 'reliefOfficer:id,name',
-                'teamLead:id,name',
-                'head:id,name',
-                'approvals.approver:id,name',
+                'teamLead:id,name,position',
+                'head:id,name,position',
+                'approvals.approver:id,name,position',
             ])
             ->inYear((int) $filters['year'])
             ->when(
@@ -251,7 +251,7 @@ class LeaveRegisterController extends Controller
             'days' => $leave->days,
             'reason' => $leave->reason,
             'relief_officer' => $leave->reliefOfficer?->name,
-            'supervisor' => $leave->supervisor?->name,
+            'supervisor' => $leave->supervisorOffice(),
             'status' => $leave->status->value,
             'status_label' => $leave->status->label(),
             'status_tone' => $leave->status->tone(),
@@ -281,7 +281,7 @@ class LeaveRegisterController extends Controller
             $leave->status->label(),
             $leave->status->isOpen() ? $leave->stageLabel() : '',
             $leave->reliefOfficer->name ?? '',
-            $leave->supervisor->name ?? '',
+            $leave->supervisorOffice() ?? '',
             $leave->reason ?? '',
             $leave->created_at?->toDateString() ?? '',
             $leave->decided_at?->toDateString() ?? '',

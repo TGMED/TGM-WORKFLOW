@@ -282,6 +282,12 @@ function submit() {
                                     >
                                         You are covering this desk
                                     </p>
+                                    <p
+                                        v-else-if="row.stage === 'admin'"
+                                        class="mb-1 inline-flex items-center gap-1.5 rounded-full bg-signal/10 px-2 py-0.5 text-[11.5px] font-medium text-signal"
+                                    >
+                                        Final approval
+                                    </p>
                                     <p class="text-muted">
                                         <template v-if="row.module === 'leave'">
                                             {{ row.days }} working day{{

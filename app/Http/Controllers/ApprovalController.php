@@ -185,7 +185,7 @@ class ApprovalController extends Controller
     protected function openLeave(User $approver): array
     {
         return $this->approvals->awaitingLeave($approver)
-            ->load(['user:id,name,department_id,position,location_id', 'user.department:id,name', 'user.location:id,name', 'leaveType', 'supervisor:id,name', 'reliefOfficer:id,name', 'approvals.approver:id,name'])
+            ->load(['user:id,name,department_id,position,location_id', 'user.department:id,name', 'user.location:id,name', 'leaveType', 'supervisor:id,name,position', 'reliefOfficer:id,name', 'approvals.approver:id,name,position'])
             ->sortBy('start_date')
             ->map(fn (LeaveRequest $leave): array => [
                 ...$this->common($leave, $approver),
@@ -193,7 +193,7 @@ class ApprovalController extends Controller
                 'range_label' => $leave->start_date->format('j M').' to '.$leave->end_date->format('j M Y'),
                 'days' => $leave->days,
                 'reason' => $leave->reason,
-                'supervisor' => $leave->supervisor?->name,
+                'supervisor' => $leave->supervisorOffice(),
                 'relief_officer' => $leave->reliefOfficer?->name,
             ])
             ->values()
@@ -206,7 +206,7 @@ class ApprovalController extends Controller
     protected function openLateness(User $approver): array
     {
         return $this->approvals->awaitingLateness($approver)
-            ->load(['user:id,name,department_id,position,location_id', 'user.department:id,name', 'user.location:id,name', 'approvals.approver:id,name'])
+            ->load(['user:id,name,department_id,position,location_id', 'user.department:id,name', 'user.location:id,name', 'approvals.approver:id,name,position'])
             ->sortByDesc('work_date')
             ->map(fn (LatenessRequest $late): array => [
                 ...$this->common($late, $approver),
@@ -224,7 +224,7 @@ class ApprovalController extends Controller
     protected function openOutOfOffice(User $approver): array
     {
         return $this->approvals->awaitingOutOfOffice($approver)
-            ->load(['user:id,name,department_id,position,location_id', 'user.department:id,name', 'user.location:id,name', 'approvals.approver:id,name'])
+            ->load(['user:id,name,department_id,position,location_id', 'user.department:id,name', 'user.location:id,name', 'approvals.approver:id,name,position'])
             ->sortBy('start_date')
             ->map(fn (OutOfOfficeRequest $away): array => [
                 ...$this->common($away, $approver),

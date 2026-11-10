@@ -42,6 +42,19 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Final leave approval
+    |--------------------------------------------------------------------------
+    |
+    | Leave is granted only once a super admin gives the final approval. Every
+    | screen and email shows that approval under this title rather than the
+    | name of whoever clicked; the audit trail keeps the actual person.
+    |
+    */
+
+    'final_approver_title' => env('HR_FINAL_APPROVER_TITLE', 'Chairman'),
+
     'approval_reminders' => [
         'enabled' => (bool) env('HR_APPROVAL_REMINDERS', true),
         'after_hours' => (int) env('HR_APPROVAL_REMINDER_AFTER_HOURS', 24),

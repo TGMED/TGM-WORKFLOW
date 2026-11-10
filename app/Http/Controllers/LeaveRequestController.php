@@ -40,7 +40,7 @@ class LeaveRequestController extends Controller
         // balances and the tally underneath them are all answering for the
         // same twelve months. Earlier years are a year away on the switcher.
         $requests = LeaveRequest::query()
-            ->with(['leaveType', 'supervisor:id,name', 'reliefOfficer:id,name', 'approvals.approver:id,name'])
+            ->with(['leaveType', 'supervisor:id,name,position', 'reliefOfficer:id,name', 'approvals.approver:id,name,position'])
             ->where('user_id', $user->id)
             ->inYear($year)
             ->orderByDesc('start_date')
@@ -356,7 +356,7 @@ class LeaveRequestController extends Controller
             'id' => $leave->id,
             'type' => $leave->leaveType->name,
             'type_id' => $leave->leave_type_id,
-            'supervisor' => $leave->supervisor?->name,
+            'supervisor' => $leave->supervisorOffice(),
             'supervisor_id' => $leave->supervisor_id,
             'relief_officer' => $leave->reliefOfficer?->name,
             'relief_officer_id' => $leave->relief_officer_id,

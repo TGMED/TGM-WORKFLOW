@@ -107,7 +107,7 @@ class RequestRaised extends TopicNotification
 
         return $leave->supervisor === null
             ? 'It is now with an approver for a decision.'
-            : "It is with {$leave->supervisor->name} for approval.";
+            : 'It is with '.LeaveRequest::officePhrase($leave->supervisor, 'an approver').' for approval.';
     }
 
     protected function path(): string
