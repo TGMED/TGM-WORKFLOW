@@ -215,11 +215,16 @@ class ApprovalService
                 'step' => $approval->step,
                 'round' => $approval->round,
                 'superseded' => $approval->round < $request->currentRound(),
-                'approver' => $approval->approver->name,
+                // Leave shows its approvers by office, not by name.
+                'approver' => $request instanceof LeaveRequest
+                    ? $request->approverLabel($approval)
+                    : $approval->approver->name,
                 'decision' => $approval->decision->value,
                 'decision_label' => $approval->decision->label(),
                 'stage' => $approval->stage->value,
-                'stage_label' => $approval->stage->label(),
+                'stage_label' => $request instanceof LeaveRequest
+                    ? $request->stageLabelFor($approval)
+                    : $approval->stage->label(),
                 'comment' => $approval->comment,
                 'decided_at' => $approval->decided_at->toIso8601String(),
             ])

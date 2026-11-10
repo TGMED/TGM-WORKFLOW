@@ -35,6 +35,11 @@ class ApprovalTest extends TestCase
         return User::factory()->create(['location_id' => $this->location->id]);
     }
 
+    private function superAdmin(): User
+    {
+        return User::factory()->superAdmin()->create(['location_id' => $this->location->id]);
+    }
+
     public function test_an_approver_can_approve_a_leave_request(): void
     {
         $leave = LeaveRequest::factory()->create(['user_id' => $this->staff()->id]);
@@ -43,9 +48,18 @@ class ApprovalTest extends TestCase
             ->post("/approvals/leave/{$leave->id}", ['decision' => 'approved'])
             ->assertSessionHasNoErrors();
 
+        // The manager's approval alone does not grant leave: it now waits on
+        // a super admin for the final approval.
+        $this->assertSame(RequestStatus::Pending, $leave->refresh()->status);
+        $this->assertTrue($leave->load('approvals')->awaitsAdmin());
+
+        $this->actingAs($this->superAdmin())
+            ->post("/approvals/leave/{$leave->id}", ['decision' => 'approved'])
+            ->assertSessionHasNoErrors();
+
         $this->assertSame(RequestStatus::Approved, $leave->refresh()->status);
         $this->assertNotNull($leave->decided_at);
-        $this->assertSame(1, $leave->approvals()->count());
+        $this->assertSame(2, $leave->approvals()->count());
     }
 
     public function test_a_decline_sends_the_leave_back_whatever_is_outstanding(): void
@@ -84,7 +98,8 @@ class ApprovalTest extends TestCase
         $this->assertSame(RequestStatus::Pending, $leave->refresh()->status);
         $this->assertSame(1, $leave->approvalsOutstanding());
 
-        $this->actingAs($this->approver())
+        // The second approval is the super admin's final one.
+        $this->actingAs($this->superAdmin())
             ->post("/approvals/leave/{$leave->id}", ['decision' => 'approved']);
 
         $this->assertSame(RequestStatus::Approved, $leave->refresh()->status);
@@ -195,10 +210,15 @@ class ApprovalTest extends TestCase
         $this->actingAs($supervisor)
             ->post("/approvals/leave/{$leave->id}", ['decision' => 'approved']);
 
+        $this->assertSame(RequestStatus::Pending, $leave->refresh()->status);
+
+        $this->actingAs($this->superAdmin())
+            ->post("/approvals/leave/{$leave->id}", ['decision' => 'approved']);
+
         $leave->refresh()->load('approvals');
 
         $this->assertSame(RequestStatus::Approved, $leave->status);
-        $this->assertSame(1, $leave->approvalsGiven());
+        $this->assertSame(2, $leave->approvalsGiven());
         $this->assertSame(
             ApprovalStage::Relief,
             $leave->approvals->firstWhere('approver_id', $relief->id)->stage,
@@ -312,8 +332,13 @@ class ApprovalTest extends TestCase
         $this->actingAs($supervisor)
             ->post("/approvals/leave/{$leave->id}", ['decision' => 'approved']);
 
-        // With two approvals asked for, anyone else may top it up afterwards.
+        // Past the manager, the turn is a super admin's, not any approver's.
         $this->actingAs($bystander)
+            ->post("/approvals/leave/{$leave->id}", ['decision' => 'approved']);
+
+        $this->assertSame(1, $leave->refresh()->load('approvals')->approvalsGiven());
+
+        $this->actingAs($this->superAdmin())
             ->post("/approvals/leave/{$leave->id}", ['decision' => 'approved']);
 
         $this->assertSame(RequestStatus::Approved, $leave->refresh()->status);
@@ -370,9 +395,10 @@ class ApprovalTest extends TestCase
                 ->has('lateness', 1)
                 ->has('history', 1));
 
-        // The other approver still sees the half-approved one.
+        // The other approver does not see the half-approved one: once a
+        // manager has approved leave, it waits on a super admin.
         $this->actingAs($other)
             ->get('/approvals')
-            ->assertInertia(fn ($page) => $page->has('leave', 2));
+            ->assertInertia(fn ($page) => $page->has('leave', 1));
     }
 }

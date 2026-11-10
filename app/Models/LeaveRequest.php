@@ -265,25 +265,190 @@ class LeaveRequest extends Model implements Approvable, AuditableContract
             return $this->supervisor_id === $user->id;
         }
 
+        // No approver was named (older requests): any company-wide approver
+        // takes the manager's turn.
+        if (! $this->managerApproved()) {
+            return $user->approvesCompanyWide();
+        }
+
+        // Last of all, a super admin has the final say. Until one of them
+        // approves, the leave is not granted, whatever else has happened.
+        if (! $this->adminSignedOff()) {
+            return $user->isSuperAdmin();
+        }
+
         // See HasApprovals::awaitsDecisionFrom(): a head or lead approves for
         // their own people, not for whoever is left over.
         return $user->approvesCompanyWide();
     }
 
     /**
-     * Leave passes the reporting line and then the approver the requester
-     * named. Both are gates: neither one settles the request on its own.
+     * Whether a super admin has given the final approval this round.
+     */
+    public function adminSignedOff(): bool
+    {
+        return $this->currentDecisions()
+            ->where('decision', ApprovalDecision::Approved)
+            ->contains('stage', ApprovalStage::Admin);
+    }
+
+    /**
+     * Whether the manager's approval is in: the approver the requester named,
+     * or, where nobody was named, any approval past the cover.
+     */
+    public function managerApproved(): bool
+    {
+        if ($this->supervisor_id !== null) {
+            return $this->supervisorDecided();
+        }
+
+        return $this->currentDecisions()
+            ->where('decision', ApprovalDecision::Approved)
+            ->whereIn('stage', [ApprovalStage::Approval, ApprovalStage::Admin])
+            ->isNotEmpty();
+    }
+
+    /**
+     * Whether everyone before the super admin has had their say — the cover,
+     * the reporting line and the manager — and the request now waits only on
+     * the final approval.
+     */
+    public function awaitsAdmin(): bool
+    {
+        return $this->requestStatus()->isOpen()
+            && $this->reliefAgreed()
+            && $this->lineAwaiting() === null
+            && $this->managerApproved()
+            && ! $this->adminSignedOff();
+    }
+
+    /**
+     * Approvers on leave are shown by their office — their job title — rather
+     * than their name, everywhere a request is displayed. The cover is a
+     * colleague agreeing to cover, not an approver, and keeps their name. The
+     * audit trail still records the actual person behind every decision.
+     */
+    public static function officeOf(?User $person, string $fallback): string
+    {
+        $title = trim((string) $person?->position);
+
+        // No job title on file: fall back to the person's name.
+        return $title !== '' ? $title : ($person->name ?? $fallback);
+    }
+
+    /**
+     * An office as it reads mid-sentence: "the Operations Manager" for a
+     * title, but a bare name where there is no title to fall back on.
+     */
+    public static function officePhrase(?User $person, string $fallback): string
+    {
+        if ($person === null) {
+            return $fallback;
+        }
+
+        return trim((string) $person->position) !== ''
+            ? 'the '.trim((string) $person->position)
+            : $person->name;
+    }
+
+    /**
+     * How the final approval is signed, whichever super admin gives it.
+     */
+    public static function finalApproverTitle(): string
+    {
+        return (string) config('hr.final_approver_title', 'Chairman');
+    }
+
+    public function supervisorOffice(): ?string
+    {
+        return $this->supervisor === null ? null : self::officeOf($this->supervisor, 'Approver');
+    }
+
+    public function teamLeadOffice(): ?string
+    {
+        return $this->teamLead === null ? null : self::officeOf($this->teamLead, 'Team lead');
+    }
+
+    public function headOffice(): ?string
+    {
+        return $this->head === null ? null : self::officeOf($this->head, 'Head of department');
+    }
+
+    /**
+     * Who took a decision, as the request displays it: the cover by name, the
+     * final approval as the Chairman, and every other approver by office.
+     */
+    public function approverLabel(Approval $approval): string
+    {
+        return match ($approval->stage) {
+            ApprovalStage::Relief => $approval->approver->name,
+            ApprovalStage::Admin => self::finalApproverTitle(),
+            default => self::officeOf($approval->approver, match ($approval->approver_id) {
+                $this->team_lead_id => 'Team lead',
+                $this->head_id => 'Head of department',
+                default => 'Approver',
+            }),
+        };
+    }
+
+    /**
+     * The stage as the trail names it. The final approval reads as that
+     * rather than as "administrator".
+     */
+    public function stageLabelFor(Approval $approval): string
+    {
+        return $approval->stage === ApprovalStage::Admin
+            ? 'Final approval'
+            : $approval->stage->label();
+    }
+
+    /**
+     * An office for use inside a sentence: "the Operations Manager", or "you"
+     * when the reader is the one it is waiting on.
+     */
+    protected function officeInSentence(?User $viewer, ?User $person, string $fallback, bool $turnIsNow = true): string
+    {
+        if ($viewer !== null && $person !== null && ($turnIsNow ? $this->awaitsDecisionFrom($viewer) : $viewer->id === $person->id)) {
+            return 'you';
+        }
+
+        return self::officePhrase($person, $fallback);
+    }
+
+    /**
+     * Leave passes the reporting line, then the manager, then a super admin.
+     * Each is a gate: none settles the request alone.
      */
     protected function approvalGatesFinished(): bool
     {
         return $this->lineFinished()
-            && ($this->supervisor_id === null || $this->supervisorDecided());
+            && $this->managerApproved()
+            && $this->adminSignedOff();
     }
 
+    /**
+     * The relief officer agrees cover; a super admin taking the final
+     * decision does so as administrator. When the named approver is a super
+     * admin themselves, their approval is the final one: asking them twice, or
+     * waiting on a second super admin who may not exist, would only stall it.
+     */
     public function approvalStageFor(User $user): ApprovalStage
     {
-        return ! $this->reliefAgreed() && $this->relief_officer_id === $user->id
-            ? ApprovalStage::Relief
+        if (! $this->reliefAgreed() && $this->relief_officer_id === $user->id) {
+            return ApprovalStage::Relief;
+        }
+
+        // A super admin taking the manager's turn — as the named approver, or
+        // with nobody named — gives the final approval in the same click.
+        $finalTurn = $this->reliefAgreed()
+            && $this->lineAwaiting() === null
+            && ! $this->adminSignedOff()
+            && ($this->managerApproved()
+                || $this->supervisor_id === null
+                || $this->supervisor_id === $user->id);
+
+        return $finalTurn && $user->isSuperAdmin()
+            ? ApprovalStage::Admin
             : ApprovalStage::Approval;
     }
 
@@ -324,10 +489,28 @@ class LeaveRequest extends Model implements Approvable, AuditableContract
         }
 
         if ($this->supervisor_id !== null && ! $this->supervisorDecided()) {
-            return "With {$this->supervisor->name} for approval";
+            return 'With '.self::officePhrase($this->supervisor, 'an approver').' for approval';
+        }
+
+        if (! $this->adminSignedOff()) {
+            return 'With the '.self::finalApproverTitle().' for final approval';
         }
 
         return 'Awaiting a further approval';
+    }
+
+    /**
+     * The reporting line's stage, by office rather than by name.
+     */
+    public function lineStageLabel(): ?string
+    {
+        if ($this->lineAwaiting() === null) {
+            return null;
+        }
+
+        return $this->lineAwaiting() === $this->team_lead_id
+            ? 'With '.self::officePhrase($this->teamLead, 'your team lead').', your team lead'
+            : 'With '.self::officePhrase($this->head, 'your head of department').', your head of department';
     }
 
     /**
@@ -381,12 +564,25 @@ class LeaveRequest extends Model implements Approvable, AuditableContract
             'Working days' => (string) $this->days,
             'Reason' => blank($this->reason) ? 'Not given' : $this->reason,
             'Relief officer' => $this->name($this->reliefOfficer, $viewer, 'None named'),
-            'Team lead' => $this->name($this->teamLead, $viewer, 'None'),
-            'Head of department' => $this->name($this->head, $viewer, 'None'),
-            'Approver' => $this->name($this->supervisor, $viewer, 'Any approver'),
+            'Team lead' => $this->officeWithYou($this->teamLead, $this->teamLeadOffice(), $viewer, 'None'),
+            'Head of department' => $this->officeWithYou($this->head, $this->headOffice(), $viewer, 'None'),
+            'Approver' => $this->officeWithYou($this->supervisor, $this->supervisorOffice(), $viewer, 'Any approver'),
+            'Final approval' => self::finalApproverTitle(),
             'Status' => $shared['Status'],
             'Filed' => $shared['Filed'],
         ];
+    }
+
+    /**
+     * An office on the details block, marked where the reader holds it.
+     */
+    protected function officeWithYou(?User $person, ?string $office, ?User $viewer, string $fallback): string
+    {
+        if ($person === null || $office === null) {
+            return $fallback;
+        }
+
+        return $viewer !== null && $viewer->id === $person->id ? "{$office} (you)" : $office;
     }
 
     public function standing(?User $viewer = null): string
@@ -400,10 +596,36 @@ class LeaveRequest extends Model implements Approvable, AuditableContract
         }
 
         if (($waiting = $this->lineAwaitingUser()) !== null) {
-            return 'Waiting on '.$this->decider($viewer, $waiting, 'an approver').' for a decision.';
+            return 'Waiting on '.$this->officeInSentence($viewer, $waiting, 'an approver').' for a decision.';
         }
 
-        return 'Waiting on '.$this->decider($viewer, $this->supervisor, 'an approver').' for a decision.';
+        if ($this->awaitsAdmin()) {
+            return $viewer !== null && $this->awaitsDecisionFrom($viewer)
+                ? 'Waiting on you for the final approval.'
+                : 'Waiting on the '.self::finalApproverTitle().' for the final approval.';
+        }
+
+        return 'Waiting on '.$this->officeInSentence($viewer, $this->supervisor, 'an approver').' for a decision.';
+    }
+
+    /**
+     * Who approves first once the cover is agreed. The cover's own sign-off
+     * also settles their place in the reporting line, so a team lead or head
+     * who is covering is passed over rather than named as up next.
+     */
+    protected function firstApproverAfterCover(): ?User
+    {
+        $relief = $this->relief_officer_id;
+
+        if ($this->team_lead_id !== null && $this->team_lead_id !== $relief && ! $this->teamLeadDecided()) {
+            return $this->teamLead;
+        }
+
+        if ($this->head_id !== null && $this->head_id !== $relief && ! $this->headDecided()) {
+            return $this->head;
+        }
+
+        return $this->supervisor_id !== null && $this->supervisor_id !== $relief ? $this->supervisor : null;
     }
 
     public function nextStep(?User $viewer = null): ?string
@@ -412,18 +634,40 @@ class LeaveRequest extends Model implements Approvable, AuditableContract
             return null;
         }
 
+        $final = 'the '.self::finalApproverTitle();
+
         if (! $this->reliefAgreed()) {
-            return 'After that it goes to '.$this->upNext(
+            return 'After that it goes to '.$this->officeInSentence(
                 $viewer,
-                $this->lineAwaitingUser() ?? $this->supervisor,
+                $this->firstApproverAfterCover(),
                 'an approver',
-            ).' for approval.';
+                turnIsNow: false,
+            ).' for approval, then '.$final.' gives the final approval.';
         }
 
         $outstanding = $this->approvalsOutstanding();
 
         if ($outstanding < 1) {
             return null;
+        }
+
+        if (! $this->adminSignedOff()) {
+            if ($this->awaitsAdmin()) {
+                // The person reading is the final approver: the standing line
+                // already says it is waiting on them, so there is nothing to add.
+                return $viewer !== null && $this->awaitsDecisionFrom($viewer)
+                    ? null
+                    : ucfirst($final).' gives the final approval.';
+            }
+
+            // Still with somebody before the final approval. When that is the
+            // reader, "after that" follows on from "waiting on you"; for anyone
+            // else, say who it is with now.
+            $now = $this->lineAwaitingUser() ?? $this->supervisor;
+
+            return $now === null || ($viewer !== null && $this->awaitsDecisionFrom($viewer))
+                ? 'After that, '.$final.' gives the final approval.'
+                : 'It is with '.$this->officeInSentence($viewer, $now, 'an approver').' for approval, then '.$final.' gives the final approval.';
         }
 
         return $outstanding === 1

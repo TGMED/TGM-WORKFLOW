@@ -9,6 +9,7 @@ use App\Enums\NotificationTopic;
 use App\Enums\RequestModule;
 use App\Enums\RequestStatus;
 use App\Models\Approval;
+use App\Models\LeaveRequest;
 use App\Models\User;
 use App\Services\Push\PushMessage;
 use Illuminate\Database\Eloquent\Model;
@@ -64,10 +65,25 @@ class RequestDecided extends TopicNotification
         return match (true) {
             $this->approval->decision === ApprovalDecision::Approved
                 && $this->approval->stage === ApprovalStage::Relief => 'Your cover has been agreed',
-            $this->approval->decision === ApprovalDecision::Approved => 'Your request was approved',
+            $this->isGranted() => $this->request->module() === RequestModule::Leave
+                ? 'Your leave has been approved'
+                : 'Your request was approved',
+            $this->approval->decision === ApprovalDecision::Approved => 'Your request has moved forward',
             $this->wasSentBack() => 'Your request has come back to you',
             default => 'Your request was declined',
         };
+    }
+
+    /**
+     * Whether this decision granted the request outright. One approval along
+     * the way is not the request being approved, and must never be told as if
+     * it were: leave in particular is only granted once a super admin has
+     * given the final approval.
+     */
+    protected function isGranted(): bool
+    {
+        return $this->approval->decision === ApprovalDecision::Approved
+            && $this->request->requestStatus() === RequestStatus::Approved;
     }
 
     /**
@@ -84,12 +100,23 @@ class RequestDecided extends TopicNotification
 
     protected function headline(): string
     {
-        $name = $this->approval->approver->name;
+        // Leave names its approvers by office; the cover keeps their name.
+        $name = $this->request instanceof LeaveRequest
+            ? $this->request->approverLabel($this->approval)
+            : $this->approval->approver->name;
+
+        // A job title reads as "The Operations Manager ..."; a name as itself.
+        if ($this->request instanceof LeaveRequest
+            && $this->approval->stage !== ApprovalStage::Relief
+            && ($this->approval->stage === ApprovalStage::Admin || trim((string) $this->approval->approver->position) !== '')) {
+            $name = 'The '.$name;
+        }
 
         return match (true) {
             $this->approval->decision === ApprovalDecision::Approved
                 && $this->approval->stage === ApprovalStage::Relief => "{$name} has agreed to cover for you.",
-            $this->approval->decision === ApprovalDecision::Approved => "{$name} approved your request.",
+            $this->isGranted() => "{$name} gave the final approval. Your request is approved.",
+            $this->approval->decision === ApprovalDecision::Approved => "{$name} has signed off your request. It is not approved yet.",
             $this->wasSentBack() => "{$name} has sent your request back for a change.",
             default => "{$name} declined your request.",
         };
@@ -105,6 +132,9 @@ class RequestDecided extends TopicNotification
         $outstanding = $this->request->approvalsOutstanding();
 
         return match (true) {
+            // Say what comes next in words, so "still needs a super admin's
+            // final approval" reads as that rather than as a bare count.
+            $status->isOpen() && ($next = $this->request->nextStep()) !== null => $next,
             $status->isOpen() && $outstanding > 0 => "It still needs {$outstanding} more approval(s).",
             $status->isOpen() => 'It is on its way through the rest of the chain.',
             // A returned request is not finished with, so it is told as

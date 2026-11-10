@@ -360,8 +360,13 @@ class LeaveRequestTest extends TestCase
         $this->actingAs($supervisor)
             ->post("/approvals/leave/{$leave->id}", ['decision' => 'approved']);
 
+        $this->assertSame(RequestStatus::Pending, $leave->refresh()->status);
+
+        $this->actingAs(User::factory()->superAdmin()->create())
+            ->post("/approvals/leave/{$leave->id}", ['decision' => 'approved']);
+
         $this->assertSame(RequestStatus::Approved, $leave->refresh()->status);
-        $this->assertSame(1, $leave->load('approvals')->approvalsGiven());
+        $this->assertSame(2, $leave->load('approvals')->approvalsGiven());
     }
 
     public function test_a_returned_request_can_be_withdrawn_instead(): void

@@ -306,7 +306,7 @@ class AdminDashboardController extends Controller
     {
         return LeaveRequest::query()
             ->ofActiveStaff()
-            ->with(['user:id,name', 'leaveType:id,name', 'supervisor:id,name'])
+            ->with(['user:id,name', 'leaveType:id,name', 'supervisor:id,name,position'])
             ->where('status', RequestStatus::Pending->value)
             ->orderBy('created_at')
             ->limit(6)
@@ -317,7 +317,7 @@ class AdminDashboardController extends Controller
                 'type' => $leave->leaveType->name,
                 'days' => $leave->days,
                 'range_label' => $leave->start_date->format('j M').' to '.$leave->end_date->format('j M'),
-                'with' => $leave->supervisor?->name,
+                'with' => $leave->supervisorOffice(),
                 'waiting_days' => (int) $leave->created_at?->diffInDays(Carbon::now()),
                 'created_at' => $leave->created_at?->toIso8601String(),
             ])
