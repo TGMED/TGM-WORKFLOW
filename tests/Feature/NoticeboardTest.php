@@ -88,10 +88,13 @@ class NoticeboardTest extends TestCase
             ->assertInertia(function ($page) {
                 $events = collect($page->toArray()['props']['noticeboard']['events']);
 
-                $birthday = $events->firstWhere('kind', 'birthday');
-
-                $this->assertNotNull($birthday);
-                $this->assertSame('Amaka Obi', $birthday['who']);
+                // Other people made by the factories carry random birth dates,
+                // so one of theirs can land sooner; look for Amaka's by name
+                // rather than expecting it first.
+                $this->assertContains(
+                    'Amaka Obi',
+                    $events->where('kind', 'birthday')->pluck('who')->all(),
+                );
             });
     }
 
