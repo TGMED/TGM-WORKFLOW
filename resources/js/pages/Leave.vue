@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
+import AddLeaveDocumentModal from '@/components/leave/AddLeaveDocumentModal.vue';
+import LeaveDocumentList from '@/components/leave/LeaveDocumentList.vue';
+import UploadProgress from '@/components/leave/UploadProgress.vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import ModalShell from '@/components/ui/ModalShell.vue';
@@ -14,7 +17,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { dateTime } from '@/lib/format';
 import { dayKey, holidayNote, holidaysBetween } from '@/lib/holidays';
 import type { Holidays } from '@/lib/holidays';
-import type { RequestTrail } from '@/types';
+import type { LeaveDocument, RequestTrail } from '@/types';
 
 type Window = {
     start: string;
@@ -92,6 +95,10 @@ type LeaveRow = {
     has_evidence: boolean;
     evidence_name: string | null;
     evidence_url: string | null;
+    /** Every document on file, the booking one first. */
+    documents: LeaveDocument[];
+    /** Still open, so a medical record can follow what was attached. */
+    can_add_document: boolean;
     status: string;
     status_label: string;
     status_tone: 'signal' | 'brass' | 'alert' | 'neutral';
@@ -132,6 +139,7 @@ const modalOpen = ref(false);
 const editing = ref<LeaveRow | null>(null);
 const expanded = ref<number | null>(null);
 const withdrawing = ref<LeaveRow | null>(null);
+const documenting = ref<LeaveRow | null>(null);
 const busy = ref(false);
 
 const today = new Date().toISOString().slice(0, 10);
@@ -541,12 +549,35 @@ function edit(row: LeaveRow) {
     modalOpen.value = true;
 }
 
+// Once a document has gone up, "Done" is shown for a moment before the
+// window closes, so nobody is left wondering whether it made it.
+const evidenceDone = ref(false);
+let closing: ReturnType<typeof setTimeout> | undefined;
+
+watch(modalOpen, (open) => {
+    if (open) {
+        clearTimeout(closing);
+        evidenceDone.value = false;
+    }
+});
+
 function submit() {
+    const close = () => {
+        modalOpen.value = false;
+        editing.value = null;
+    };
+
     const options = {
         preserveScroll: true,
         onSuccess: () => {
-            modalOpen.value = false;
-            editing.value = null;
+            if (form.evidence === null) {
+                close();
+
+                return;
+            }
+
+            evidenceDone.value = true;
+            closing = setTimeout(close, 1200);
         },
     };
 
@@ -805,6 +836,10 @@ function toggleTrail(row: LeaveRow) {
                                         >
                                             {{ row.reason }}
                                         </p>
+                                        <LeaveDocumentList
+                                            class="mt-1"
+                                            :documents="row.documents"
+                                        />
                                     </td>
 
                                     <td class="px-5 py-3.5 text-muted">
@@ -858,6 +893,15 @@ function toggleTrail(row: LeaveRow) {
                                                         ? 'Hide'
                                                         : 'Trail'
                                                 }}
+                                            </AppButton>
+
+                                            <AppButton
+                                                v-if="row.can_add_document"
+                                                variant="ghost"
+                                                size="sm"
+                                                @click="documenting = row"
+                                            >
+                                                Add document
                                             </AppButton>
 
                                             <AppButton
@@ -1128,11 +1172,18 @@ function toggleTrail(row: LeaveRow) {
                         type="file"
                         accept=".pdf,.jpg,.jpeg,.png,.webp"
                         class="w-full cursor-pointer rounded-xl border border-line bg-panel-raised px-3.5 py-2.5 text-sm text-text transition-all duration-200 ease-out file:mr-3 file:rounded-lg file:border-0 file:bg-line-soft file:px-3 file:py-1.5 file:text-[13px] file:text-text focus:border-beacon focus:ring-4 focus:ring-beacon/15 focus:outline-none"
+                        :disabled="form.processing || evidenceDone"
                         @change="
                             form.evidence =
                                 ($event.target as HTMLInputElement)
                                     .files?.[0] ?? null
                         "
+                    />
+                    <UploadProgress
+                        :files="form.evidence ? [form.evidence.name] : []"
+                        :percentage="form.progress?.percentage"
+                        :processing="form.processing"
+                        :done="evidenceDone"
                     />
                     <p
                         v-if="form.errors.evidence"
@@ -1144,8 +1195,8 @@ function toggleTrail(row: LeaveRow) {
                         v-else-if="editing?.has_evidence"
                         class="text-[12px] text-faint"
                     >
-                        {{ editing.evidence_name }} is already on file. Pick a
-                        file only to replace it.
+                        A document is already on file. Pick a file only to add
+                        another one alongside it.
                     </p>
                     <p v-else class="text-[12px] text-faint">
                         {{ selectedBalance.name }} needs a sick paper, letter or
@@ -1185,7 +1236,7 @@ function toggleTrail(row: LeaveRow) {
                 </AppButton>
                 <AppButton
                     :loading="form.processing"
-                    :disabled="!canSubmit"
+                    :disabled="!canSubmit || evidenceDone"
                     @click="submit"
                 >
                     {{
@@ -1220,5 +1271,17 @@ function toggleTrail(row: LeaveRow) {
                 </AppButton>
             </template>
         </ModalShell>
+
+        <AddLeaveDocumentModal
+            :open="documenting !== null"
+            :leave-id="documenting?.id ?? null"
+            :summary="
+                documenting
+                    ? `${documenting.type}, ${documenting.range_label}`
+                    : ''
+            "
+            :documents="documenting?.documents ?? []"
+            @close="documenting = null"
+        />
     </AppLayout>
 </template>

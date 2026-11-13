@@ -140,6 +140,7 @@ class LeaveRegisterController extends Controller
                 'head:id,name,position',
                 'approvals.approver:id,name,position',
             ])
+            ->withCount('documents')
             ->inYear((int) $filters['year'])
             ->when(
                 $filters['status'] !== '',
@@ -258,7 +259,7 @@ class LeaveRegisterController extends Controller
             // Where an open request has reached, which is the question the
             // register is most often opened to answer.
             'stage_label' => $leave->status->isOpen() ? $leave->stageLabel() : null,
-            'has_evidence' => $leave->hasEvidence(),
+            'has_evidence' => $leave->hasEvidence() || ($leave->documents_count ?? 0) > 0,
             'filed_at' => $leave->created_at?->toIso8601String(),
             'decided_at' => $leave->decided_at?->toIso8601String(),
             'trail' => $this->approvals->trail($leave),

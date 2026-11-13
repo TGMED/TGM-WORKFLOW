@@ -47,6 +47,7 @@ use App\Http\Controllers\ClockController;
 use App\Http\Controllers\ConductController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LatenessRequestController;
+use App\Http\Controllers\LeaveDocumentController;
 use App\Http\Controllers\LeaveEvidenceController;
 use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\OnBehalfRequestController;
@@ -145,6 +146,18 @@ Route::middleware(['auth', 'active', 'profile-complete'])->group(function (): vo
     // to rule on one.
     Route::get('leave/{leave}/evidence', [LeaveEvidenceController::class, 'show'])
         ->name('leave.evidence');
+
+    // Documents added after booking: a medical record following a photo of
+    // the medicine, or one an approver asked for. Adding one leaves the
+    // request where it is in the chain.
+    Route::post('leave/{leave}/documents', [LeaveDocumentController::class, 'store'])
+        ->middleware('throttle:20,1')
+        ->name('leave.documents.store');
+    Route::get('leave/{leave}/documents/{document}', [LeaveDocumentController::class, 'show'])
+        ->name('leave.documents.show');
+    Route::post('leave/{leave}/documents/ask', [LeaveDocumentController::class, 'ask'])
+        ->middleware('throttle:20,1')
+        ->name('leave.documents.ask');
 
     // Somebody's own payslips. An administrator draws no salary here, so
     // these were an empty list rather than a page; payroll is at
