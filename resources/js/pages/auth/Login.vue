@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import { Head, Link, useForm } from '@inertiajs/vue3';
+import Fireworks from '@/components/festive/Fireworks.vue';
+import NewYearGreeting from '@/components/festive/NewYearGreeting.vue';
+import SnowFall from '@/components/festive/SnowFall.vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import TextField from '@/components/ui/TextField.vue';
 import AuthLayout from '@/layouts/AuthLayout.vue';
+import { season } from '@/lib/festive';
 
 defineProps<{ canResetPassword: boolean; status: string | null }>();
 
@@ -17,10 +21,19 @@ function submit() {
         onFinish: () => form.reset('password'),
     });
 }
+
+// Snow until the end of December; fireworks and a greeting from 1 to 5 January.
+const festive = season();
 </script>
 
 <template>
     <Head title="Sign in" />
+
+    <SnowFall v-if="festive === 'christmas'" />
+    <template v-if="festive === 'new-year'">
+        <Fireworks />
+        <NewYearGreeting />
+    </template>
 
     <AuthLayout
         eyebrow="Staff access"
