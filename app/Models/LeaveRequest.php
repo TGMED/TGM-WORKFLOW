@@ -14,9 +14,11 @@ use Database\Factories\LeaveRequestFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use OwenIt\Auditing\Auditable;
@@ -53,6 +55,8 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  * @property-read User|null $reliefOfficer
  * @property-read User|null $teamLead
  * @property-read User|null $head
+ * @property-read Collection<int, LeaveDocument> $documents
+ * @property int|null $documents_count
  */
 #[Fillable([
     'user_id',
@@ -149,6 +153,17 @@ class LeaveRequest extends Model implements Approvable, AuditableContract
     public function raisedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'raised_by_id');
+    }
+
+    /**
+     * Documents added after booking, oldest first. The one attached at
+     * booking stays on the request itself.
+     *
+     * @return HasMany<LeaveDocument, $this>
+     */
+    public function documents(): HasMany
+    {
+        return $this->hasMany(LeaveDocument::class)->orderBy('id');
     }
 
     /**
@@ -523,15 +538,108 @@ class LeaveRequest extends Model implements Approvable, AuditableContract
 
     /**
      * Who may open the attachment: the person it is about, whoever filed it
-     * for them, and anyone the request is waiting on or has already been
-     * ruled on by. Medical and bereavement paperwork goes no wider than that.
+     * for them, anyone the request is waiting on or has already been ruled on
+     * by, and super admins. Medical and bereavement paperwork goes no wider.
      */
     public function evidenceVisibleTo(User $user): bool
     {
         return $this->user_id === $user->id
             || $this->raised_by_id === $user->id
             || $this->awaitsDecisionFrom($user)
-            || $this->wasDecidedBy($user);
+            || $this->wasDecidedBy($user)
+            // Super admins give the final approval, and may ask for a record
+            // before their turn comes, so they need to be able to read it.
+            || $user->isSuperAdmin();
+    }
+
+    /**
+     * Whether any document is on file: the one attached at booking, or one
+     * added since.
+     */
+    public function hasAnyDocument(): bool
+    {
+        return $this->hasEvidence() || $this->documents()->exists();
+    }
+
+    /**
+     * Documents can be added to sick leave (the type that takes paperwork)
+     * while it is still open or sent back, so a medical record can follow a
+     * photo of the medicine. Once the
+     * request is settled, the paperwork behind it is too.
+     */
+    public function acceptsDocuments(): bool
+    {
+        // Only the types that take paperwork at all (sick leave); every other
+        // type stays as it was booked.
+        return $this->leaveType->requires_evidence === true
+            && ($this->status === RequestStatus::Pending
+                || $this->status === RequestStatus::Returned);
+    }
+
+    /**
+     * Only the person the leave is for may add a document. The cover,
+     * approvers and super admins can read them and ask for one, but never
+     * attach paperwork on the requester's behalf. Adding one changes nothing
+     * about where the request has reached.
+     */
+    public function documentsAddableBy(User $user): bool
+    {
+        return $this->acceptsDocuments() && $this->user_id === $user->id;
+    }
+
+    /**
+     * An approver the request is waiting on, or any super admin, may ask for
+     * a document while it is still pending. The cover only agrees to cover,
+     * so is not one to ask; nor does anybody ask themselves.
+     */
+    public function mayAskForDocumentFrom(User $user): bool
+    {
+        if ($this->status !== RequestStatus::Pending
+            || $this->leaveType->requires_evidence !== true
+            || $this->user_id === $user->id) {
+            return false;
+        }
+
+        if ($user->isSuperAdmin()) {
+            return true;
+        }
+
+        return $this->awaitsDecisionFrom($user)
+            && $this->approvalStageFor($user) !== ApprovalStage::Relief;
+    }
+
+    /**
+     * Every document on the request, the booking one first, ready for a page.
+     *
+     * @return array<int, array{id: int|null, name: string, url: string, added_by: string|null, added_at: string|null, at_booking: bool}>
+     */
+    public function documentListing(): array
+    {
+        $rows = [];
+
+        if ($this->hasEvidence()) {
+            $rows[] = [
+                'id' => null,
+                'name' => $this->evidence_name ?? 'Document',
+                'url' => route('leave.evidence', $this),
+                'added_by' => null,
+                'added_at' => $this->created_at?->toIso8601String(),
+                'at_booking' => true,
+            ];
+        }
+
+        foreach ($this->documents as $document) {
+            $rows[] = [
+                'id' => $document->id,
+                'name' => $document->name,
+                'url' => route('leave.documents.show', [$this, $document]),
+                'added_by' => $document->uploadedBy?->name,
+                'added_at' => $document->created_at?->toIso8601String(),
+                'at_booking' => false,
+            ];
+        }
+
+        return $rows;
     }
 
     public function module(): RequestModule

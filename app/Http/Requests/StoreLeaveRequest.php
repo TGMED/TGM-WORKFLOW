@@ -495,7 +495,7 @@ class StoreLeaveRequest extends FormRequest
     protected function needsEvidence(): bool
     {
         return $this->leaveType()?->requires_evidence === true
-            && $this->editing()?->evidence_path === null;
+            && ! ($this->editing()?->hasAnyDocument() ?? false);
     }
 
     /**

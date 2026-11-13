@@ -40,7 +40,7 @@ class LeaveRequestController extends Controller
         // balances and the tally underneath them are all answering for the
         // same twelve months. Earlier years are a year away on the switcher.
         $requests = LeaveRequest::query()
-            ->with(['leaveType', 'supervisor:id,name,position', 'reliefOfficer:id,name', 'approvals.approver:id,name,position'])
+            ->with(['leaveType', 'supervisor:id,name,position', 'reliefOfficer:id,name', 'approvals.approver:id,name,position', 'documents.uploadedBy:id,name'])
             ->where('user_id', $user->id)
             ->inYear($year)
             ->orderByDesc('start_date')
@@ -154,8 +154,9 @@ class LeaveRequestController extends Controller
             ] : [],
         ]);
 
+        // Added alongside what is already on file, never in place of it.
         if ($request->hasFile('evidence')) {
-            $this->evidence->attach($leave, $request->file('evidence'));
+            $this->evidence->add($leave, $request->file('evidence'), $request->user());
         }
 
         $leave->load('leaveType', 'reliefOfficer');
@@ -368,11 +369,14 @@ class LeaveRequestController extends Controller
             'range_label' => $leave->start_date->format('j M Y').' to '.$leave->end_date->format('j M Y'),
             'days' => $leave->days,
             'reason' => $leave->reason,
-            'has_evidence' => $leave->hasEvidence(),
+            'has_evidence' => $leave->hasAnyDocument(),
             'evidence_name' => $leave->evidence_name,
             'evidence_url' => $leave->hasEvidence()
                 ? route('leave.evidence', $leave)
                 : null,
+            'documents' => $leave->documentListing(),
+            // Their own request, so only where it has reached matters.
+            'can_add_document' => $leave->acceptsDocuments(),
             'status' => $leave->status->value,
             'status_label' => $leave->status->label(),
             'status_tone' => $leave->status->tone(),

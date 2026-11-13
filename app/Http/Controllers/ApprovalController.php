@@ -185,7 +185,7 @@ class ApprovalController extends Controller
     protected function openLeave(User $approver): array
     {
         return $this->approvals->awaitingLeave($approver)
-            ->load(['user:id,name,department_id,position,location_id', 'user.department:id,name', 'user.location:id,name', 'leaveType', 'supervisor:id,name,position', 'reliefOfficer:id,name', 'approvals.approver:id,name,position'])
+            ->load(['user:id,name,department_id,position,location_id', 'user.department:id,name', 'user.location:id,name', 'leaveType', 'supervisor:id,name,position', 'reliefOfficer:id,name', 'approvals.approver:id,name,position', 'documents.uploadedBy:id,name'])
             ->sortBy('start_date')
             ->map(fn (LeaveRequest $leave): array => [
                 ...$this->common($leave, $approver),
@@ -195,6 +195,9 @@ class ApprovalController extends Controller
                 'reason' => $leave->reason,
                 'supervisor' => $leave->supervisorOffice(),
                 'relief_officer' => $leave->reliefOfficer?->name,
+                'documents' => $leave->documentListing(),
+                'requires_evidence' => $leave->leaveType->requires_evidence,
+                'can_ask_document' => $leave->mayAskForDocumentFrom($approver),
             ])
             ->values()
             ->all();

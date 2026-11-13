@@ -2,6 +2,7 @@
 import { Head, useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import RaiseForColleagueModal from '@/components/approvals/RaiseForColleagueModal.vue';
+import LeaveDocumentList from '@/components/leave/LeaveDocumentList.vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import Avatar from '@/components/ui/Avatar.vue';
 import EmptyState from '@/components/ui/EmptyState.vue';
@@ -10,11 +11,17 @@ import Pagination from '@/components/ui/Pagination.vue';
 import Panel from '@/components/ui/Panel.vue';
 import StatusFilter from '@/components/ui/StatusFilter.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
+import TextareaField from '@/components/ui/TextareaField.vue';
 import { usePaginated } from '@/composables/usePaginated';
 import { useStatusFilter } from '@/composables/useStatusFilter';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dateTime, duration, relative } from '@/lib/format';
-import type { RaiseOptions, RequestStatusTone, RequestTrail } from '@/types';
+import type {
+    LeaveDocument,
+    RaiseOptions,
+    RequestStatusTone,
+    RequestTrail,
+} from '@/types';
 
 type Requester = {
     id: number;
@@ -42,6 +49,9 @@ type PendingRequest = {
     days?: number;
     supervisor?: string | null;
     relief_officer?: string | null;
+    documents?: LeaveDocument[];
+    requires_evidence?: boolean;
+    can_ask_document?: boolean;
     // Lateness only
     day_label?: string;
     minutes_late?: number;
@@ -152,6 +162,30 @@ function start(request: PendingRequest, choice: 'approved' | 'rejected') {
     form.clearErrors();
     form.defaults({ decision: choice, comment: '' });
     form.reset();
+}
+
+// Asking the requester for a document. Only they can attach one, and asking
+// does not move the request along the chain.
+const asking = ref<PendingRequest | null>(null);
+const askForm = useForm({ note: '' });
+
+function startAsking(request: PendingRequest) {
+    asking.value = request;
+    askForm.reset();
+    askForm.clearErrors();
+}
+
+function ask() {
+    if (!asking.value) {
+        return;
+    }
+
+    askForm.post(`/leave/${asking.value.id}/documents/ask`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            asking.value = null;
+        },
+    });
 }
 
 function submit() {
@@ -320,6 +354,29 @@ function submit() {
                                     >
                                         {{ row.reason }}
                                     </p>
+                                    <template v-if="row.module === 'leave'">
+                                        <LeaveDocumentList
+                                            class="mt-1.5"
+                                            :documents="row.documents ?? []"
+                                        />
+                                        <p
+                                            v-if="
+                                                row.requires_evidence &&
+                                                !row.documents?.length
+                                            "
+                                            class="mt-1 text-[12px] text-alert"
+                                        >
+                                            No document on file yet
+                                        </p>
+                                        <button
+                                            v-if="row.can_ask_document"
+                                            type="button"
+                                            class="mt-1.5 text-[12px] font-medium text-brand hover:underline"
+                                            @click="startAsking(row)"
+                                        >
+                                            Ask for a document
+                                        </button>
+                                    </template>
                                 </td>
 
                                 <td
@@ -567,5 +624,41 @@ function submit() {
             :options="raise"
             @close="raising = false"
         />
+
+        <ModalShell
+            :open="asking !== null"
+            width="md"
+            title="Ask for a document"
+            :subtitle="
+                asking
+                    ? `${asking.requester.name}: ${asking.type}, ${asking.range_label}`
+                    : ''
+            "
+            @close="asking = null"
+        >
+            <div class="space-y-4">
+                <p class="text-[13.5px] leading-relaxed text-muted">
+                    {{ asking?.requester.name }} gets an email asking them to
+                    add a document. Only they can attach it. The request stays
+                    with you, and nothing already attached is removed.
+                </p>
+                <TextareaField
+                    id="ask-document-note"
+                    v-model="askForm.note"
+                    label="What do you need?"
+                    placeholder="Optional. For example: a medical report from the hospital."
+                    :error="askForm.errors.note"
+                />
+            </div>
+
+            <template #footer>
+                <AppButton variant="ghost" @click="asking = null">
+                    Cancel
+                </AppButton>
+                <AppButton :loading="askForm.processing" @click="ask">
+                    Send request
+                </AppButton>
+            </template>
+        </ModalShell>
     </AppLayout>
 </template>

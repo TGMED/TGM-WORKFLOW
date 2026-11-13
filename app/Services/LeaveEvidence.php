@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\LeaveRequest;
+use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
@@ -38,6 +39,33 @@ class LeaveEvidence
         ]);
 
         $this->forget($previous);
+
+        return true;
+    }
+
+    /**
+     * Add a document on top of whatever is already on file. The first one a
+     * request gets becomes its booking document; every one after that sits
+     * alongside it, so nothing already attached is ever replaced.
+     */
+    public function add(LeaveRequest $leave, UploadedFile $file, User $by): bool
+    {
+        if (! $leave->hasEvidence()) {
+            return $this->attach($leave, $file);
+        }
+
+        $path = $file->store(self::DIRECTORY, self::DISK);
+
+        if ($path === false) {
+            return false;
+        }
+
+        $leave->documents()->create([
+            'path' => $path,
+            'name' => $file->getClientOriginalName(),
+            'size' => $file->getSize(),
+            'uploaded_by_id' => $by->id,
+        ]);
 
         return true;
     }

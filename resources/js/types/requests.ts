@@ -16,3 +16,14 @@ export type RequestTrail = {
     comment: string | null;
     decided_at: string;
 };
+
+/** A document on a leave request: the one attached at booking, or one added since. */
+export type LeaveDocument = {
+    /** Null for the document attached at booking. */
+    id: number | null;
+    name: string;
+    url: string;
+    added_by: string | null;
+    added_at: string | null;
+    at_booking: boolean;
+};
