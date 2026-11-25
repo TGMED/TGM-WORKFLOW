@@ -177,7 +177,6 @@ class HrAgentController extends Controller
             ->overlapping($from, $to)
             // Only people still on the books; a leave type retired since still names the leave.
             ->whereHas('user')
-            ->whereHas('leaveType', fn ($type) => $type->withTrashed())
             ->with(['user:id,email', 'leaveType' => fn ($type) => $type->withTrashed()->select('id', 'name')])
             ->orderBy('start_date')
             ->get()
