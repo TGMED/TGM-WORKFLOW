@@ -62,6 +62,11 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    // The TGM HR Agent's read-only API (routes/api.php). Empty switches it off.
+    'hr_agent' => [
+        'token' => env('HR_AGENT_API_TOKEN', ''),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
