@@ -146,6 +146,25 @@ class HrAgentApiTest extends TestCase
         $this->assertStringNotContainsString('Private medical', $response->getContent());
     }
 
+    public function test_absences_survive_a_retired_leave_type_but_not_a_removed_person(): void
+    {
+        $ada = $this->person(['email' => 'ada@tgm.example']);
+        $removed = $this->person(['email' => 'removed@tgm.example']);
+        $old = LeaveType::factory()->create(['name' => 'Study leave']);
+        foreach ([$ada, $removed] as $who) {
+            LeaveRequest::factory()->create([
+                'user_id' => $who->id, 'leave_type_id' => $old->id, 'start_date' => '2026-11-09',
+                'end_date' => '2026-11-09', 'days' => 1, 'status' => RequestStatus::Approved,
+            ]);
+        }
+        $old->delete();
+        $removed->delete();
+
+        $this->agent('absences?start=2026-11-01&end=2026-11-30')->assertOk()->assertExactJson([
+            ['email' => 'ada@tgm.example', 'start' => '2026-11-09', 'end' => '2026-11-09', 'kind' => 'study leave'],
+        ]);
+    }
+
     public function test_reviews_are_public_ones_only_and_never_name_the_author(): void
     {
         $ada = $this->person(['email' => 'ada@tgm.example']);

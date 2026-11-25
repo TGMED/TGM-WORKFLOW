@@ -59,11 +59,11 @@ class HrAgentController extends Controller
             'name' => (string) $user->name,
             'employee_id' => $user->employee_id,
             'job_title' => (string) ($user->position ?? ''),
-            'department' => (string) ($user->department?->name ?? ''),
-            'team' => (string) ($user->team?->name ?? ''),
-            'location' => (string) ($user->location?->name ?? ''),
-            'manager_email' => strtolower((string) ($user->manager?->email ?? '')),
-            'employment_status' => $user->is_active ? ($user->employment_status?->value ?? 'confirmed') : 'exited',
+            'department' => (string) ($user->department->name ?? ''),
+            'team' => (string) ($user->team->name ?? ''),
+            'location' => (string) ($user->location->name ?? ''),
+            'manager_email' => strtolower((string) ($user->manager->email ?? '')),
+            'employment_status' => $user->is_active ? $user->employment_status->value : 'exited',
             'hired_on' => $user->hired_at?->toDateString(),
             'skills' => [],
         ])->values());
@@ -175,15 +175,17 @@ class HrAgentController extends Controller
         $rows = LeaveRequest::query()
             ->approved()
             ->overlapping($from, $to)
-            ->with(['user:id,email', 'leaveType:id,name'])
+            // Only people still on the books; a leave type retired since still names the leave.
+            ->whereHas('user')
+            ->whereHas('leaveType', fn ($type) => $type->withTrashed())
+            ->with(['user:id,email', 'leaveType' => fn ($type) => $type->withTrashed()->select('id', 'name')])
             ->orderBy('start_date')
             ->get()
-            ->filter(fn (LeaveRequest $away): bool => $away->user !== null)
             ->map(fn (LeaveRequest $away): array => [
                 'email' => strtolower((string) $away->user->email),
                 'start' => $away->start_date->toDateString(),
                 'end' => $away->end_date->toDateString(),
-                'kind' => strtolower((string) ($away->leaveType?->name ?? 'leave')),
+                'kind' => strtolower((string) $away->leaveType->name),
             ])
             ->values();
 
@@ -201,11 +203,11 @@ class HrAgentController extends Controller
 
         PerformanceReview::query()
             ->public()
+            ->whereHas('subject')
             ->with('subject:id,email')
             ->latest()
             ->get()
-            ->filter(fn (PerformanceReview $review): bool => $review->subject !== null
-                && $review->visibility === ReviewVisibility::Public)
+            ->filter(fn (PerformanceReview $review): bool => $review->visibility === ReviewVisibility::Public)
             ->groupBy(fn (PerformanceReview $review): string => strtolower((string) $review->subject->email))
             ->each(function ($reviews, string $email) use (&$result): void {
                 $result[$email] = [
