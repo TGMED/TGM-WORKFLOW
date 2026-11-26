@@ -14,6 +14,7 @@ use App\Models\PublicHoliday;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -124,6 +125,38 @@ class HrAgentApiTest extends TestCase
         $row = $this->agent('attendance?start=2026-11-02&end=2026-11-13')->assertOk()->json('staff')['ada@tgm.example'];
 
         $this->assertSame(['working_days' => 9, 'present_days' => 2, 'late_days' => 1, 'leave_days' => 2], $row);
+    }
+
+    public function test_someone_hired_mid_period_is_expected_only_from_their_first_day(): void
+    {
+        // Workflow's models hand out immutable dates; this crashed before.
+        $new = $this->person(['email' => 'new@tgm.example', 'hired_at' => '2026-11-11']);
+        $this->clockedIn($new, '2026-11-11', 'on_time');
+        LeaveRequest::factory()->create([
+            'user_id' => $new->id, 'leave_type_id' => LeaveType::factory(), 'start_date' => '2026-11-12',
+            'end_date' => '2026-11-13', 'days' => 2, 'status' => RequestStatus::Approved,
+        ]);
+
+        $row = $this->agent('attendance?start=2026-11-02&end=2026-11-13')->assertOk()->json('staff')['new@tgm.example'];
+
+        $this->assertSame(['working_days' => 3, 'present_days' => 1, 'late_days' => 0, 'leave_days' => 2], $row);
+    }
+
+    public function test_today_counts_only_once_they_have_clocked_in_and_days_to_come_never(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-26 08:00')); // a Thursday
+        $early = $this->person(['email' => 'early@tgm.example', 'hired_at' => '2020-01-01']);
+        $late = $this->person(['email' => 'late@tgm.example', 'hired_at' => '2020-01-01']);
+        foreach (['2026-11-23', '2026-11-24', '2026-11-25'] as $day) {
+            $this->clockedIn($early, $day, 'on_time');
+            $this->clockedIn($late, $day, 'on_time');
+        }
+        $this->clockedIn($early, '2026-11-26', 'on_time');
+
+        $staff = $this->agent('attendance?start=2026-11-23&end=2026-11-29')->assertOk()->json('staff');
+
+        $this->assertSame([4, 4], [$staff['early@tgm.example']['working_days'], $staff['early@tgm.example']['present_days']]);
+        $this->assertSame([3, 3], [$staff['late@tgm.example']['working_days'], $staff['late@tgm.example']['present_days']]);
     }
 
     public function test_absences_give_dates_and_kind_but_never_the_reason(): void

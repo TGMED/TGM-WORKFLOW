@@ -15,6 +15,7 @@ use App\Services\LeaveBalance;
 use App\Services\Metrics\AttendanceTally;
 use App\Services\PolicyLibrary;
 use App\Support\Workdays;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -110,6 +111,9 @@ class HrAgentController extends Controller
      * Attendance totals for everyone who clocks in: days they were expected
      * (their site's working week, less public holidays and days before they
      * joined), days present, days late (unexcused), and days on approved leave.
+     *
+     * Days still to come are never expected, and today only once the person
+     * has clocked in: asked at 8am, nobody should look a day short.
      */
     public function attendance(Request $request): JsonResponse
     {
@@ -128,26 +132,38 @@ class HrAgentController extends Controller
         $leave = $this->approvedLeave($from, $to, $people->modelKeys());
         $holidays = [];
         $result = [];
+        $today = Carbon::today();
+        // The last day everybody was expected in: the end of the window, or yesterday.
+        $until = $to->lessThan($today) ? $to->copy() : $today->copy()->subDay();
 
         foreach ($people as $user) {
             $site = $user->location_id;
             $workdays = $user->location?->workdayNumbers() ?? [1, 2, 3, 4, 5];
             $siteHolidays = $holidays[$site ?? 0] ??= PublicHoliday::datesBetween($from, $to, $site);
-            $start = $user->hired_at && $user->hired_at->greaterThan($from) ? $user->hired_at->copy() : $from->copy();
+            $hired = $user->hired_at ? $this->day($user->hired_at) : null;
+            $start = $hired && $hired->greaterThan($from) ? $hired : $from->copy();
+            $tally = $tallies->get($user->id) ?? AttendanceTally::none($user->id);
+
+            $expected = Workdays::countBetween($start, $until, $workdays, $siteHolidays);
+            $inToday = $tally->lastSeen !== null && substr($tally->lastSeen, 0, 10) === $today->toDateString();
+            if ($inToday && $today->betweenIncluded($start, $to)) {
+                $expected += Workdays::countBetween($today, $today, $workdays, $siteHolidays);
+            }
 
             $leaveDays = 0;
             foreach ($leave->get($user->id, collect()) as $away) {
+                $leaveStart = $this->day($away->start_date);
+                $leaveEnd = $this->day($away->end_date);
                 $leaveDays += Workdays::countBetween(
-                    $away->start_date->greaterThan($start) ? $away->start_date : $start,
-                    $away->end_date->lessThan($to) ? $away->end_date : $to,
+                    $leaveStart->greaterThan($start) ? $leaveStart : $start,
+                    $leaveEnd->lessThan($until) ? $leaveEnd : $until,
                     $workdays,
                     $siteHolidays,
                 );
             }
 
-            $tally = $tallies->get($user->id) ?? AttendanceTally::none($user->id);
             $result[strtolower((string) $user->email)] = [
-                'working_days' => Workdays::countBetween($start, $to, $workdays, $siteHolidays),
+                'working_days' => $expected,
                 'present_days' => $tally->daysPresent,
                 'late_days' => $tally->daysLate,
                 'leave_days' => $leaveDays,
@@ -308,6 +324,15 @@ class HrAgentController extends Controller
         }
 
         return [$from, $to];
+    }
+
+    /**
+     * A model's date as the mutable Carbon that Workdays takes. Workflow's
+     * models hand out CarbonImmutable (AppServiceProvider sets Date::use).
+     */
+    private function day(CarbonInterface $date): Carbon
+    {
+        return Carbon::parse($date->toDateString());
     }
 
     /**
